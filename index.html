@@ -197,7 +197,8 @@ async function iniciar(){
     atualizarDisp(); await carregar(); assinar();
   }else if(perfil.papel==="central"){
     S.aba="dia"; S.dia=hojeISO(); S.semana=inicioSemana();
-    montarAbas([["dia","📋","Entregas"],["fechamento","💰","Fechamento"],["acessos","👥","Acessos"]]);
+    S.mes=hojeISO().slice(0,7);
+    montarAbas([["dia","📋","Entregas"],["fechamento","💰","Semana"],["relatorio","📊","Mês"],["acessos","👥","Cadastros"]]);
     $("#fab").hidden=false; $("#fab").textContent="+ Nova entrega"; $("#fab").onclick=()=>formEntrega("central");
     const { data:ents } = await sb.from("entregadores").select("id,nome,ativo").order("nome"); S.entregadores=ents||[];
     await carregar(); assinar(); limparFotosAntigas();
@@ -271,6 +272,7 @@ function render(){
   else if(S.aba==="dia") telaCentralDia(m);
   else if(S.aba==="acessos") telaAcessos(m);
   else if(S.aba==="fechamento") telaFechamento(m);
+  else if(S.aba==="relatorio") telaRelatorio(m);
   else if(S.aba==="choje") telaComercioHoje(m);
   else if(S.aba==="csemana") telaComercioSemana(m);
 }
@@ -322,7 +324,7 @@ function telaFechamento(m){
   const porEnt={}; l.forEach(e=>{ if(e.entregador_id) (porEnt[e.entregador_id]=porEnt[e.entregador_id]||[]).push(e); });
   Object.entries(porEnt).sort((a,b)=>((a[1][0].entregadores||{}).nome||"").localeCompare((b[1][0].entregadores||{}).nome||"")).forEach(([id,es])=>{
     const nome=(es[0].entregadores&&es[0].entregadores.nome)||"Entregador";
-    const ganho=soma(es,e=>e.ganho_entregador), ad=es.filter(e=>e.adicional).length;
+    const ganho=soma(es,e=>e.ganho_entregador), ad=es.filter(e=>e.adicional).length+soma(es,e=>e.adicionais);
     const pend=es.filter(e=>e.pagamento==="dinheiro"&&!e.acertado), din=soma(pend,e=>e.valor_dinheiro);
     const f=fech.find(x=>x.entregador_id===id);
     const p=h("div",{class:"painel"},
@@ -388,7 +390,7 @@ function telaResumo(m){
   const de=inicioSemana(); const sem=S.entregas.filter(e=>e.data>=de&&e.status==="entregue");
   const ganho=sem.reduce((s,e)=>s+Number(e.ganho_entregador||0),0);
   const din=sem.filter(e=>e.pagamento==="dinheiro"&&!e.acertado).reduce((s,e)=>s+Number(e.valor_dinheiro||0),0);
-  const ad=sem.filter(e=>e.adicional).length;
+  const ad=sem.filter(e=>e.adicional).length+soma(sem,e=>e.adicionais);
   m.append(h("h2",{text:"Esta semana"}),h("p",{class:"muted",style:"margin:0",text:"De segunda "+new Date(de+"T12:00").toLocaleDateString("pt-BR")+" até domingo. O fechamento é feito pela central."}),
     h("div",{class:"resumo"},
       h("div",{class:"res"},h("b",{class:"num",text:sem.length}),h("span",{text:"Entregas"})),
@@ -420,6 +422,7 @@ function cartao(e){
       e.pagamento==="dinheiro"&&Number(e.troco_para)>Number(e.valor_dinheiro)?h("span",{class:"pill pend num",text:"Troco p/ "+fmt(e.troco_para)}):null,
       h("span",{class:"pill num",text:S.perfil.papel==="comercio"?"Taxa "+fmt(e.taxa_cobrada):(central?"Taxa "+fmt(e.taxa_cobrada)+" · ":"")+"Ganho "+fmt(e.ganho_entregador)}),
       e.adicional?h("span",{class:"pill",text:"Adicional"}):null,
+      Number(e.adicionais)>0&&S.perfil.papel!=="comercio"?h("span",{class:"pill",text:"+"+e.adicionais+" adic. (bairro)"}):null,
       e.foto_path?h("button",{class:"pill ok",style:"border:0",text:"Ver foto",onclick:()=>verFoto(e)}):null),
     e.obs?h("div",{class:"obs",text:e.obs}):null,
     S.perfil.papel!=="entregador"?h("div",{class:"muted",style:"font-size:13px",text:e.entregadores?"🛵 "+e.entregadores.nome:"Aguardando um entregador aceitar"}):null
@@ -492,6 +495,14 @@ function formEntrega(modo){
   const fCom=h("select",{class:"inp",id:"feCom"},h("option",{value:"",text:"Escolha o comércio"}),S.comercios.map(c=>h("option",{value:c.id,text:c.nome})));
   const fCli=h("input",{class:"inp",id:"feCli"}), fTel=h("input",{class:"inp",id:"feTel",inputmode:"tel"});
   const fEnd=h("input",{class:"inp",id:"feEnd"}), fBai=h("input",{class:"inp",id:"feBai"});
+  const achado=h("div",{class:"muted",style:"font-size:13px",hidden:true});
+  fTel.addEventListener("change",async()=>{
+    const d=fTel.value.replace(/\D/g,"").slice(-11); if(d.length<8) return;
+    const { data } = await sb.from("clientes").select("nome,endereco,bairro").eq("tel_digitos",d).maybeSingle();
+    if(!data){ achado.hidden=false; achado.textContent="Cliente novo — será cadastrado ao salvar."; return; }
+    if(!fCli.value) fCli.value=data.nome||""; if(!fEnd.value) fEnd.value=data.endereco||""; if(!fBai.value) fBai.value=data.bairro||"";
+    achado.hidden=false; achado.textContent="✓ Cliente já cadastrado: dados preenchidos.";
+  });
   const fVal=h("input",{class:"inp",id:"feVal",inputmode:"decimal",placeholder:"0,00"}), fTroco=h("input",{class:"inp",id:"feTroco",inputmode:"decimal",placeholder:"0,00"});
   const fTaxa=h("input",{class:"inp",id:"feTaxa",inputmode:"decimal",value:"8"});
   const fObs=h("textarea",{class:"inp",id:"feObs",rows:2});
@@ -506,7 +517,7 @@ function formEntrega(modo){
   const fechar=folha(central?"Nova entrega":doComercio?"Pedir entrega":"Lançar entrega",
     doComercio?null:h("div",{class:"campo"},h("label",{for:"feCom",text:"Coleta em"}),fCom),
     h("div",{class:"campo"},h("label",{for:"feCli",text:"Cliente"}),fCli),
-    h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"feTel",text:"Telefone"}),fTel),h("div",{class:"campo"},h("label",{for:"feBai",text:"Bairro"}),fBai)),
+    h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"feTel",text:"Telefone"}),fTel),h("div",{class:"campo"},h("label",{for:"feBai",text:"Bairro"}),fBai)), achado,
     h("div",{class:"campo"},h("label",{for:"feEnd",text:"Endereço de entrega"}),fEnd),
     h("div",{class:"campo"},h("label",{text:"Pagamento"}),seg), din,
     central?h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"feTaxa",text:"Taxa do comércio"}),fTaxa),h("label",{style:"display:flex;gap:8px;align-items:center;font-weight:600",for:"feAd"},fAd,"É adicional")):null,
@@ -520,6 +531,7 @@ function formEntrega(modo){
       taxa_cobrada:central?num(fTaxa.value):Number((c&&c.taxa)||8),adicional:central?fAd.checked:false};
     if(!central&&!doComercio){ dados.entregador_id=S.perfil.entregador_id; dados.status="aceita"; }
     ok.disabled=true; ok.textContent="Salvando…";
+    if(dados.cliente_telefone){ try{ const r=await sb.rpc("salvar_cliente",{p_nome:dados.cliente_nome,p_telefone:dados.cliente_telefone,p_endereco:dados.endereco,p_bairro:dados.bairro}); if(r.data) dados.cliente_id=r.data; }catch(e){} }
     const { error } = await sb.from("entregas").insert(dados);
     if(error){ ok.disabled=false; ok.textContent="Tentar de novo"; msg.hidden=false; msg.textContent="Não foi possível salvar: "+error.message; return; }
     fechar(); toast(central||doComercio?"Pedido enviado aos entregadores":"Entrega lançada"); carregar();
@@ -543,6 +555,65 @@ async function carregarAcessos(){
   const { data } = await sb.from("perfis").select("*").order("criado_em",{ascending:false});
   S.perfis=data||[];
 }
+/* ---------------- Relatório do mês ---------------- */
+async function telaRelatorio(m){
+  const [a,mm]=S.mes.split("-").map(Number); const de=S.mes+"-01"; const ate=new Date(a,mm,0).toISOString().slice(0,10);
+  const nomeMes=new Date(a,mm-1,15).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+  const mudar=n=>{ const d=new Date(a,mm-1+n,15); S.mes=d.toISOString().slice(0,7); render(); };
+  m.append(h("div",{class:"l1"},h("button",{class:"x","aria-label":"Mês anterior",text:"‹",onclick:()=>mudar(-1)}),
+    h("h2",{style:"flex:1;text-align:center;text-transform:capitalize",text:nomeMes}),
+    h("button",{class:"x","aria-label":"Próximo mês",text:"›",onclick:()=>mudar(1)})));
+  const corpo=h("div",{style:"display:flex;flex-direction:column;gap:14px"},h("div",{class:"vazio",text:"Calculando…"})); m.append(corpo);
+  const { data:r, error } = await sb.rpc("relatorio_periodo",{p_de:de,p_ate:ate});
+  if(error){ corpo.replaceChildren(h("div",{class:"erro",text:error.message})); return; }
+  const tabela=(cab,linhas)=>h("div",{style:"overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r)"},
+    h("table",{style:"width:100%;border-collapse:collapse;font-size:14px"},h("thead",{},h("tr",{},cab.map((c,i)=>h("th",{style:"text-align:"+(i?"right":"left")+";padding:8px 12px;font-size:11px;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)",text:c})))),
+    h("tbody",{},linhas.map(l=>h("tr",{},l.map((c,i)=>h("td",{class:"num",style:"padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:"+(i?"right":"left"),text:c})))))));
+  corpo.replaceChildren(
+    h("div",{class:"resumo"},
+      h("div",{class:"res"},h("b",{class:"num",text:r.entregas}),h("span",{text:"Entregas"})),
+      h("div",{class:"res"},h("b",{class:"num",text:fmt(r.taxas)}),h("span",{text:"Taxas"})),
+      h("div",{class:"res din"},h("b",{class:"num",text:fmt(r.taxas-r.ganhos)}),h("span",{text:"Fica p/ central"}))),
+    h("div",{class:"muted num",text:"Pago aos entregadores: "+fmt(r.ganhos)+" · Adicionais: "+r.adicionais+" · Dinheiro recebido: "+fmt(r.dinheiro)+(r.dinheiro_pendente>0?" · A acertar: "+fmt(r.dinheiro_pendente):"")}),
+    h("div",{class:"eyebrow",text:"Por entregador"}),
+    tabela(["Entregador","Entregas","Adic.","Ganho","A acertar"],r.por_entregador.map(x=>[x.nome,x.qtd,x.adicionais,fmt(x.ganho),fmt(x.dinheiro_pendente)])),
+    h("div",{class:"eyebrow",text:"Por comércio"}),
+    tabela(["Comércio","Entregas","Taxas"],r.por_comercio.map(x=>[x.nome,x.qtd,fmt(x.taxas)])),
+    h("div",{class:"eyebrow",text:"Por dia"}),
+    tabela(["Dia","Entregas","Taxas","Ganhos"],r.por_dia.map(x=>[dataBR(x.data,{weekday:"short",day:"2-digit",month:"2-digit"}),x.qtd,fmt(x.taxas),fmt(x.ganhos)])),
+    h("button",{class:"btn sec",text:"Baixar planilha do mês (CSV)",onclick:()=>baixarCSV(de,ate)}));
+}
+async function baixarCSV(de,ate){
+  let todas=[], pag=0;
+  while(true){
+    const { data, error } = await sb.from("entregas").select("numero,data,status,cliente_nome,cliente_telefone,endereco,bairro,pagamento,valor_dinheiro,taxa_cobrada,ganho_entregador,adicional,adicionais,acertado,comercios(nome),entregadores(nome)")
+      .gte("data",de).lte("data",ate).order("numero").range(pag*1000,pag*1000+999);
+    if(error){ toast(error.message); return; }
+    todas=todas.concat(data); if(data.length<1000) break; pag++;
+  }
+  const cab=["Número","Data","Status","Comércio","Entregador","Cliente","Telefone","Endereço","Bairro","Pagamento","Dinheiro","Taxa","Ganho entregador","Adicionais","Acertado"];
+  const q=v=>'"'+String(v??"").replace(/"/g,'""')+'"', n=v=>String(Number(v)||0).replace(".",",");
+  const linhas=todas.map(e=>[e.numero,dataBR(e.data,{day:"2-digit",month:"2-digit",year:"numeric"}),e.status,(e.comercios||{}).nome,(e.entregadores||{}).nome,e.cliente_nome,e.cliente_telefone,e.endereco,e.bairro,e.pagamento,n(e.valor_dinheiro),n(e.taxa_cobrada),n(e.ganho_entregador),e.adicional?"entrega adicional":e.adicionais,e.acertado?"sim":"não"].map(q).join(";"));
+  const blob=new Blob(["﻿"+cab.map(q).join(";")+"\n"+linhas.join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=h("a",{href:URL.createObjectURL(blob),download:"movvi-"+de.slice(0,7)+".csv"}); document.body.append(a); a.click(); a.remove();
+}
+
+/* ---------------- Bairros com adicional ---------------- */
+async function painelBairros(){
+  const { data } = await sb.from("config").select("valor").eq("chave","bairros").maybeSingle();
+  const lista=((data&&data.valor&&data.valor.lista)||[]).slice();
+  const box=h("div",{class:"painel"});
+  const desenhar=()=>{
+    box.replaceChildren(h("h3",{text:"Bairros com adicional"}),
+      h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Entregas para esses bairros já entram com o adicional do entregador (R$ 6 cada). O comércio não paga o adicional."}),
+      ...lista.map((b,i)=>h("div",{class:"l1"},h("span",{style:"flex:1",text:b.nome}),h("span",{class:"pill num",text:b.qtd+" adic."}),h("button",{class:"x","aria-label":"Remover "+b.nome,text:"✕",onclick:()=>{lista.splice(i,1); salvar();}}))));
+    const fN=h("input",{class:"inp",id:"bNome",placeholder:"Nome do bairro"}), fQ=h("input",{class:"inp",id:"bQtd",inputmode:"numeric",value:"1",style:"max-width:80px"});
+    box.append(h("div",{class:"l1"},fN,fQ,h("button",{class:"btn",style:"flex:none",text:"Adicionar",onclick:()=>{ if(!fN.value.trim()) return; lista.push({nome:fN.value.trim(),qtd:Math.max(1,parseInt(fQ.value)||1)}); salvar(); }})));
+  };
+  const salvar=async()=>{ const { error } = await sb.from("config").upsert({chave:"bairros",valor:{lista}}); if(error) toast(error.message); else toast("Bairros salvos"); desenhar(); };
+  desenhar(); return box;
+}
+
 function telaAcessos(m){
   if(!S.perfis){ carregarAcessos().then(render); m.append(h("div",{class:"vazio",text:"Carregando…"})); return; }
   const pend=S.perfis.filter(p=>p.papel==="pendente");
@@ -578,6 +649,7 @@ function telaAcessos(m){
         const { data:coms } = await sb.from("comercios").select("id,nome,endereco,taxa").eq("ativo",true).order("nome");
         S.comercios=coms||[]; toast("Comércio cadastrado"); render();
       }})));
+  painelBairros().then(b=>m.append(b));
   const ativos=S.perfis.filter(p=>p.papel!=="pendente");
   if(ativos.length){ m.append(h("div",{class:"eyebrow",text:"Com acesso"})); ativos.forEach(p=>m.append(h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between"},h("b",{text:p.nome||"—"}),h("span",{class:"pill",text:p.papel})))); }
 }
