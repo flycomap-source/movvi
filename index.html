@@ -196,16 +196,34 @@ async function iniciar(){
     $("#fab").hidden=false; $("#fab").onclick=()=>formEntrega();
     atualizarDisp(); await carregar(); assinar();
   }else if(perfil.papel==="central"){
-    S.aba="dia"; montarAbas([["dia","📋","Entregas"],["acessos","👥","Acessos"]]);
-    $("#fab").hidden=false; $("#fab").textContent="+ Nova entrega"; $("#fab").onclick=()=>formEntrega(true);
+    S.aba="dia"; S.dia=hojeISO(); S.semana=inicioSemana();
+    montarAbas([["dia","📋","Entregas"],["fechamento","💰","Fechamento"],["acessos","👥","Acessos"]]);
+    $("#fab").hidden=false; $("#fab").textContent="+ Nova entrega"; $("#fab").onclick=()=>formEntrega("central");
+    const { data:ents } = await sb.from("entregadores").select("id,nome,ativo").order("nome"); S.entregadores=ents||[];
+    await carregar(); assinar(); limparFotosAntigas();
+  }else if(perfil.papel==="comercio"){
+    S.aba="choje"; S.comercio=S.comercios.find(c=>c.id===perfil.comercio_id)||null;
+    montarAbas([["choje","📦","Hoje"],["csemana","🗓️","Semana"]]);
+    $("#fab").hidden=false; $("#fab").textContent="+ Pedir entrega"; $("#fab").onclick=()=>formEntrega("comercio");
     await carregar(); assinar();
-  }else{
-    $("#main").replaceChildren(h("div",{class:"painel"},h("h2",{text:"Painel do comércio"}),h("p",{class:"muted",style:"margin:0",text:"Essa tela vem na próxima etapa."})));
   }
 }
+/* Fotos ficam 7 dias; a central apaga as mais antigas quando abre o app */
+async function limparFotosAntigas(){
+  try{
+    const limite=new Date(Date.now()-7*864e5).toISOString();
+    const { data } = await sb.from("entregas").select("id,foto_path").not("foto_path","is",null).lt("foto_em",limite).limit(200);
+    if(!data||!data.length) return;
+    const { error } = await sb.storage.from("comprovantes").remove(data.map(e=>e.foto_path));
+    if(error) return;
+    await sb.from("entregas").update({foto_path:null}).in("id",data.map(e=>e.id));
+  }catch(e){ console.warn("limpeza",e); }
+}
+const addDias=(iso,n)=>{ const d=new Date(iso+"T12:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+const dataBR=(iso,o={day:"2-digit",month:"2-digit"})=>new Date(iso+"T12:00").toLocaleDateString("pt-BR",o);
 function montarAbas(lista){
   const a=$("#abas"); a.replaceChildren(); $("#nav").hidden=false;
-  lista.forEach(([id,ic,rot])=>a.append(h("button",{class:"aba",id:"aba-"+id,"aria-current":S.aba===id?"page":null,onclick:()=>{S.aba=id; lista.forEach(([x])=>$("#aba-"+x).removeAttribute("aria-current")); $("#aba-"+id).setAttribute("aria-current","page"); render();}},h("span",{class:"ic",text:ic}),h("span",{},rot,h("span",{class:"badge",id:"bdg-"+id,hidden:true})))));
+  lista.forEach(([id,ic,rot])=>a.append(h("button",{class:"aba",id:"aba-"+id,"aria-current":S.aba===id?"page":null,onclick:()=>{S.aba=id; lista.forEach(([x])=>$("#aba-"+x).removeAttribute("aria-current")); $("#aba-"+id).setAttribute("aria-current","page"); render(); carregar();}},h("span",{class:"ic",text:ic}),h("span",{},rot,h("span",{class:"badge",id:"bdg-"+id,hidden:true})))));
 }
 function atualizarDisp(){
   const b=$("#btnDisp"); if(!S.entregador){ b.hidden=true; return; }
@@ -215,15 +233,22 @@ function atualizarDisp(){
 
 /* ---------------- Dados ---------------- */
 async function carregar(){
-  const central = S.perfil.papel==="central";
-  const desde = S.aba==="resumo" ? inicioSemana() : hojeISO();
-  let q = sb.from("entregas").select("*, comercios(nome)").order("numero",{ascending:false});
-  if(central) q=q.eq("data",hojeISO());
+  const papel=S.perfil.papel, central=papel==="central";
+  let q = sb.from("entregas").select("*, comercios(nome), entregadores(nome)").order("numero",{ascending:false});
+  if(central){
+    if(S.aba==="fechamento") q=q.gte("data",S.semana).lte("data",addDias(S.semana,6)).eq("status","entregue");
+    else q=q.eq("data",S.dia);
+  }else if(papel==="comercio") q=q.eq("comercio_id",S.perfil.comercio_id).gte("data",inicioSemana());
   else q=q.or(`and(entregador_id.eq.${S.perfil.entregador_id},data.gte.${inicioSemana()}),and(entregador_id.is.null,status.eq.solicitado)`);
-  const { data, error } = await q;
+  const { data, error } = await q.limit(5000);
   if(error){ $("#main").replaceChildren(h("div",{class:"erro",text:"Não consegui carregar as entregas: "+error.message})); return; }
-  S.entregas=(data||[]).filter(e=>e.entregador_id||central);
-  S.ofertas=(data||[]).filter(e=>!e.entregador_id && e.status==="solicitado");
+  if(papel==="entregador"){
+    S.entregas=(data||[]).filter(e=>e.entregador_id);
+    S.ofertas=(data||[]).filter(e=>!e.entregador_id && e.status==="solicitado");
+  }else{ S.entregas=data||[]; S.ofertas=[]; }
+  if(central && S.aba==="fechamento"){
+    const { data:f } = await sb.from("fechamentos").select("*").eq("semana_inicio",S.semana); S.fechamentos=f||[];
+  }
   if(central && S.aba==="acessos") await carregarAcessos();
   render();
 }
@@ -245,6 +270,100 @@ function render(){
   else if(S.aba==="resumo") telaResumo(m);
   else if(S.aba==="dia") telaCentralDia(m);
   else if(S.aba==="acessos") telaAcessos(m);
+  else if(S.aba==="fechamento") telaFechamento(m);
+  else if(S.aba==="choje") telaComercioHoje(m);
+  else if(S.aba==="csemana") telaComercioSemana(m);
+}
+const soma=(l,f)=>l.reduce((s,e)=>s+Number(f(e)||0),0);
+
+/* ---------------- Comércio ---------------- */
+function telaComercioHoje(m){
+  const hoje=S.entregas.filter(ehHoje);
+  const andamento=hoje.filter(e=>!["entregue","cancelado"].includes(e.status));
+  const feitas=hoje.filter(e=>e.status==="entregue");
+  m.append(h("h2",{text:(S.comercio?S.comercio.nome:"Meu comércio")+" — hoje"}),
+    h("div",{class:"resumo"},
+      h("div",{class:"res"},h("b",{class:"num",text:andamento.length}),h("span",{text:"Em andamento"})),
+      h("div",{class:"res"},h("b",{class:"num",text:feitas.length}),h("span",{text:"Entregues"})),
+      h("div",{class:"res"},h("b",{class:"num",text:fmt(soma(feitas.filter(e=>!e.adicional),e=>e.taxa_cobrada))}),h("span",{text:"Taxas do dia"}))));
+  m.append(h("div",{class:"eyebrow",text:"Em andamento"}),
+    andamento.length?h("div",{class:"lista"},andamento.map(cartao)):h("div",{class:"vazio",text:"Nenhuma entrega em andamento. Toque em “+ Pedir entrega” para chamar um entregador."}));
+  if(feitas.length) m.append(h("div",{class:"eyebrow",text:"Entregues hoje"}),h("div",{class:"lista"},feitas.map(cartao)));
+}
+function telaComercioSemana(m){
+  const de=inicioSemana(); const sem=S.entregas.filter(e=>e.status==="entregue"&&!e.adicional);
+  m.append(h("h2",{text:"Esta semana"}),h("p",{class:"muted",style:"margin:0",text:"De "+dataBR(de)+" a "+dataBR(addDias(de,6))+". O acerto das taxas é feito com a central no fechamento da semana."}),
+    h("div",{class:"resumo"},
+      h("div",{class:"res"},h("b",{class:"num",text:sem.length}),h("span",{text:"Entregas"})),
+      h("div",{class:"res"},h("b",{class:"num",text:fmt(soma(sem,e=>e.taxa_cobrada))}),h("span",{text:"Taxas"})),
+      h("div",{class:"res din"},h("b",{class:"num",text:fmt(soma(sem.filter(e=>e.pagamento==="dinheiro"),e=>e.valor_dinheiro))}),h("span",{text:"Recebido em dinheiro"}))));
+  const porDia={}; sem.forEach(e=>{(porDia[e.data]=porDia[e.data]||[]).push(e);});
+  Object.keys(porDia).sort().reverse().forEach(d=>m.append(h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between;align-items:center"},
+    h("b",{text:dataBR(d,{weekday:"short",day:"2-digit",month:"2-digit"})}),h("span",{class:"num",text:porDia[d].length+" entregas · "+fmt(soma(porDia[d],e=>e.taxa_cobrada))}))));
+  if(!sem.length) m.append(h("div",{class:"vazio",text:"Nenhuma entrega concluída nesta semana ainda."}));
+}
+
+/* ---------------- Fechamento da semana (central) ---------------- */
+function telaFechamento(m){
+  const ini=S.semana, fim=addDias(ini,6), l=S.entregas.filter(e=>e.status==="entregue"&&e.data>=ini&&e.data<=fim);
+  const fech=S.fechamentos||[];
+  m.append(h("div",{class:"l1"},
+    h("button",{class:"x","aria-label":"Semana anterior",text:"‹",onclick:()=>{S.semana=addDias(S.semana,-7); carregar();}}),
+    h("h2",{style:"flex:1;text-align:center",text:dataBR(ini)+" a "+dataBR(fim)}),
+    h("button",{class:"x","aria-label":"Próxima semana",text:"›",onclick:()=>{S.semana=addDias(S.semana,7); carregar();}})));
+  const recebe=soma(l.filter(e=>!e.adicional),e=>e.taxa_cobrada), paga=soma(l,e=>e.ganho_entregador);
+  m.append(h("div",{class:"resumo"},
+    h("div",{class:"res"},h("b",{class:"num",text:fmt(recebe)}),h("span",{text:"Receber comércios"})),
+    h("div",{class:"res"},h("b",{class:"num",text:fmt(paga)}),h("span",{text:"Pagar entregadores"})),
+    h("div",{class:"res din"},h("b",{class:"num",text:fmt(recebe-paga)}),h("span",{text:"Fica p/ central"}))));
+  if(!l.length){ m.append(h("div",{class:"vazio",text:"Nenhuma entrega concluída nessa semana."})); return; }
+
+  m.append(h("div",{class:"eyebrow",text:"Entregadores"}));
+  const porEnt={}; l.forEach(e=>{ if(e.entregador_id) (porEnt[e.entregador_id]=porEnt[e.entregador_id]||[]).push(e); });
+  Object.entries(porEnt).sort((a,b)=>((a[1][0].entregadores||{}).nome||"").localeCompare((b[1][0].entregadores||{}).nome||"")).forEach(([id,es])=>{
+    const nome=(es[0].entregadores&&es[0].entregadores.nome)||"Entregador";
+    const ganho=soma(es,e=>e.ganho_entregador), ad=es.filter(e=>e.adicional).length;
+    const pend=es.filter(e=>e.pagamento==="dinheiro"&&!e.acertado), din=soma(pend,e=>e.valor_dinheiro);
+    const f=fech.find(x=>x.entregador_id===id);
+    const p=h("div",{class:"painel"},
+      h("div",{class:"l1"},h("b",{style:"flex:1",text:nome}),f&&f.pago?h("span",{class:"pill ok",text:"Pago"}):h("span",{class:"pill pend",text:"A pagar"})),
+      h("div",{class:"num muted",text:es.length+" entregas"+(ad?" ("+ad+" adicional"+(ad>1?"is":"")+")":"")+" · ganho "+fmt(ganho)}),
+      din>0?h("div",{class:"aviso num",text:"Dinheiro em mãos a acertar: "+fmt(din)+" ("+pend.length+" entrega"+(pend.length>1?"s":"")+")"}):null);
+    const ac=h("div",{class:"acoes"});
+    if(din>0) ac.append(h("button",{class:"btn sec",text:"Acertar "+fmt(din),onclick:async ev=>{
+      if(!confirm("Confirmar que recebeu "+fmt(din)+" de "+nome+"?")) return;
+      ev.currentTarget.disabled=true;
+      const { data:a, error } = await sb.from("acertos").insert({entregador_id:id,de:ini,ate:fim,dinheiro:din,qtd_entregas:pend.length,criado_por:(await sb.auth.getUser()).data.user.id}).select().single();
+      if(error){ toast(error.message); return; }
+      await sb.from("entregas").update({acertado:true,acerto_id:a.id}).in("id",pend.map(e=>e.id));
+      toast("Acerto registrado"); carregar();
+    }}));
+    if(!(f&&f.pago)) ac.append(h("button",{class:"btn",text:"Marcar pago "+fmt(ganho),onclick:async ev=>{
+      if(!confirm("Marcar como pago "+fmt(ganho)+" para "+nome+" nesta semana?")) return;
+      ev.currentTarget.disabled=true;
+      const { error } = await sb.from("fechamentos").upsert({semana_inicio:ini,semana_fim:fim,entregador_id:id,qtd_entregas:es.length,qtd_adicionais:ad,valor:ganho,pago:true,pago_em:new Date().toISOString()},{onConflict:"semana_inicio,entregador_id"});
+      if(error){ toast(error.message); return; } toast("Pagamento registrado"); carregar();
+    }}));
+    if(ac.childNodes.length) p.append(ac);
+    m.append(p);
+  });
+
+  m.append(h("div",{class:"eyebrow",text:"Comércios"}));
+  const porCom={}; l.filter(e=>!e.adicional&&e.comercio_id).forEach(e=>(porCom[e.comercio_id]=porCom[e.comercio_id]||[]).push(e));
+  Object.entries(porCom).forEach(([id,es])=>{
+    const nome=(es[0].comercios&&es[0].comercios.nome)||"Comércio", total=soma(es,e=>e.taxa_cobrada);
+    const f=fech.find(x=>x.comercio_id===id);
+    const p=h("div",{class:"painel"},
+      h("div",{class:"l1"},h("b",{style:"flex:1",text:nome}),f&&f.pago?h("span",{class:"pill ok",text:"Recebido"}):h("span",{class:"pill pend",text:"A receber"})),
+      h("div",{class:"num muted",text:es.length+" entregas · taxas "+fmt(total)}));
+    if(!(f&&f.pago)) p.append(h("div",{class:"acoes"},h("button",{class:"btn",text:"Marcar recebido "+fmt(total),onclick:async ev=>{
+      if(!confirm("Confirmar que recebeu "+fmt(total)+" de "+nome+"?")) return;
+      ev.currentTarget.disabled=true;
+      const { error } = await sb.from("fechamentos").upsert({semana_inicio:ini,semana_fim:fim,comercio_id:id,qtd_entregas:es.length,valor:total,pago:true,pago_em:new Date().toISOString()},{onConflict:"semana_inicio,comercio_id"});
+      if(error){ toast(error.message); return; } toast("Recebimento registrado"); carregar();
+    }})));
+    m.append(p);
+  });
 }
 const ehHoje = e => e.data===hojeISO();
 function telaHoje(m){
@@ -299,13 +418,16 @@ function cartao(e){
     h("div",{class:"meta"},
       e.pagamento==="dinheiro"?h("span",{class:"pill din num",text:"Receber "+fmt(e.valor_dinheiro)}):h("span",{class:"pill",text:{pago:"Já pago",cartao:"Cartão",pix:"Pix"}[e.pagamento]||e.pagamento}),
       e.pagamento==="dinheiro"&&Number(e.troco_para)>Number(e.valor_dinheiro)?h("span",{class:"pill pend num",text:"Troco p/ "+fmt(e.troco_para)}):null,
-      h("span",{class:"pill num",text:(central?"Taxa "+fmt(e.taxa_cobrada)+" · ":"")+"Ganho "+fmt(e.ganho_entregador)}),
+      h("span",{class:"pill num",text:S.perfil.papel==="comercio"?"Taxa "+fmt(e.taxa_cobrada):(central?"Taxa "+fmt(e.taxa_cobrada)+" · ":"")+"Ganho "+fmt(e.ganho_entregador)}),
       e.adicional?h("span",{class:"pill",text:"Adicional"}):null,
       e.foto_path?h("button",{class:"pill ok",style:"border:0",text:"Ver foto",onclick:()=>verFoto(e)}):null),
-    e.obs?h("div",{class:"obs",text:e.obs}):null
+    e.obs?h("div",{class:"obs",text:e.obs}):null,
+    S.perfil.papel!=="entregador"?h("div",{class:"muted",style:"font-size:13px",text:e.entregadores?"🛵 "+e.entregadores.nome:"Aguardando um entregador aceitar"}):null
   );
   const ac=h("div",{class:"acoes"});
-  if(!central){
+  if(S.perfil.papel==="comercio"){
+    if(oferta&&e.status==="solicitado") ac.append(h("button",{class:"btn sec",text:"Cancelar pedido",onclick:ev=>{ if(confirm("Cancelar a entrega #"+e.numero+"?")) mudar(e,{status:"cancelado"},ev.currentTarget); }}));
+  }else if(!central){
     if(oferta) ac.append(h("button",{class:"btn lar",text:"Aceitar entrega",onclick:ev=>aceitar(e,ev.currentTarget)}));
     else if(e.status==="aceita") ac.append(h("button",{class:"btn",text:"Coletei — sair em rota",onclick:ev=>mudar(e,{status:"em_rota"},ev.currentTarget)}));
     else if(e.status==="em_rota") ac.append(h("button",{class:"btn ok",text:"Entreguei — tirar foto",onclick:()=>concluir(e)}));
@@ -364,7 +486,8 @@ async function verFoto(e){
 }
 
 /* ---------------- Lançar entrega ---------------- */
-function formEntrega(central=false){
+function formEntrega(modo){
+  const central=modo==="central", doComercio=modo==="comercio";
   let pag="pago";
   const fCom=h("select",{class:"inp",id:"feCom"},h("option",{value:"",text:"Escolha o comércio"}),S.comercios.map(c=>h("option",{value:c.id,text:c.nome})));
   const fCli=h("input",{class:"inp",id:"feCli"}), fTel=h("input",{class:"inp",id:"feTel",inputmode:"tel"});
@@ -377,10 +500,11 @@ function formEntrega(central=false){
   const seg=h("div",{class:"seg"},[["pago","Pago"],["dinheiro","Dinheiro"],["cartao","Cartão"],["pix","Pix"]].map(([v,r])=>h("button",{type:"button","aria-pressed":v===pag?"true":"false",text:r,onclick:ev=>{pag=v; seg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed","false")); ev.currentTarget.setAttribute("aria-pressed","true"); din.hidden=v!=="dinheiro";}})));
   fCom.addEventListener("change",()=>{ const c=S.comercios.find(x=>x.id===fCom.value); if(c) fTaxa.value=String(c.taxa).replace(".",","); });
   const msg=h("div",{class:"erro",hidden:true});
-  const ok=h("button",{class:"btn",text:central?"Enviar aos entregadores":"Lançar entrega"});
+  const ok=h("button",{class:"btn",text:central||doComercio?"Chamar entregador":"Lançar entrega"});
+  if(doComercio&&S.perfil.comercio_id){ fCom.value=S.perfil.comercio_id; }
   const num=v=>Number(String(v||"").replace(/\./g,"").replace(",","."))||0;
-  const fechar=folha(central?"Nova entrega":"Lançar entrega",
-    h("div",{class:"campo"},h("label",{for:"feCom",text:"Coleta em"}),fCom),
+  const fechar=folha(central?"Nova entrega":doComercio?"Pedir entrega":"Lançar entrega",
+    doComercio?null:h("div",{class:"campo"},h("label",{for:"feCom",text:"Coleta em"}),fCom),
     h("div",{class:"campo"},h("label",{for:"feCli",text:"Cliente"}),fCli),
     h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"feTel",text:"Telefone"}),fTel),h("div",{class:"campo"},h("label",{for:"feBai",text:"Bairro"}),fBai)),
     h("div",{class:"campo"},h("label",{for:"feEnd",text:"Endereço de entrega"}),fEnd),
@@ -394,18 +518,21 @@ function formEntrega(central=false){
     const dados={comercio_id:fCom.value,coleta_endereco:(c&&c.endereco)||"",cliente_nome:fCli.value.trim(),cliente_telefone:fTel.value.trim(),endereco:fEnd.value.trim(),bairro:fBai.value.trim(),
       obs:fObs.value.trim(),pagamento:pag,valor_dinheiro:pag==="dinheiro"?num(fVal.value):0,troco_para:pag==="dinheiro"?num(fTroco.value):0,
       taxa_cobrada:central?num(fTaxa.value):Number((c&&c.taxa)||8),adicional:central?fAd.checked:false};
-    if(!central){ dados.entregador_id=S.perfil.entregador_id; dados.status="aceita"; }
+    if(!central&&!doComercio){ dados.entregador_id=S.perfil.entregador_id; dados.status="aceita"; }
     ok.disabled=true; ok.textContent="Salvando…";
     const { error } = await sb.from("entregas").insert(dados);
     if(error){ ok.disabled=false; ok.textContent="Tentar de novo"; msg.hidden=false; msg.textContent="Não foi possível salvar: "+error.message; return; }
-    fechar(); toast(central?"Entrega enviada aos entregadores":"Entrega lançada"); carregar();
+    fechar(); toast(central||doComercio?"Pedido enviado aos entregadores":"Entrega lançada"); carregar();
   });
 }
 
 /* ---------------- Central (provisório) ---------------- */
 function telaCentralDia(m){
   const l=S.entregas;
-  m.append(h("h2",{text:"Entregas de hoje"}),
+  m.append(h("div",{class:"l1"},
+    h("button",{class:"x","aria-label":"Dia anterior",text:"‹",onclick:()=>{S.dia=addDias(S.dia,-1); carregar();}}),
+    h("h2",{style:"flex:1;text-align:center",text:S.dia===hojeISO()?"Hoje":dataBR(S.dia,{weekday:"long",day:"2-digit",month:"2-digit"})}),
+    h("button",{class:"x","aria-label":"Próximo dia",text:"›",disabled:S.dia>=hojeISO(),onclick:()=>{S.dia=addDias(S.dia,1); carregar();}})),
     h("div",{class:"resumo"},
       h("div",{class:"res"},h("b",{class:"num",text:l.length}),h("span",{text:"Lançadas"})),
       h("div",{class:"res"},h("b",{class:"num",text:l.filter(e=>e.status==="entregue").length}),h("span",{text:"Entregues"})),
