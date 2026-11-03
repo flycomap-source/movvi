@@ -886,9 +886,8 @@ function abrirMenuCentral(){
     item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
     sec("Conta"),
     item("👤","Meus dados","Usuário e senha da central",()=>abrirConta()),
-    item("⇄","Trocar de conta","Entrar com outro usuário neste aparelho",()=>window.movviSair()),
     item("⚙","Configurações","Nome, senha, valor do adicional, bairros e fotos",()=>abrirConfiguracoes()),
-    item("⎋","Sair","Volta para a tela de login",()=>{ try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; exigirSenha("central"); })
+    item("⎋","Sair","Volta para a tela de login",()=>{ try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; if(window.movviUmaEntrada) return window.movviSair(); exigirSenha("central"); })
   ]);
 }
 /* ---------- On-line, disponibilidade e bloqueio ----------
@@ -966,6 +965,41 @@ function abrirConfiguracoes(){
   });
 }
 async function abrirConta(){
+  if(window.movviUmaEntrada) return abrirContaUnica();
+  return abrirContaAntiga();
+}
+async function abrirContaUnica(){
+  const tipo = central()?"central":S.modo;
+  const rotTipo = {central:"Central",entregador:"Entregador",comercio:"Comércio"}[tipo]||"";
+  const fN=h("input",{class:"inp",id:"cNova",type:"password",autocomplete:"new-password"});
+  const fC=h("input",{class:"inp",id:"cConf",type:"password",autocomplete:"new-password"});
+  const msg=h("div",{class:"aviso",hidden:true});
+  const salvar=h("button",{class:"btn full",type:"button"},"Trocar senha");
+  const sair=h("button",{class:"btn sec full",type:"button",onclick:()=>window.movviSair()},"Sair");
+  const equipe=central()?h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); irPara("equipe"); }},"Equipe, comércios e senhas"):null;
+  const controle=central()?h("button",{class:"btn full",type:"button",onclick:()=>{ fechar(); abrirControle(); }},"Entregadores e comércios: acesso e status"):null;
+  const fotosBt=(central()&&S.assets)?h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); abrirFotos(); }},"🗑 Excluir histórico de fotos das entregas"):null;
+  const fechar=mostrarPagina("Minha conta","Meus dados",[
+    h("div",{class:"tabela-wrap"},h("table",null,h("tbody",null,
+      h("tr",null,h("td",{class:"muted",text:"Perfil"}),h("td",{class:"r",style:"font-weight:700",text:rotTipo})),
+      h("tr",null,h("td",{class:"muted",text:"Usuário"}),h("td",{class:"r",style:"font-weight:700",text:window.movviUsuario||"—"})),
+      h("tr",null,h("td",{class:"muted",text:"Nome"}),h("td",{class:"r",style:"font-weight:700;white-space:normal",text:central()?(S.nomeCentral||"Central"):S.euNome||"—"})),
+      tipo!=="central"?h("tr",null,h("td",{class:"muted",text:"Taxa"}),h("td",{class:"r num",text:(tipo==="entregador"?"mínimo ":"")+fmt(S.euTaxa)+" por entrega"})):null))),
+    h("div",{class:"eyebrow",text:"Trocar senha"}),
+    h("div",{class:"campo"},h("label",{for:"cNova",text:"Nova senha (6+ caracteres)"}),comOlho(fN)),
+    h("div",{class:"campo"},h("label",{for:"cConf",text:"Repita a nova senha"}),comOlho(fC)),
+    msg, salvar, controle, equipe, fotosBt, sair,
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:tipo==="central"?"O nome e a taxa dos entregadores e comércios são editados na aba Equipe.":"Para mudar seu nome ou taxa, fale com a central."})]);
+  salvar.addEventListener("click",async()=>{
+    msg.hidden=true;
+    if(fN.value.length<6){ msg.hidden=false; msg.textContent="A senha precisa ter pelo menos 6 caracteres."; return; }
+    if(fN.value!==fC.value){ msg.hidden=false; msg.textContent="As duas senhas não são iguais."; return; }
+    salvar.disabled=true;
+    try{ await window.movviTrocarSenha(fN.value); fechar(); toast("Senha trocada"); }
+    catch(e){ salvar.disabled=false; msg.hidden=false; msg.textContent="Não foi possível trocar a senha ("+((e&&e.message)||"erro")+")."; }
+  });
+}
+async function abrirContaAntiga(){
   const tipo = central()?"central":S.modo;
   const ref=S.db.doc("senhas/"+S.uid);
   let atual=null; try{ const sn=await ref.get(); atual=sn.exists?sn.data():null; }catch(e){}
@@ -1018,7 +1052,7 @@ async function abrirConta(){
   else { const lembrar=h("button",{class:"btn sec full",type:"button"},"Salvar meu usuário");
     lembrar.addEventListener("click",()=>{ const u=normUsuario(fU.value); if(regraUsuario(u)){ toast("Usuário inválido."); return; } salvarUsuario(u); lembrar.remove(); toast("Usuário salvo"); });
     bloquear.before(lembrar); }
-  bloquear.addEventListener("click",()=>{ fechar(); try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; exigirSenha(tipo); });
+  bloquear.addEventListener("click",()=>{ fechar(); try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; if(window.movviUmaEntrada) return window.movviSair(); exigirSenha(tipo); });
 }
 
 /* Manter tela ligada (central) */
@@ -1117,6 +1151,7 @@ function renovarSessao(){
 ["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,()=>renovarSessao(),{capture:true,passive:true}));
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") renovarSessao(); });
 async function exigirSenha(tipo){
+  if(window.movviUmaEntrada){ S.meuUsuario=window.movviUsuario||S.meuUsuario; return; } // entrada única: a conta já é o login
   if(!S.db||!S.uid) return;
   const chaveSessao="movvi.desbloqueado."+S.uid;
   if(!S.meuUsuario) S.db.doc("senhas/"+S.uid).get().then(sn=>{ if(sn.exists) S.meuUsuario=(sn.data()||{}).usuario||""; }).catch(()=>{});
@@ -1212,6 +1247,14 @@ async function exigirSenha(tipo){
   });
 }
 async function redefinirSenha(uid,nome){
+  if(window.movviUmaEntrada){
+    const nova=window.prompt("Nova senha para "+nome+" (mínimo 6 caracteres). Passe essa senha para ele:");
+    if(nova===null) return;
+    if(String(nova).length<6){ toast("A senha precisa ter pelo menos 6 caracteres."); return; }
+    try{ await window.movviRedefinirSenha(uid,String(nova)); toast("Senha de "+nome+" redefinida."); }
+    catch(e){ toast("Não foi possível redefinir ("+((e&&e.message)||"erro")+")."); }
+    return;
+  }
   try{ await comRetry(()=>S.db.doc("senhas/"+uid).delete()); toast("Senha de "+nome+" redefinida. No próximo acesso, ele cria uma nova."); }
   catch(e){ toast("Não foi possível redefinir ("+(e&&e.code||"erro")+")."); }
 }
@@ -2259,15 +2302,14 @@ function abrirMeuMenu(){
   const tipo=central()?"central":S.modo;
   const nome=central()?(S.nomeCentral||"Central"):(S.euNome||"");
   const papel={central:"Central",entregador:"Entregador",comercio:"Comércio"}[tipo]||"";
-  const sair=()=>{ try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; exigirSenha(tipo); };
+  const sair=()=>{ try{ sessionStorage.removeItem("movvi.desbloqueado."+S.uid); }catch(e){} ls.set("movvi.ate."+S.uid,null); gravarPrefs({desbloqueadoAte:0}); travaFeita=null; if(window.movviUmaEntrada) return window.movviSair(); exigirSenha(tipo); };
   const fechar=()=>{}; mostrarPagina(papel||"Menu",nome||"Meu menu",[
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:papel+(meuUsuario()?" · usuário "+meuUsuario():"")}),
     item("👤","Meus dados","Nome, usuário e senha",()=>abrirConta()),
     item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item("☰","Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else irPara("relatorios"); }),
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
-    item("⎋","Sair","Volta para a tela de login",sair),
-    item("⇄","Trocar de conta","Entrar com outro usuário neste aparelho",()=>window.movviSair())]);
+    item("⎋","Sair","Volta para a tela de login",sair)]);
 }
 /* som só quando chega pedido; mudanças de status só mostram o aviso */
 /* Ao abrir o app (ou voltar para ele), o entregador com entregas esperando ouve o alerta uma vez.

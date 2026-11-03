@@ -314,6 +314,7 @@
       <div class="er" id="mlErro" hidden></div>
       <button class="bt" type="submit">${cad ? "Criar acesso" : "Entrar"}</button>
       <button class="tr" type="button" id="mlTroca">${cad ? "Já tenho acesso — entrar" : "Primeira vez? Criar acesso"}</button>
+      ${cad ? "" : '<p class="mt">Esqueceu a senha? Peça à central para redefinir.</p>'}
     </form>`;
     const f = el.querySelector("form"), er = el.querySelector("#mlErro");
     if (msg) { er.hidden = false; er.textContent = msg; }
@@ -340,13 +341,30 @@
     const { data: { session } } = await sb.auth.getSession();
     if (!session) { telaLogin("entrar"); return; }
     sessao = session;
-    const { data: p } = await sb.from("perfis").select("papel,nome,ativo").eq("id", session.user.id).maybeSingle();
+    const meta = session.user.user_metadata || {};
+    window.movviUsuario = meta.usuario || String(session.user.email || "").replace("@" + DOMINIO, "");
+    const { data: p }= await sb.from("perfis").select("papel,nome,ativo").eq("id", session.user.id).maybeSingle();
     perfil = p || { papel: "pendente" };
     const el = document.getElementById("movviLogin"); if (el) el.remove();
     liberar();
   }
   sb.auth.onAuthStateChange((ev, s) => { if (s) sessao = s; if (ev === "SIGNED_OUT") location.reload(); });
-  window.movviSair = async () => { await sb.auth.signOut(); location.reload(); };
+  window.movviSair = async () => { try { sessionStorage.clear(); } catch (_) {} await sb.auth.signOut(); location.reload(); };
+  window.movviUmaEntrada = true; // a conta (usuário e senha) é a única entrada; a trava antiga do app fica desligada
+  window.movviTrocarSenha = async (nova) => {
+    const { error } = await sb.auth.updateUser({ password: nova });
+    if (error) throw new Error(/different from the old/i.test(error.message) ? "a nova senha é igual à atual" : error.message);
+  };
+  window.movviRedefinirSenha = async (uid, nova) => {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch(SUPABASE_URL + "/functions/v1/senha", {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + (session ? session.access_token : "") },
+      body: JSON.stringify({ uid, senha: nova }),
+    });
+    let j = null; try { j = await r.json(); } catch (_) {}
+    if (!r.ok || !j || j.erro) throw new Error((j && (j.detalhe || j.erro)) || "erro " + r.status);
+  };
 
   const servicos = { db, user, assets, sample, room };
   window.claude = Object.freeze({
