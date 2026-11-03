@@ -1,0 +1,10 @@
+{
+  "name": "Movvi+ Entregas",
+  "short_name": "Movvi+",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#004AAD",
+  "theme_color": "#004AAD",
+  "lang": "pt-BR"
+}
