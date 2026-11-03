@@ -181,6 +181,14 @@
         const { error } = await sb.from("docs").delete().eq("path", path);
         if (error) throw erro(error);
       },
+      // trava curta "quem pega primeiro" (código de cliente, aceite de oferta)
+      acquire: async (opts) => {
+        opts = opts || {};
+        const { data, error } = await sb.rpc("doc_acquire", { p_path: path, p_holder: String(opts.holder || "anon"), p_ttl_ms: Number(opts.ttlMs) || 30000 });
+        if (error) throw erro(error);
+        if (data && data.acquired && opts.data) { try { await ref.update(opts.data); } catch (_) { await ref.set(opts.data); } }
+        return data || { acquired: false };
+      },
       onSnapshot: (cb, cbErro) => {
         let vivo = true; let ultimo = null; let timer = 0;
         const rodar = async () => {
