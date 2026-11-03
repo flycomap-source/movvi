@@ -538,14 +538,21 @@ function formEntrega(modo){
   const infoRota=h("div",{class:"aviso",hidden:true});
   const inpCom=h("input",{type:"file",accept:"image/*",capture:"environment",id:"feComanda",hidden:true});
   const btLer=h("button",{type:"button",class:"btn lar",text:"📷 Ler comanda pela foto",onclick:()=>inpCom.click()});
+  const avisoLer=h("div",{class:"aviso",hidden:true});
+  const mostraLer=(t,erro)=>{ avisoLer.hidden=false; avisoLer.className=erro?"erro":"aviso"; avisoLer.textContent=t; avisoLer.scrollIntoView({block:"nearest"}); };
   inpCom.addEventListener("change",async()=>{
     const f=inpCom.files[0]; inpCom.value=""; if(!f) return;
-    btLer.disabled=true; btLer.textContent="Lendo a comanda…"; msg.hidden=true;
+    btLer.disabled=true; btLer.textContent="Lendo a comanda…"; msg.hidden=true; avisoLer.hidden=true;
     try{
       const blob=await comprimir(f);
       const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); });
-      const { data:r, error } = await sb.functions.invoke("ler-comanda",{body:{imagem:b64,tipo:"image/jpeg"}});
-      if(error||!r||r.erro) throw new Error(r&&r.erro==="sem_chave"?"A leitura de comanda ainda não foi ativada pela central.":"Não consegui ler esta foto. Preencha à mão.");
+      const espera=new Promise((_,rej)=>setTimeout(()=>rej(new Error("A leitura demorou demais. Tente de novo com a foto mais perto e bem iluminada.")),60000));
+      const { data:r0, error } = await Promise.race([sb.functions.invoke("ler-comanda",{body:{imagem:b64,tipo:"image/jpeg"}}),espera]);
+      let r=r0; if(typeof r==="string"){ try{ r=JSON.parse(r); }catch(_){ r=null; } }
+      if(error){ let det=""; try{ det=(await error.context.json()).erro||""; }catch(_){}
+        throw new Error(det==="sem_login"?"Sua sessão expirou. Saia e entre de novo no app.":"Erro ao falar com o servidor ("+(det||error.message||"desconhecido")+")."); }
+      if(!r||r.erro) throw new Error(r&&r.erro==="sem_chave"?"A leitura de comanda ainda não foi ativada pela central.":"Não consegui ler esta foto ("+((r&&r.erro)||"resposta vazia")+"). Tente outra foto ou preencha à mão.");
+      if(!r.endereco&&!r.telefone&&!r.cliente&&!r.clienteDoEndereco) throw new Error("A foto foi lida, mas não achei endereço, telefone nem nome. Tente uma foto mais nítida da comanda inteira.");
       const tel=String(r.telefone||r.telefoneCadastro||"").trim();
       if(tel) fTel.value=tel;
       fCli.value=r.clienteDoEndereco||r.cliente||fCli.value;
@@ -558,12 +565,12 @@ function formEntrega(modo){
       if(alvo==="dinheiro"){ fVal.value=String(r.valor||r.valorProdutos||"").replace(".",","); if(Number(r.trocoPara)) fTroco.value=String(r.trocoPara).replace(".",","); }
       const extra=[r.pedidoComercio?"Pedido "+r.pedidoComercio:"",r.pegarReceita?"Pegar receita":"",r.observacoes||""].filter(Boolean).join(" · ");
       if(extra) fObs.value=extra;
-      toast(r.confianca==="baixa"?"Leitura com dúvida: confira os dados":"Comanda lida: confira os dados");
-    }catch(e){ msg.hidden=false; msg.textContent=e.message; }
+      mostraLer(r.confianca==="baixa"?"⚠️ Leitura com dúvida: confira os dados abaixo antes de salvar.":"✓ Comanda lida. Confira os dados abaixo antes de salvar.",false);
+    }catch(e){ mostraLer(e.message||"Não consegui ler esta foto.",true); }
     btLer.disabled=false; btLer.textContent="📷 Ler comanda pela foto";
   });
   const fechar=folha(central?"Nova entrega":doComercio?"Pedir entrega":"Lançar entrega",
-    h("div",{class:"acoes"},btLer), inpCom,
+    h("div",{class:"acoes"},btLer), inpCom, avisoLer,
     doComercio?null:h("label",{style:"display:flex;gap:8px;align-items:center;font-weight:600",for:"feRota"},fRota,"Montar rota (várias entregas da mesma coleta)"), infoRota,
     doComercio?null:h("div",{class:"campo"},h("label",{for:"feCom",text:"Coleta em"}),fCom),
     h("div",{class:"campo"},h("label",{for:"feCli",text:"Cliente"}),fCli),
