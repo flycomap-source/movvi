@@ -380,3 +380,8 @@
   });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", entrar); else entrar();
 })();
+
+/* app instalável (tela inicial / Play Store) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}

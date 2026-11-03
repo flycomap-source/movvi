@@ -1,10 +1,19 @@
 {
+  "id": "/movvi/",
   "name": "Movvi+ Entregas",
   "short_name": "Movvi+",
-  "start_url": "./",
-  "scope": "./",
+  "description": "Controle de entregas da Movvi+: pedidos, entregadores, comércios, acertos e relatórios.",
+  "start_url": "/movvi/",
+  "scope": "/movvi/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#004AAD",
   "theme_color": "#004AAD",
-  "lang": "pt-BR"
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
