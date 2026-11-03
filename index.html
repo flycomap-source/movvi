@@ -379,12 +379,20 @@ function telaHoje(m){
       h("div",{class:"res din"},h("b",{class:"num",text:fmt(emMaos)}),h("span",{text:"Dinheiro em mãos"}))));
   const abertas=hoje.filter(e=>e.status!=="entregue"&&e.status!=="cancelado");
   m.append(h("div",{class:"eyebrow",text:"A fazer ("+abertas.length+")"}));
+  abertas.sort((a,b)=>String(a.rota_id||"~"+a.numero).localeCompare(String(b.rota_id||"~"+b.numero))||(a.rota_ordem||0)-(b.rota_ordem||0));
+  const rotas={}; abertas.filter(e=>e.rota_id).forEach(e=>(rotas[e.rota_id]=rotas[e.rota_id]||[]).push(e));
+  Object.values(rotas).filter(l=>l.length>1).forEach(l=>{
+    const pts=l.map(e=>encodeURIComponent((e.endereco||"")+" Unaí MG"));
+    const url="https://www.google.com/maps/dir/?api=1&origin="+encodeURIComponent((l[0].coleta_endereco||"")+" Unaí MG")+"&destination="+pts[pts.length-1]+(pts.length>1?"&waypoints="+pts.slice(0,-1).join("%7C"):"")+"&travelmode=driving";
+    m.append(h("a",{class:"btn sec",href:url,target:"_blank",rel:"noopener",style:"text-decoration:none",text:"🗺️ Abrir rota de "+l.length+" paradas no Maps"}));
+  });
   m.append(abertas.length? h("div",{class:"lista"},abertas.map(cartao)) : h("div",{class:"vazio",text:S.ofertas.length?"Nada pendente. Tem "+S.ofertas.length+" oferta(s) na aba Ofertas.":"Nada pendente agora."}));
   if(feitas.length){ m.append(h("div",{class:"eyebrow",text:"Entregues ("+feitas.length+")"}), h("div",{class:"lista"},feitas.map(cartao))); }
 }
 function telaOfertas(m){
   m.append(h("h2",{text:"Entregas disponíveis"}));
-  m.append(S.ofertas.length? h("div",{class:"lista"},S.ofertas.map(cartao)) : h("div",{class:"vazio",text:"Nenhuma oferta no momento. Você recebe um aviso quando chegar uma nova."}));
+  const vistas=new Set(), unicas=S.ofertas.filter(e=>{ if(!e.rota_id) return true; if(vistas.has(e.rota_id)) return false; vistas.add(e.rota_id); return true; });
+  m.append(S.ofertas.length? h("div",{class:"lista"},unicas.map(cartao)) : h("div",{class:"vazio",text:"Nenhuma oferta no momento. Você recebe um aviso quando chegar uma nova."}));
 }
 function telaResumo(m){
   const de=inicioSemana(); const sem=S.entregas.filter(e=>e.data>=de&&e.status==="entregue");
@@ -413,7 +421,7 @@ function cartao(e){
   const [rot,cls]=ROT[e.status]||[e.status,""];
   const mapa=e.localizacao&&/^https?:/.test(e.localizacao)?e.localizacao:"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(e.endereco+" Unaí MG");
   const c=h("div",{class:"ped"+(oferta?" oferta":"")},
-    h("div",{class:"l1"},h("span",{class:"nro num",text:"#"+e.numero}),h("span",{class:"cli",text:e.cliente_nome||"Cliente"}),h("span",{class:"pill "+cls,text:rot})),
+    h("div",{class:"l1"},e.rota_id&&e.rota_ordem?h("span",{class:"pill",text:"Parada "+e.rota_ordem}):null,h("span",{class:"nro num",text:"#"+e.numero}),h("span",{class:"cli",text:e.cliente_nome||"Cliente"}),h("span",{class:"pill "+cls,text:rot})),
     h("div",{class:"muted",style:"font-size:13px"},"Coleta: ",h("b",{text:(e.comercios&&e.comercios.nome)||"—"}),e.coleta_endereco?" · "+e.coleta_endereco:""),
     h("div",{class:"end"},"📍 ",h("a",{href:mapa,target:"_blank",rel:"noopener",text:e.endereco||"Sem endereço"})),
     e.cliente_telefone?h("div",{class:"end"},"📞 ",h("a",{href:"https://wa.me/55"+e.cliente_telefone.replace(/\D/g,""),target:"_blank",rel:"noopener",text:e.cliente_telefone})):null,
@@ -431,7 +439,11 @@ function cartao(e){
   if(S.perfil.papel==="comercio"){
     if(oferta&&e.status==="solicitado") ac.append(h("button",{class:"btn sec",text:"Cancelar pedido",onclick:ev=>{ if(confirm("Cancelar a entrega #"+e.numero+"?")) mudar(e,{status:"cancelado"},ev.currentTarget); }}));
   }else if(!central){
-    if(oferta) ac.append(h("button",{class:"btn lar",text:"Aceitar entrega",onclick:ev=>aceitar(e,ev.currentTarget)}));
+    if(oferta){
+      const daRota=e.rota_id?S.ofertas.filter(x=>x.rota_id===e.rota_id):[];
+      if(daRota.length>1) ac.append(h("button",{class:"btn lar",text:"Aceitar rota ("+daRota.length+" paradas)",onclick:ev=>aceitarRota(e.rota_id,ev.currentTarget)}));
+      else ac.append(h("button",{class:"btn lar",text:"Aceitar entrega",onclick:ev=>aceitar(e,ev.currentTarget)}));
+    }
     else if(e.status==="aceita") ac.append(h("button",{class:"btn",text:"Coletei — sair em rota",onclick:ev=>mudar(e,{status:"em_rota"},ev.currentTarget)}));
     else if(e.status==="em_rota") ac.append(h("button",{class:"btn ok",text:"Entreguei — tirar foto",onclick:()=>concluir(e)}));
   }
@@ -443,6 +455,13 @@ async function aceitar(e,b){
   const { data, error } = await sb.from("entregas").update({entregador_id:S.perfil.entregador_id,status:"aceita"}).eq("id",e.id).is("entregador_id",null).select();
   if(error||!data||!data.length){ toast("Outro entregador já pegou essa."); }
   else { toast("Entrega aceita"); S.aba="hoje"; document.querySelectorAll(".aba").forEach(x=>x.removeAttribute("aria-current")); $("#aba-hoje").setAttribute("aria-current","page"); }
+  carregar();
+}
+async function aceitarRota(rotaId,b){
+  b.disabled=true; b.textContent="Aceitando…";
+  const { data, error } = await sb.from("entregas").update({entregador_id:S.perfil.entregador_id,status:"aceita"}).eq("rota_id",rotaId).is("entregador_id",null).select("id");
+  toast(error||!data||!data.length?"Outro entregador já pegou essa rota.":"Rota aceita: "+data.length+" paradas");
+  if(data&&data.length){ S.aba="hoje"; document.querySelectorAll(".aba").forEach(x=>x.removeAttribute("aria-current")); $("#aba-hoje").setAttribute("aria-current","page"); }
   carregar();
 }
 async function mudar(e,dados,b){
@@ -514,7 +533,38 @@ function formEntrega(modo){
   const ok=h("button",{class:"btn",text:central||doComercio?"Chamar entregador":"Lançar entrega"});
   if(doComercio&&S.perfil.comercio_id){ fCom.value=S.perfil.comercio_id; }
   const num=v=>Number(String(v||"").replace(/\./g,"").replace(",","."))||0;
+  let rotaId=null, rotaOrdem=0;
+  const fRota=h("input",{type:"checkbox",id:"feRota"});
+  const infoRota=h("div",{class:"aviso",hidden:true});
+  const inpCom=h("input",{type:"file",accept:"image/*",capture:"environment",id:"feComanda",hidden:true});
+  const btLer=h("button",{type:"button",class:"btn lar",text:"📷 Ler comanda pela foto",onclick:()=>inpCom.click()});
+  inpCom.addEventListener("change",async()=>{
+    const f=inpCom.files[0]; inpCom.value=""; if(!f) return;
+    btLer.disabled=true; btLer.textContent="Lendo a comanda…"; msg.hidden=true;
+    try{
+      const blob=await comprimir(f);
+      const b64=await new Promise(r=>{ const fr=new FileReader(); fr.onload=()=>r(String(fr.result).split(",")[1]); fr.readAsDataURL(blob); });
+      const { data:r, error } = await sb.functions.invoke("ler-comanda",{body:{imagem:b64,tipo:"image/jpeg"}});
+      if(error||!r||r.erro) throw new Error(r&&r.erro==="sem_chave"?"A leitura de comanda ainda não foi ativada pela central.":"Não consegui ler esta foto. Preencha à mão.");
+      const tel=String(r.telefone||r.telefoneCadastro||"").trim();
+      if(tel) fTel.value=tel;
+      fCli.value=r.clienteDoEndereco||r.cliente||fCli.value;
+      if(r.endereco) fEnd.value=r.endereco;
+      if(r.bairro) fBai.value=r.bairro;
+      if(r.empresa&&!doComercio){ const n=String(r.empresa).toLowerCase(); const c=S.comercios.find(x=>x.nome.toLowerCase().includes(n)||n.includes(x.nome.toLowerCase())); if(c){ fCom.value=c.id; fCom.dispatchEvent(new Event("change")); } }
+      const pg=String(r.pagamento||"").toLowerCase();
+      const alvo=pg.includes("dinheiro")?"dinheiro":pg.includes("cart")?"cartao":pg.includes("pix")?"pix":"pago";
+      seg.querySelectorAll("button")[["pago","dinheiro","cartao","pix"].indexOf(alvo)].click();
+      if(alvo==="dinheiro"){ fVal.value=String(r.valor||r.valorProdutos||"").replace(".",","); if(Number(r.trocoPara)) fTroco.value=String(r.trocoPara).replace(".",","); }
+      const extra=[r.pedidoComercio?"Pedido "+r.pedidoComercio:"",r.pegarReceita?"Pegar receita":"",r.observacoes||""].filter(Boolean).join(" · ");
+      if(extra) fObs.value=extra;
+      toast(r.confianca==="baixa"?"Leitura com dúvida: confira os dados":"Comanda lida: confira os dados");
+    }catch(e){ msg.hidden=false; msg.textContent=e.message; }
+    btLer.disabled=false; btLer.textContent="📷 Ler comanda pela foto";
+  });
   const fechar=folha(central?"Nova entrega":doComercio?"Pedir entrega":"Lançar entrega",
+    h("div",{class:"acoes"},btLer), inpCom,
+    doComercio?null:h("label",{style:"display:flex;gap:8px;align-items:center;font-weight:600",for:"feRota"},fRota,"Montar rota (várias entregas da mesma coleta)"), infoRota,
     doComercio?null:h("div",{class:"campo"},h("label",{for:"feCom",text:"Coleta em"}),fCom),
     h("div",{class:"campo"},h("label",{for:"feCli",text:"Cliente"}),fCli),
     h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"feTel",text:"Telefone"}),fTel),h("div",{class:"campo"},h("label",{for:"feBai",text:"Bairro"}),fBai)), achado,
@@ -532,8 +582,17 @@ function formEntrega(modo){
     if(!central&&!doComercio){ dados.entregador_id=S.perfil.entregador_id; dados.status="aceita"; }
     ok.disabled=true; ok.textContent="Salvando…";
     if(dados.cliente_telefone){ try{ const r=await sb.rpc("salvar_cliente",{p_nome:dados.cliente_nome,p_telefone:dados.cliente_telefone,p_endereco:dados.endereco,p_bairro:dados.bairro}); if(r.data) dados.cliente_id=r.data; }catch(e){} }
+    if(fRota.checked){ if(!rotaId) rotaId=(crypto.randomUUID?crypto.randomUUID():String(Date.now())); dados.rota_id=rotaId; dados.rota_ordem=rotaOrdem+1; }
     const { error } = await sb.from("entregas").insert(dados);
     if(error){ ok.disabled=false; ok.textContent="Tentar de novo"; msg.hidden=false; msg.textContent="Não foi possível salvar: "+error.message; return; }
+    if(fRota.checked){
+      rotaOrdem++; toast("Parada "+rotaOrdem+" salva");
+      [fCli,fTel,fEnd,fBai,fVal,fTroco,fObs].forEach(x=>x.value=""); achado.hidden=true;
+      seg.querySelector("button").click();
+      ok.disabled=false; ok.textContent="Salvar próxima parada";
+      infoRota.hidden=false; infoRota.textContent="Rota com "+rotaOrdem+" parada(s). Preencha a próxima ou feche quando terminar.";
+      fCom.disabled=true; fRota.disabled=true; carregar(); return;
+    }
     fechar(); toast(central||doComercio?"Pedido enviado aos entregadores":"Entrega lançada"); carregar();
   });
 }
