@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=5"></script></head><body>
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=6"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -281,6 +281,33 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 .chip-st .ponto{width:8px;height:8px;border-radius:50%;background:#9aa0c8}
 .chip-st.on{border-color:transparent;background:var(--ok-bg);color:var(--ok)} .chip-st.on .ponto{background:var(--ok)}
 .chip-st.blq{border-color:transparent;background:var(--bad-bg);color:var(--bad)} .chip-st.blq .ponto{background:var(--bad)}
+.cont-ent{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:40px;padding:0 8px;border:0;border-radius:12px;background:#fff;color:var(--ok);line-height:1;cursor:pointer}
+.cont-ent span{font-family:var(--f-display);font-weight:900;font-size:19px}
+.cont-ent small{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:2px}
+/* central no computador: pedidos em linhas */
+body.tela-larga main,body.tela-larga .top-in{max-width:1600px}
+body.tela-larga #v-entregas .grupo-corpo:not(:has(> .linha-ped)){display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+body.tela-larga #v-entregas .grupo-corpo:has(> .linha-ped){gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);padding:0;margin-bottom:14px}
+.linha-ped{display:grid;grid-template-columns:104px 84px 64px minmax(80px,1fr) minmax(80px,1fr) minmax(110px,1.6fr) 100px minmax(90px,1fr) minmax(80px,1.2fr) 120px 62px 112px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;background:var(--card);cursor:pointer}
+.linha-ped:last-child{border-bottom:0}
+.linha-ped:hover{background:var(--royal-soft)}
+.linha-ped.cab{cursor:default;background:var(--bg);font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:7px 12px}
+.linha-ped.cab:hover{background:var(--bg)}
+.linha-ped .c{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linha-ped .forte{font-weight:700}
+.linha-ped .r{text-align:right}
+.linha-ped .din{color:var(--ok);font-weight:700}
+.linha-ped.fim{color:var(--muted)}
+.linha-ped .badge-l{border:0;border-radius:6px;padding:3px 8px;color:#fff;font-weight:800;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linha-ped .ent-l{border:0;border-radius:6px;padding:3px 8px;background:var(--royal);color:#fff;font-weight:700;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linha-ped .ent-l.sem{background:#8A8FA8}
+.linha-ped .acoes-l{display:flex;gap:4px;justify-content:flex-end}
+.mini-bt{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:3px 7px;font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap}
+.mini-bt:hover{border-color:var(--royal);color:var(--royal)}
+.periodo{display:flex;justify-content:center;gap:4px;margin-top:-4px}
+.periodo[hidden]{display:none}
+.periodo button{border:0;background:transparent;color:var(--muted);font-size:12.5px;font-weight:700;padding:4px 12px;border-radius:999px;cursor:pointer}
+.periodo button[aria-pressed="true"]{background:var(--royal-soft);color:var(--royal)}
 .trava{position:fixed;inset:0;z-index:100;background:var(--royal-deep);display:grid;place-items:center;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px}
 .trava-in{background:var(--bg);border-radius:20px;padding:24px 18px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px;text-align:center}
@@ -303,7 +330,7 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 body .ped:not(.atrasado),body .ped.entregue:not(.atrasado),body .ped.pendente:not(.atrasado){border:1px solid var(--line)!important;box-shadow:0 1px 3px rgba(0,0,0,.06)!important}
 body .ped .nro{color:var(--ink)}
 .pill.alerta{background:var(--bad);color:#fff}
-body .ped .pill:not(.din):not(.pag):not(.alerta),body .solic-loja .pill:not(.din):not(.pag):not(.alerta){background:transparent!important;color:var(--muted)!important;border:1px solid var(--line);font-weight:700}
+body .ped .pill:not(.din):not(.pag):not(.alerta):not(.ordem),body .solic-loja .pill:not(.din):not(.pag):not(.alerta):not(.ordem){background:transparent!important;color:var(--muted)!important;border:1px solid var(--line);font-weight:700}
 body .ped .pill.pag{background:transparent;color:var(--muted);border:1px solid var(--line)}
 .pill.pago{background:var(--bad);color:#fff}
 body .pill.din{background:var(--ok);color:#fff}
@@ -344,6 +371,7 @@ body .solic-loja .loja{color:var(--ink)}
       </div>
     </div>
     <button class="quem" id="btnQuem" type="button">Carregando…</button>
+    <button class="cont-ent" id="contEnt" type="button" hidden title="Entregas finalizadas hoje" aria-label="Entregas finalizadas hoje"><span id="contEntN" class="num">0</span><small>hoje</small></button>
     <button class="chave" id="btnDisp" type="button" role="switch" hidden aria-checked="true" aria-label="Disponível para entregas" title="Disponível"><span id="dispTxt" class="sr"></span></button>
     <button class="tela" id="btnTela" type="button" hidden aria-pressed="false" title="Manter tela ligada" aria-label="Manter tela ligada">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -361,6 +389,13 @@ body .solic-loja .loja{color:var(--ink)}
     <div class="logo" id="acessoLogo"></div>
     <h2 id="acessoTit">Bem-vindo à Movvi+</h2>
     <p class="muted" id="acessoTxt" style="margin:0">Para ver suas entregas, informe seu nome. A central vai liberar seu acesso.</p>
+    <div class="painel" id="acessoLogin" style="text-align:left" hidden>
+      <div class="campo"><label for="alUsuario">Usuário</label><input class="inp" id="alUsuario" autocomplete="username" autocapitalize="none" placeholder="Seu usuário"></div>
+      <div class="campo"><label for="alSenha">Senha</label><input class="inp" id="alSenha" type="password" autocomplete="current-password" placeholder="Sua senha"></div>
+      <div class="campo" id="alConfCampo" hidden><label for="alConf">Repita a senha</label><input class="inp" id="alConf" type="password" autocomplete="new-password" placeholder="Repita a senha"></div>
+      <div class="aviso" id="alErro" hidden></div>
+      <button class="btn full" id="alEntrar" type="button">Entrar</button>
+    </div>
     <div class="painel" id="acessoForm" style="text-align:left">
       <div class="campo"><span class="lbl">Você é</span>
         <div class="seg" id="acTipo" role="group" aria-label="Tipo de acesso" style="grid-template-columns:1fr 1fr">
@@ -391,6 +426,12 @@ body .solic-loja .loja{color:var(--ink)}
       <button class="ic-btn" id="diaProx" type="button" aria-label="Próximo dia">›</button>
     </div>
 
+    <div class="periodo" id="periodoCentral" role="group" aria-label="Período" hidden>
+      <button type="button" data-p="ontem" aria-pressed="false">Ontem</button>
+      <button type="button" data-p="3h" aria-pressed="true">Últimas 3h</button>
+      <button type="button" data-p="hoje" aria-pressed="false">Hoje</button>
+    </div>
+    <div id="resumoEntregador" hidden></div>
     <button class="aviso" id="avisoFatura" type="button" hidden style="border:0;text-align:left;font:inherit;font-weight:700;cursor:pointer;width:100%"></button>
     <div class="resumo">
       <div class="res"><b class="num" id="rTotal">0</b><span>Pedidos</span></div>
@@ -447,9 +488,11 @@ body .solic-loja .loja{color:var(--ink)}
     <div class="painel" id="relPainel">
       <input class="inp" id="relFTexto" type="search" placeholder="Buscar pedido, cliente, telefone, comércio ou entregador" autocomplete="off">
       <div class="chips" id="relAtalhos">
+        <button class="chip" data-p="hoje" type="button" aria-pressed="true">Hoje</button>
+        <button class="chip" data-p="ontem" type="button">Ontem</button>
         <button class="chip" data-p="semana" type="button">Esta semana</button>
         <button class="chip" data-p="semant" type="button">Semana passada</button>
-        <button class="chip" data-p="mes" type="button" aria-pressed="true">Este mês</button>
+        <button class="chip" data-p="mes" type="button">Este mês</button>
         <button class="chip" data-p="mesant" type="button">Mês passado</button>
       </div>
       <div class="linha">
@@ -468,6 +511,7 @@ body .solic-loja .loja{color:var(--ink)}
           <div class="campo"><label for="relFRec">Receita</label><select class="inp" id="relFRec"></select></div>
           <div class="campo"><label for="relFTroco">Troco</label><select class="inp" id="relFTroco"></select></div>
           <div class="campo"><label for="relFRota">Rota</label><select class="inp" id="relFRota"></select></div>
+          <div class="campo"><label for="relFServ">Serviço</label><select class="inp" id="relFServ"></select></div>
         </div>
         <button class="btn sec full" id="relFLimpar" type="button">Limpar filtros</button>
       </div>
@@ -501,6 +545,7 @@ body .solic-loja .loja{color:var(--ink)}
       <h3 id="eqFormTit">Novo entregador</h3>
       <div class="linha">
         <div class="campo"><label for="eqNome">Nome</label><input class="inp" id="eqNome" autocomplete="off" placeholder="Nome do entregador"></div>
+        <label class="manter" style="justify-content:flex-start;grid-column:1/-1"><input type="checkbox" id="eqSemAd"> Faz parte da central (não recebe adicionais)</label>
         <div class="campo"><label for="eqTaxa">Mínimo por entrega (R$)</label><input class="inp num" id="eqTaxa" inputmode="decimal" placeholder="0,00"></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -621,10 +666,17 @@ function dinheiroDaObs(txt){
   if(!m) return 0;
   return m.reduce((s,x)=>s+num(x),0);
 }
+/* Regra da casa: na Farmácia Canaã o entregador sempre volta e deixa o dinheiro na loja,
+   então o dinheiro dela nunca entra no "dinheiro com o entregador". As outras empresas entram. */
+const EMPRESAS_DINHEIRO_NA_LOJA=["canaa"];
+const dinheiroFicaNaLoja = p => { const k=slug(p.coletaEmpresa||""); return EMPRESAS_DINHEIRO_NA_LOJA.some(e=>k.includes(e)); };
+const dinheiroRetivel = p => dinheiroDoPedido(p)>0 && !dinheiroFicaNaLoja(p);
 /* Dinheiro em espécie que o entregador recebe do cliente */
 function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor) : 0; }
 /* Unidades pagas ao entregador: a entrega + adicionais */
-const unidades = p => 1 + Math.max(0, Math.round(num(p.adicionais)));
+/* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional; os adicionais dos outros saem dos 25% da central */
+function semAdicional(entId){ if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
+const unidades = p => 1 + (semAdicional(p.entregadorId) ? 0 : Math.max(0, Math.round(num(p.adicionais))));
 const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
 /* Quanto o entregador recebe por entrega:
    mínimo da taxa dele (R$ 6,00); se a taxa cobrada do comércio passar de R$ 8,00, recebe 75% dela (a central fica com 25%). */
@@ -709,6 +761,8 @@ function pillPag(p){
   return h("span",{class:"pill pag",text:PAG[p.pagamento]||"—"});
 }
 const PAG = {dinheiro:"Dinheiro",cartao:"Cartão",pix:"Pedido pago",convenio:"Assinar nota"};
+const LOJAS_TRANSF = ["Loja 41","Loja 21","Loja 2","Outros"];
+const ehTransf = p => p && p.tipoServico==="transferencia";
 const LOGO_ICONE="data:image/png;base64,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";
 (function(){ const im=document.querySelector(".marca-icone"); if(im) im.src=LOGO_ICONE; })();
 function icone(size){
@@ -737,7 +791,7 @@ const S = {
   eu:null, euNome:"", euTaxa:0,
   equipe:[], solicitacoes:[], empresas:[], acertos:[],
   fontesDia:{}, pedidosDia:[], subsDia:[],
-  dia:hoje(), filtro:"todos",
+  dia:hoje(), filtro:"todos", periodo:"3h",
   editandoEq:null, minhaSol:null,
   euEndereco:"", comercios:[], lojaPedidos:{}, subsLoja:[], subsSync:[],
   ofertas:[], minhasOfertas:{}, subOfertas:null, subAceites:null, aceitos:new Set()
@@ -814,6 +868,7 @@ function aplicarModo(){
   $("#btnTela").hidden=!central();
   $("#btnDisp").hidden=S.modo!=="entregador";
   // entregador: sem busca e sem troca de data na tela inicial (isso fica nos relatórios)
+  { const c=central(); ["#diaAnt","#diaProx","#diaPicker"].forEach(x=>{ const e=$(x); if(e) e.hidden=c; }); $("#periodoCentral").hidden=!c; if(c) marcarPeriodo(); }
   { const ent=S.modo==="entregador"; const d=document.querySelector("#v-entregas .dia"); if(d) d.hidden=ent;
     const bp=$("#buscaPed"); if(bp&&bp.parentNode) bp.parentNode.hidden=ent; if(ent&&bp&&bp.value){ bp.value=""; $("#buscaAntes").hidden=true; }
     if(ent && S.dia && S.dia!==hoje() && typeof mudarDia==="function") setTimeout(()=>mudarDia(hoje()),0); }
@@ -828,7 +883,7 @@ function aplicarModo(){
     if(ab){ if(!ab.dataset.orig) ab.dataset.orig=ab.innerHTML;
       ab.innerHTML = so ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>' : ab.dataset.orig;
       ab.setAttribute("aria-label","Início"); ab.title="Início"; }
-    $("#btnQuem").hidden=central();
+    $("#btnQuem").hidden=central()||S.modo==="entregador";   // entregador: as configurações ficam no menu do logo
     document.body.classList.toggle("nav-flut",so);
     const fab=$("#fab"); if(so){ if(fab.parentNode!==$("#abasIn")) $("#abasIn").append(fab); } else if(fab.parentNode!==document.body) document.body.append(fab);
     // só na central: botão laranja de cadastrar cliente ao lado do "+"
@@ -1270,10 +1325,47 @@ function renderAcesso(){
     txt.textContent="Olá, "+(S.minhaSol.nome||"")+". A central já recebeu seu pedido de acesso. Assim que liberar, suas entregas aparecem aqui.";
     form.hidden=true; return;
   }
-  tit.textContent="Bem-vindo à Movvi+";
-  txt.textContent="Entregador ou comércio parceiro: informe seus dados e a central libera seu acesso.";
+  // 1ª tela: usuário e senha · 2ª tela: é entregador ou comércio? (a central, dona do app, entra direto)
+  const login=$("#acessoLogin");
+  if(window.movviUmaEntrada){ S.acessoLogado=true; S.meuUsuario=window.movviUsuario||S.meuUsuario; } // a conta já é o login
+  if(!S.acessoLogado){
+    tit.textContent="Entrar no Movvi+";
+    txt.textContent=S.senhaPropria===false?"Primeiro acesso: crie seu usuário e senha. A central é liberada direto na conta dona do app.":"Entre com seu usuário e senha.";
+    $("#alConfCampo").hidden=S.senhaPropria!==false;
+    $("#alEntrar").textContent=S.senhaPropria===false?"Continuar":"Entrar";
+    login.hidden=false; form.hidden=true;
+    if(S.senhaPropria===undefined && S.db && S.uid){ S.senhaPropria=null;
+      S.db.doc("senhas/"+S.uid).get().then(sn=>{ S.senhaAtual=sn.exists?sn.data():null; S.senhaPropria=!!S.senhaAtual; renderAcesso(); }).catch(()=>{ S.senhaPropria=false; renderAcesso(); }); }
+    return;
+  }
+  login.hidden=true;
+  tit.textContent="Você é entregador ou comércio?";
+  txt.textContent="Escolha e informe seus dados. A central libera seu acesso.";
   form.hidden=false;
 }
+$("#alEntrar").addEventListener("click",async()=>{
+  const err=$("#alErro"), bt=$("#alEntrar"); err.hidden=true;
+  const erro=m=>{ err.hidden=false; err.textContent=m; };
+  const usuario=normUsuario($("#alUsuario").value), senha=$("#alSenha").value;
+  if(!S.db||!S.uid) return erro("Entre com seu usuário e abra o app de novo.");
+  const ru=regraUsuario(usuario); if(ru) return erro(ru);
+  if(!senha) return erro("Digite sua senha.");
+  bt.disabled=true;
+  try{
+    if(S.senhaAtual){
+      const hs=await hashSenha(senha,S.senhaAtual.salt);
+      if(hs.hash!==S.senhaAtual.hash || usuario!==normUsuario(S.senhaAtual.usuario)){ bt.disabled=false; return erro("Usuário ou senha incorretos. Se você é da central, entre com a conta dona do app."); }
+    }else{
+      const r=regraSenha("entregador",senha); if(r){ bt.disabled=false; return erro(r); }
+      if(senha!==$("#alConf").value){ bt.disabled=false; return erro("As duas senhas não são iguais."); }
+      const hs=await hashSenha(senha);
+      await comRetry(()=>S.db.doc("senhas/"+S.uid).set({...hs,usuario,tipo:"",nome:"",criadoEm:new Date().toISOString()}));
+      S.senhaAtual={...hs,usuario}; S.senhaPropria=true;
+    }
+    S.acessoLogado=true; S.meuUsuario=usuario; bt.disabled=false; renderAcesso();
+  }catch(e){ bt.disabled=false; erro("Não foi possível entrar agora ("+(e&&e.code||"erro")+")."); }
+});
+["#alUsuario","#alSenha","#alConf"].forEach(sel=>$(sel).addEventListener("keydown",e=>{ if(e.key==="Enter") $("#alEntrar").click(); }));
 let tipoAcesso="entregador";
 document.querySelectorAll("#acTipo button").forEach(b=>b.addEventListener("click",()=>{
   tipoAcesso=b.dataset.t;
@@ -1289,7 +1381,9 @@ $("#acPedir").addEventListener("click",async()=>{
   if(tipoAcesso==="comercio" && !endereco){ toast("Informe o endereço do comércio."); return; }
   if(tipoAcesso==="comercio" && !telValido(telefone)){ toast("Informe o telefone do comércio com DDD."); return; }
   if(!S.db||!S.uid){ toast("Entre com seu usuário para pedir acesso."); return; }
-  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone:tipoAcesso==="comercio"?telefone:"",criadoEm:new Date().toISOString()})); toast("Pedido enviado à central"); }
+  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone:tipoAcesso==="comercio"?telefone:"",...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}));
+    S.db.doc("senhas/"+S.uid).update({tipo:tipoAcesso,nome}).catch(()=>{});
+    toast("Pedido enviado à central"); }
   catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+"). Peça à central para te convidar por e-mail como Editor."); }
 });
 
@@ -1305,12 +1399,17 @@ $("#diaProx").addEventListener("click",()=>mudarDia(somaDias(S.dia,1)));
 $("#diaPicker").addEventListener("click",()=>{ const i=$("#diaInput"); try{ i.showPicker(); }catch(e){ i.focus(); i.click(); } });
 $("#diaInput").addEventListener("change",e=>{ if(e.target.value) mudarDia(e.target.value); });
 function mudarDia(d){ S.dia=d; renderDia(); assinarDia(); }
+/* Central: Últimas 3 horas (sempre ao abrir) · Hoje · Ontem */
+function marcarPeriodo(){ document.querySelectorAll("#periodoCentral button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.p===S.periodo))); }
+function mudarPeriodo(k){ S.periodo=k; marcarPeriodo(); const d=k==="ontem"?somaDias(hoje(),-1):hoje(); if(d!==S.dia){ S.dia=d; renderDia(); } assinarDia(true); }
+document.querySelectorAll("#periodoCentral button").forEach(b=>b.addEventListener("click",()=>mudarPeriodo(b.dataset.p)));
+const LIM_3H=()=>new Date(Date.now()-3*3600000).toISOString();
 
 let chaveDia="";
 function assinarDia(forcar){
   if(!S.db || !(central()||comercio()||S.modo==="entregador")){ S.subsDia.forEach(u=>u()); S.subsDia=[]; S.pedidosDia=[]; renderPedidos(); return; }
   const fs=fontes();
-  const chave=S.dia+"|"+fs.join(",");
+  const chave=S.dia+"|"+(central()?S.periodo:"")+"|"+fs.join(",");
   if(chave===chaveDia && !forcar) return;
   chaveDia=chave;
   S.subsDia.forEach(u=>u()); S.subsDia=[]; S.fontesDia={}; S.pedidosDia=[]; renderPedidos();
@@ -1342,6 +1441,14 @@ function assinarDia(forcar){
       S.pedidosDia=[].concat(...Object.values(S.fontesDia));
       renderPedidos();
     },err=>console.warn(col,err)));
+    // central em "Últimas 3 horas" logo depois da meia-noite: inclui as finalizadas de ontem dentro da janela
+    if(central() && S.periodo==="3h" && S.dia===hoje() && new Date(Date.now()-3*3600000).toDateString()!==new Date().toDateString()){
+      S.subsDia.push(S.db.collection(col).where("data","==",somaDias(hoje(),-1)).onSnapshot(snap=>{
+        S.fontesDia[col+"#ontem3h"]=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})).filter(p=>p.status==="entregue"||p.status==="cancelado");
+        S.pedidosDia=[].concat(...Object.values(S.fontesDia));
+        renderPedidos();
+      },err=>console.warn(col+" (ontem)",err)));
+    }
     // entregas de dias anteriores que ainda não foram finalizadas continuam na tela de hoje
     if(S.dia===hoje()){
       const abertos = col.startsWith("lojas/") ? ["solicitado","aceita","a_caminho","em_rota"] : ["pendente"];
@@ -1383,7 +1490,7 @@ let tBusca=null;
 $("#buscaPed").addEventListener("input",()=>{ $("#buscaAntes").hidden=true; renderPedidos(); clearTimeout(tBusca); tBusca=setTimeout(buscarDiasAnteriores,700); });
 async function buscarDiasAnteriores(){
   const box=$("#buscaAntes"), bruto=$("#buscaPed").value.trim();
-  if(bruto.length<3||!S.db){ box.hidden=true; return; }
+  if(bruto.length<3||!S.db||central()){ box.hidden=true; return; }
   box.hidden=false; box.replaceChildren(h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Procurando nos últimos 30 dias…"}));
   let ps=[]; try{ ps=await buscarPeriodo(somaDias(hoje(),-30),hoje()); }catch(e){ box.hidden=true; return; }
   if($("#buscaPed").value.trim()!==bruto) return;
@@ -1399,15 +1506,45 @@ async function buscarDiasAnteriores(){
 function renderPedidos(){
   if(deslizando){ renderAdiado=true; return; }
   if(central()) setTimeout(()=>verificarFaturasFechadas(true),0);
+  agendarNumeracao();
+  aplicarTelaLarga();
   let ps=S.pedidosDia.slice();
   if(comercio()) ps=ps.map(comOferta);
-  { const b=$("#buscaPed"); if(b && b.value.trim()) ps=ps.filter(p=>casaBusca(p,b.value)); }
+  // entregador: contador de entregas finalizadas hoje, no canto de cima
+  { const c=$("#contEnt"); if(c){ const vis=S.modo==="entregador"; c.hidden=!vis;
+      if(vis){ const n=S.pedidosDia.filter(p=>p.status==="entregue" && p.data===hoje()).length; const el=$("#contEntN");
+        if(el.textContent!==String(n)){ el.textContent=String(n); c.animate&&c.animate([{transform:"scale(1.25)"},{transform:"scale(1)"}],{duration:350}); } } } }
+  const buscaTxt=(($("#buscaPed")||{}).value||"").trim();
+  if(buscaTxt) ps=ps.filter(p=>casaBusca(p,buscaTxt));
+  // central: pesquisando, só os pedidos com a data do dia; sem pesquisa em "Últimas 3 horas", só o que aconteceu nas últimas 3 horas
+  if(central()){
+    if(buscaTxt) ps=ps.filter(p=>p.data===S.dia);
+    else if(S.periodo==="3h"){ const lim=LIM_3H(); ps=ps.filter(p=>(p.status!=="entregue"&&p.status!=="cancelado") ? p.data===S.dia||!p.data||p.data<S.dia : String(p.entregueEm||p.canceladoEm||p.criadoEm||"")>=lim); }
+  }
+  // central pesquisando um entregador: só a quantidade de entregas que ele fez no dia
+  { const box=$("#resumoEntregador"); box.hidden=true; box.replaceChildren();
+    if(central() && buscaTxt.length>=2){
+      const q=semAcento(buscaTxt);
+      const ents=S.equipe.filter(m=>semAcento(m.nome||"").includes(q));
+      if(ents.length && ents.length<=3){
+        box.hidden=false;
+        box.append(...ents.map(m=>{ const feitas=ps.filter(p=>p.entregadorId===m.id && p.status==="entregue").length;
+          const abertas=ps.filter(p=>p.entregadorId===m.id && p.status==="pendente").length;
+          return h("div",{class:"painel",style:"flex-direction:row;align-items:center;gap:12px;padding:12px 14px"},
+            h("span",{class:"eq-av",style:"width:40px;height:40px;border-radius:50%;background:var(--royal);color:#fff;display:grid;place-items:center;font-family:var(--f-display);font-weight:900;flex:none",text:(m.nome||"?").trim().charAt(0).toUpperCase()}),
+            h("div",{style:"flex:1;min-width:0"},h("b",{style:"display:block",text:m.nome}),h("span",{class:"muted",style:"font-size:13px",text:(S.dia===hoje()?"Hoje":S.dia===somaDias(hoje(),-1)?"Ontem":diaCurto(S.dia))+(abertas?" · "+abertas+(abertas>1?" em andamento":" em andamento"):"")})),
+            h("div",{style:"text-align:right"},h("b",{class:"num",style:"display:block;font-family:var(--f-display);font-size:26px;line-height:1;color:var(--ok)",text:String(feitas)}),h("span",{class:"muted",style:"font-size:12px",text:feitas===1?"entrega":"entregas"}))); }));
+      }
+    }
+  }
   // entregador e comércio: finalizadas só nos relatórios; central vê tudo, com as finalizadas separadas
   let finalizadas=[];
   if(central()){ finalizadas=ps.filter(p=>p.status==="entregue").sort((a,b)=>String(b.entregueEm||"").localeCompare(String(a.entregueEm||""))); }
   ps=ps.filter(p=>p.status!=="entregue" && p.status!=="recusado" && p.status!=="cancelado");
   if(central() && S.filtro!=="todos") ps=ps.filter(p=>p.entregadorId===S.filtro);
   ps.sort((a,b)=> (a.status==="entregue")-(b.status==="entregue") || String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")) || String(a.rotaId||"").localeCompare(String(b.rotaId||"")) || (num(a.rotaOrdem)-num(b.rotaOrdem)));
+  // entregador (e a central filtrando um entregador): na ordem em que cada entrega vai ser feita
+  if(S.modo==="entregador" || (central() && S.filtro!=="todos")) ps.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
   const ent=ps.filter(p=>p.status==="entregue");
   $("#rTotal").textContent=ps.length;
   $("#rEntregues").textContent=ent.length;
@@ -1446,6 +1583,7 @@ function renderPedidos(){
     const g=h("section",{class:"grupo"+(fechado?" fechado":"")},cab,corpo);
     const alterna=()=>{ fechado=!fechado; g.classList.toggle("fechado",fechado); const r=fechado?"Expandir":"Recolher"; bt.setAttribute("aria-label",r); bt.title=r; bt.setAttribute("aria-expanded",String(!fechado)); try{ localStorage.setItem("movvi.recolhido."+chave,fechado?"1":"0"); }catch(e){} };
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
+    if(central() && telaLarga() && chave!=="disponiveis") corpo.append(cabecalhoLinhas());
     preencher(corpo);
     if(!qtd) corpo.append(h("p",{class:"muted",style:"margin:0 2px 4px;font-size:14px",text:chave==="disponiveis"?"Nenhuma entrega disponível agora. Quando chegar, o alerta toca.":"Você não tem entregas reservadas."}));
     box.append(g);
@@ -1454,7 +1592,9 @@ function renderPedidos(){
     corpo=>listaAbertas.forEach(o=>corpo.append(central()?cartaoSolicitacaoLoja(o):cartaoOferta(o))));
   if(S.modo==="entregador"){
     const minhas=[...grupos.aceite,...grupos.coletar,...grupos.rota];
+    minhas.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
     caixa("minhas","Minhas entregas",minhas.length,"var(--royal)",corpo=>{
+      if(minhas.length>=2) corpo.append(botaoOrdemEntregas(S.eu,minhas));
       const g={};
       grupos.coletar.filter(p=>!p.rotaId).forEach(p=>{ const k=p.coletaEmpresa||p.coletaEndereco||"Mesmo local"; (g[k]=g[k]||[]).push(p); });
       Object.entries(g).filter(([,l])=>l.length>1).forEach(([loc,l])=>{
@@ -1462,7 +1602,7 @@ function renderPedidos(){
         b.addEventListener("click",async()=>{
           b.disabled=true; b.textContent="Registrando…";
           const rotaId="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-          try{ await marcarEmRota(l,{id:rotaId}); toast("Em rota com "+l.length+" entregas de "+loc); }
+          try{ await marcarEmRota(l,{id:rotaId}); toast("Em rota com "+l.length+" entregas de "+loc); escolherOrdemSeTodasEmRota(l); }
           catch(e){ b.disabled=false; b.textContent="Coletei as "+l.length+" · sair em rota"; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
         });
         corpo.append(h("div",{class:"solic-loja"},
@@ -1476,6 +1616,7 @@ function renderPedidos(){
     }
     return;
   }
+  if(S.filtro!=="todos"){ const l=ps.filter(p=>p.entregadorId===S.filtro && p.status==="pendente"); if(l.length>=2) box.append(botaoOrdemEntregas(S.filtro,l)); }
   caixa("aguardando","Aguardando entregador",grupos.aguardando.length,"var(--laranja)",corpo=>grupos.aguardando.forEach(p=>poe(corpo,p)));
   caixa("aceite","Aguardando aceite",grupos.aceite.length,"var(--laranja)",corpo=>grupos.aceite.forEach(p=>poe(corpo,p)));
   caixa("coletar","Indo coletar",grupos.coletar.length,"var(--muted)",corpo=>{
@@ -1487,7 +1628,7 @@ function renderPedidos(){
         b.addEventListener("click",async()=>{
           b.disabled=true; b.textContent="Registrando…";
           const rotaId="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-          try{ await marcarEmRota(l,{id:rotaId}); toast("Em rota com "+l.length+" entregas de "+loc); }
+          try{ await marcarEmRota(l,{id:rotaId}); toast("Em rota com "+l.length+" entregas de "+loc); escolherOrdemSeTodasEmRota(l); }
           catch(e){ b.disabled=false; b.textContent="Coletei as "+l.length+" · sair em rota"; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
         });
         corpo.append(h("div",{class:"solic-loja"},
@@ -1498,7 +1639,9 @@ function renderPedidos(){
     grupos.coletar.forEach(p=>poe(corpo,p));
   });
   caixa("rota","Em rota",grupos.rota.length,"var(--royal)",corpo=>grupos.rota.forEach(p=>poe(corpo,p)));
-  caixa("fim","Entregas finalizadas",grupos.fim.length,"var(--ok)",corpo=>grupos.fim.forEach(p=>poe(corpo,p)));
+  { const fimEnt=grupos.fim.filter(p=>!ehTransf(p)), fimTr=grupos.fim.filter(ehTransf);
+    caixa("fim","Entregas finalizadas",fimEnt.length,"var(--ok)",corpo=>fimEnt.forEach(p=>poe(corpo,p)));
+    caixa("fimTransf","Transferências finalizadas",fimTr.length,"var(--royal)",corpo=>fimTr.forEach(p=>poe(corpo,p))); }
 }
 /* Rotas existentes (abertas aguardando entregador ou já com entregador) */
 function rotasDisponiveis(){
@@ -1524,11 +1667,55 @@ async function adicionarARota(p, rota){
     const l=rota.paradas, prim=l[0], N=l.length+1;
     const entId=prim.entregadorId, destino=colDe(entId)+"/"+p.id;
     await comRetry(()=>S.db.doc(destino).set({...d,entregadorId:entId,coletaEmpresa:d.coletaEmpresa||prim.coletaEmpresa||"",coletaEndereco:d.coletaEndereco||prim.coletaEndereco||"",
-      rotaId:rota.id,rotaOrdem:N,rotaQtd:N,status:"pendente",aceitoEm:prim.aceitoEm||null,emRotaEm:prim.emRotaEm||null,entregueEm:null,
+      rotaId:rota.id,rotaOrdem:N,rotaQtd:N,status:"pendente",aceitoEm:d.aceitoEm||prim.aceitoEm||new Date().toISOString(),emRotaEm:(d.entregadorId===entId&&d.emRotaEm)||null,entregueEm:null,
       taxaCobrada:num(d.taxaCobrada)||num(prim.taxaCobrada),viaOferta:false}));
     for(const x of l) await comRetry(()=>S.db.doc(x._path).update({rotaQtd:N}));
   }
   if(_path && !(rota.tipo==="ativa" && _path===colDe(rota.paradas[0].entregadorId)+"/"+p.id)) await S.db.doc(_path).delete().catch(()=>{});
+}
+/* Central: na entrega que está em rota, "+ Rota" acrescenta outros pedidos nessa mesma rota (mesmo entregador) */
+function acrescentarPedidosNaRota(base){
+  const ent=base.entregadorId;
+  const daRota=()=> base.rotaId ? S.pedidosDia.filter(x=>x.rotaId===base.rotaId && x.status!=="cancelado") : [base];
+  const naRota=new Set(daRota().map(x=>x.id));
+  // pedidos que podem entrar: abertos esperando entregador (da central) e pedidos de hoje ainda não finalizados que não estão nesta rota
+  const abertos=[].concat(...Object.values(S.lojaPedidos)).filter(o=>o.tipo!=="rota" && /^abertos\//.test(o._path||"") && o.status==="solicitado");
+  const outros=S.pedidosDia.filter(x=>x.status==="pendente" && !naRota.has(x.id) && x._path && !(x.rotaId && x.rotaId===base.rotaId));
+  const cands=[...abertos,...outros];
+  const marcados=new Set();
+  const lbl=x=>(x.numero?"#"+x.numero+" · ":"")+(x.cliente||x.telefone||"Pedido")+(x.endereco?" · "+x.endereco:"");
+  const sub=x=>(x.coletaEmpresa||x.coletaEndereco||"")+" · "+(x.entregadorId?(x.entregadorId===ent?"já com "+nomeEnt(ent):"com "+nomeEnt(x.entregadorId)):"aguardando entregador");
+  const salvar=h("button",{class:"btn full",type:"button",disabled:true},"Acrescentar na rota");
+  const msg=h("div",{class:"aviso",hidden:true});
+  const itens=cands.map(x=>{
+    const chk=h("input",{type:"checkbox",style:"width:22px;height:22px;accent-color:var(--royal);flex:none"});
+    chk.addEventListener("change",()=>{ chk.checked?marcados.add(x):marcados.delete(x); salvar.disabled=!marcados.size; salvar.textContent=marcados.size?"Acrescentar "+marcados.size+" na rota":"Acrescentar na rota"; });
+    return h("label",{class:"parada",style:"flex-direction:row;align-items:center;gap:10px;cursor:pointer"},chk,
+      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("b",{style:"overflow-wrap:anywhere",text:lbl(x)}),h("span",{class:"muted",style:"font-size:12px",text:sub(x)})));
+  });
+  salvar.addEventListener("click",async()=>{
+    if(!marcados.size) return;
+    salvar.disabled=true; salvar.textContent="Acrescentando…"; msg.hidden=true;
+    try{
+      let l=daRota().slice().sort((a,b)=>(num(a.rotaOrdem)||999)-(num(b.rotaOrdem)||999));
+      let rotaId=base.rotaId;
+      if(!rotaId || l.some(x=>!x.rotaOrdem)){
+        // entrega avulsa (ou grupo sem numeração): vira rota numerada
+        rotaId=rotaId||("rota"+Date.now().toString(36));
+        for(let i=0;i<l.length;i++){ const x=l[i]; await comRetry(()=>S.db.doc(x._path).update({rotaId,rotaOrdem:i+1,rotaQtd:l.length})); l[i]={...x,rotaId,rotaOrdem:i+1,rotaQtd:l.length}; }
+      }
+      for(const c of marcados){
+        const rota={tipo:"ativa",id:rotaId,paradas:l};
+        const cc={...c}; delete cc.rotaId; delete cc.rotaOrdem; delete cc.rotaQtd;
+        await adicionarARota(cc,rota);
+        l=[...l,{...cc,_path:colDe(ent)+"/"+c.id,rotaId,rotaOrdem:l.length+1}];
+      }
+      fechar(); toast(marcados.size===1?"Pedido acrescentado na rota de "+nomeEnt(ent):marcados.size+" pedidos acrescentados na rota de "+nomeEnt(ent));
+    }catch(e){ salvar.disabled=false; salvar.textContent="Acrescentar "+marcados.size+" na rota"; msg.hidden=false; msg.textContent="Não foi possível acrescentar ("+(e&&e.code||"erro")+")."; }
+  });
+  const corpo=[h("p",{class:"muted",style:"margin:0",text:"Rota de "+nomeEnt(ent)+" · "+daRota().length+(daRota().length===1?" entrega":" entregas")+". Marque os pedidos que vão entrar nela. Eles entram como \"indo coletar\" e o entregador ajusta a ordem."})];
+  if(!cands.length) corpo.push(h("p",{style:"margin:0",text:"Nenhum outro pedido aberto hoje para acrescentar."}));
+  const fechar=abrirSheet("Acrescentar na rota",corpo.concat(itens,[msg,salvar]));
 }
 function escolherRota(p){
   const rotas=rotasDisponiveis();
@@ -1772,8 +1959,50 @@ function rodapePag(p){
       tr?h("span",{class:"pill alerta num",text:"Troco para "+fmt(num(p.trocoPara))}):null));
 }
 function cartaoPedido(p){
+  if(central() && telaLarga()) return linhaPedido(p);
   const c=cartaoPedidoBase(p);
   return c;
+}
+/* Central no computador: cada pedido numa linha só, uma informação na frente da outra */
+const MQ_LARGA = window.matchMedia ? window.matchMedia("(min-width: 900px)") : null;
+function telaLarga(){ return !!(MQ_LARGA && MQ_LARGA.matches); }
+function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", central() && telaLarga()); }
+if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
+const COLS_LINHA=["Situação","Hora","Pedido","Coleta","Cliente","Endereço","Telefone","Pagamento","Detalhes","Entregador","Taxa",""];
+function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"},...COLS_LINHA.map(c=>h("span",{text:c}))); }
+function linhaPedido(p){
+  const entregue=p.status==="entregue", st=statusCard(p);
+  const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
+  const pag=(PAG[p.pagamento]||"—")+(valorACobrar(p)?" "+fmt(valorACobrar(p)):"")+(p.pagamento==="dinheiro"&&num(p.trocoPara)>0?" (troco p/ "+fmt(p.trocoPara)+")":"");
+  const det=[
+    (p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"",
+    ehTransf(p)?"🔁 "+((p.transfDe||p.transfPara)?(p.transfDe||"?")+"→"+(p.transfPara||"?"):"Transf."):"",
+    p.pegarReceita?"℞ receita":"",
+    num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":"",
+    (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0)?"🧭 "+num(p.ordemEntrega)+"/"+num(p.ordemQtd):p.rotaOrdem?"Parada "+p.rotaOrdem+"/"+(p.rotaQtd||"?"):"",
+    p.pagamentoAlterado?"pag. alterado":"",
+    p.obs?"📝 "+p.obs:"", (entregue&&p.obsFinalizacao)?"📝 "+p.obsFinalizacao:""].filter(Boolean).join(" · ");
+  const acoes=h("span",{class:"c acoes-l"});
+  if(!entregue){
+    const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
+    if(emRota) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:e=>{ e.stopPropagation(); acrescentarPedidosNaRota(p); }},"+ Rota"));
+    else if(!p.rotaId) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Adicionar a uma rota",onclick:e=>{ e.stopPropagation(); escolherRota(p); }},"+ Rota"));
+  }
+  if(!p.acertado && !entregue) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
+  if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
+  return h("div",{class:"linha-ped"+(entregue?" fim":"")},
+    h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")),
+    cel(dataHoraCard(p),"num"),
+    cel(p.numero?"#"+p.numero:"","num forte"),
+    cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
+    cel(p.cliente),
+    cel(p.endereco),
+    cel(p.telefone,"num"),
+    cel(pag,p.pagamento==="dinheiro"?"din":""),
+    cel(det,"muted"),
+    h("span",{class:"c"},h("button",{type:"button",class:"ent-l"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},(p.entregadorId?nomeEnt(p.entregadorId):"Sem entregador")+(entregue?"":" ▾"))),
+    cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r"),
+    acoes);
 }
 function cartaoPedidoBase(p){
   const entregue=p.status==="entregue";
@@ -1797,12 +2026,17 @@ function cartaoPedidoBase(p){
     comercio()?linhaTelefone(p):null,
     h("div",{class:"meta"},
       (p.data && p.data<hoje() && p.status!=="entregue")?h("span",{class:"pill alerta",text:"Pedido de "+diaCurto(p.data)}):null,
+      p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff;font-weight:800",text:"🔁 "+((entregue&&(p.transfDe||p.transfPara))?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência / Receita")}):null,
       pillReceita(p),
       p.acertado?h("span",{class:"pill acert",text:"Acertado"}):null,
       num(p.adicionais)>0 && !comercio()?h("span",{class:"pill",style:"background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(p.adicionais)+(S.modo==="entregador"?" add":(num(p.adicionais)>1?" adicionais":" adicional"))}):null,
-      p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
+      (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0 && !comercio())
+        ? h(S.modo==="entregador"?"button":"span",{class:"pill ordem",type:"button",style:"background:var(--laranja);color:#fff;font-weight:800;font-size:12.5px;padding:4px 10px;border:0",title:S.modo==="entregador"?"Toque para mudar a ordem das entregas":"Posição desta entrega na rota do entregador",
+            onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:"🧭 "+num(p.ordemEntrega)+"ª entrega de "+num(p.ordemQtd)+(S.modo==="entregador"?" ▾":"")})
+        : p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null),
     p.obs?h("div",{class:"obs",text:p.obs}):null,
+    (entregue && p.obsFinalizacao)?h("div",{class:"obs",style:"font-style:normal;color:var(--ink)",text:"📝 Entregador: "+p.obsFinalizacao}):null,
     rodapePag(p)
   );
   { const de=card.querySelector(".coleta .de");
@@ -1828,7 +2062,11 @@ function cartaoPedidoBase(p){
       acoes.append(h("button",{type:"button",style:"border:0;background:none;padding:0",onclick:()=>verFoto(p),"aria-label":"Ver foto da entrega"},img));
     }
     acoes.append(h("div",{style:"flex:1"}));
-    if(!entregue && !p.rotaId) acoes.append(h("button",{class:"btn sec",type:"button",title:"Adicionar a uma rota",onclick:()=>escolherRota(p)},"+ Rota"));
+    if(!entregue){
+      const emRota = !!(p.entregadorId && (p.emRotaEm || p.rotaId));
+      if(emRota) acoes.append(h("button",{class:"btn sec",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:()=>acrescentarPedidosNaRota(p)},"+ Rota"));
+      else if(!p.rotaId) acoes.append(h("button",{class:"btn sec",type:"button",title:"Adicionar a uma rota",onclick:()=>escolherRota(p)},"+ Rota"));
+    }
     if(!p.acertado && !entregue) acoes.append(h("button",{class:"btn sec",type:"button",onclick:()=>abrirPedido(p),"aria-label":"Editar pedido"},"Editar"));
     card.append(acoes);
     return card;
@@ -1859,7 +2097,7 @@ function cartaoPedidoBase(p){
         b.disabled=true; b.textContent="Registrando…";
         try{
           const lista = p.rotaOrdem ? S.pedidosDia.filter(x=>x.rotaId===p.rotaId && !x.emRotaEm && x.status!=="entregue") : [p];
-          await marcarEmRota(lista); toast(lista.length>1?"Rota iniciada com "+lista.length+" paradas.":"Em rota. Finalize quando chegar no cliente.");
+          await marcarEmRota(lista); toast(lista.length>1?"Rota iniciada com "+lista.length+" paradas.":"Em rota. Finalize quando chegar no cliente."); escolherOrdemSeTodasEmRota(lista);
         }
         catch(e){ b.disabled=false; b.textContent="Coletei · sair em rota"; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
       });
@@ -1910,9 +2148,10 @@ function cartaoSolicitacaoLoja(p){
     p.tipo==="rota"?h("span",{class:"pill",style:"align-self:flex-start;background:var(--royal);color:#fff",text:"Rota · "+(p.paradas||[]).length+" entregas"}):null,
     p.tipo==="rota"?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
     p.tipo==="rota"?listaParadas(p.paradas):null,
-    h("div",{class:"meta"},p.tipo==="rota"?null:pillPag(p),num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
+    h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
     p.obs?h("div",{class:"obs",text:p.obs}):null,
-    h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),rec));
+    h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),
+      p.tipo==="rota"?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
 }
 function listaParadas(paradas){
   return h("div",{class:"lista-paradas"},...(paradas||[]).map((x,i)=>h("div",{class:"lp"},
@@ -1950,14 +2189,14 @@ function cartaoOferta(o){
     h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(ganhoPedido(o))})),
     num(o.adicionais)>0?h("span",{class:"pill",style:"align-self:flex-start;background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(o.adicionais)+" add incluído"}):null,
     blocoRota(o),
-    h("div",{class:"meta"},pillPag(o)),
+    h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
     o.obs?h("div",{class:"obs",text:o.obs}):null,
     b);
 }
 function dadosOferta(d,lojaUid,pedidoId,origemPath){
   return {lojaUid,pedidoId,origemPath:origemPath||("lojas/"+lojaUid+"/pedidos/"+pedidoId),numero:d.numero||"",data:d.data||hoje(),coletaEmpresa:d.coletaEmpresa||"",coletaEndereco:d.coletaEndereco||"",
     cliente:d.cliente||"",telefone:d.telefone||"",endereco:d.endereco||"",localizacao:d.localizacao||"",pagamento:d.pagamento||"dinheiro",valorDinheiro:num(d.valorDinheiro),valorNota:num(d.valorNota),pegarReceita:!!d.pegarReceita,produtosReceita:Array.isArray(d.produtosReceita)?d.produtosReceita:[],trocoPara:num(d.trocoPara),obs:d.obs||"",adicionais:Math.max(0,Math.round(num(d.adicionais))),criadoEm:d.criadoEm||new Date().toISOString(),
-    valorCartao:num(d.valorCartao),...(Array.isArray(d.registros)?{registros:d.registros}:{}),...(d.adicionaisPelaCentral?{adicionaisPelaCentral:true}:{}),...(d.adicionalMotivo?{adicionalMotivo:d.adicionalMotivo}:{})};
+    valorCartao:num(d.valorCartao),...(d.tipoServico?{tipoServico:d.tipoServico}:{}),...(Array.isArray(d.registros)?{registros:d.registros}:{}),...(d.adicionaisPelaCentral?{adicionaisPelaCentral:true}:{}),...(d.adicionalMotivo?{adicionalMotivo:d.adicionalMotivo}:{})};
 }
 function copiaDaOferta(d){
   const {lojaUid,pedidoId,origemPath,...resto}=d;
@@ -2021,6 +2260,24 @@ async function publicarOferta(p){
   for(const m of ativos().filter(m=>m.uid && S.disp[m.uid]!==false)){ await comRetry(()=>S.db.doc("entregas/"+m.uid+"/ofertas/"+p.id).set(of)); }
   if(!p.publicado) await comRetry(()=>S.db.doc(p._path).update({publicado:true}));
 }
+/* Central: tira da tela dos entregadores as ofertas cujo pedido já foi pego, finalizado, cancelado ou apagado */
+let limpandoOfertas=false;
+async function limparOfertasOrfas(){
+  if(!central() || !S.db || limpandoOfertas) return;
+  limpandoOfertas=true;
+  try{
+    for(const m of S.equipe.filter(m=>m.uid)){
+      let sn; try{ sn=await S.db.collection("entregas/"+m.uid+"/ofertas").get(); }catch(e){ continue; }
+      for(const d of sn.docs){
+        const o=d.data()||{}; const origem=o.origemPath||"";
+        let viva=false;
+        if(origem){ try{ const r=await S.db.doc(origem).get(); viva=!!(r.exists && (r.data()||{}).status==="solicitado"); }catch(e){ viva=true; } }
+        if(!viva) await S.db.doc("entregas/"+m.uid+"/ofertas/"+d.id).delete().catch(()=>{});
+      }
+    }
+  }finally{ limpandoOfertas=false; }
+}
+setInterval(()=>{ limparOfertasOrfas(); },10*60000);
 async function recolherOfertas(id){
   for(const m of S.equipe.filter(m=>m.uid)){ await S.db.doc("entregas/"+m.uid+"/ofertas/"+id).delete().catch(()=>{}); }
 }
@@ -2053,6 +2310,7 @@ async function sincronizarAceite(a){
     }else if(a.status==="entregue"){
       const upd={status:"entregue",entregueEm:a.entregueEm||(c&&c.entregueEm)||new Date().toISOString(),entregadorNome:a.entregadorNome||""};
       if(c&&c.fotoId) upd.fotoId=c.fotoId;
+      if(c&&c.obsFinalizacao) upd.obsFinalizacao=c.obsFinalizacao;
       if(c&&c.pagamentoConfirmado) Object.assign(upd,{pagamento:c.pagamento,valorDinheiro:num(c.valorDinheiro),pagamentoAlterado:!!c.pagamentoAlterado,pagamentoAnunciado:c.pagamentoAnunciado,valorAnunciado:num(c.valorAnunciado)});
       if(daCentral) await lojaRef.delete().catch(()=>{}); else await comRetry(()=>lojaRef.update(upd));
       await recolherOfertas(a.id);
@@ -2066,6 +2324,7 @@ async function sincronizarComLoja(p){
   try{
     const upd={status:"entregue",entregueEm:p.entregueEm||new Date().toISOString(),entregadorNome:nomeEnt(p.entregadorId)};
     if(p.fotoId) upd.fotoId=p.fotoId;
+    if(p.obsFinalizacao) upd.obsFinalizacao=p.obsFinalizacao;
     await comRetry(()=>S.db.doc("lojas/"+p.origem.lojaUid+"/pedidos/"+p.origem.pedidoId).update(upd));
     await comRetry(()=>S.db.doc(p._path).update({aSincronizar:false}));
   }catch(e){ console.warn("sync loja",e); }
@@ -2177,6 +2436,7 @@ function assinarCodigosCentral(){
 }
 function assinarCentralExtras(){
   assinarCodigosCentral(); garantirClientes(); setTimeout(assinarListasClientes,1500);
+  setTimeout(limparOfertasOrfas,5000);
   S.subsLoja.forEach(u=>u()); S.subsLoja=[]; S.lojaPedidos={};
   S.subsLoja.push(S.db.collection("abertos").where("status","==","solicitado").onSnapshot(snap=>{
     S.lojaPedidos["abertos"]=snap.docs.map(d=>({id:d.id,_path:"abertos/"+d.id,lojaUid:"",...d.data()}));
@@ -2307,7 +2567,7 @@ function abrirMeuMenu(){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:papel+(meuUsuario()?" · usuário "+meuUsuario():"")}),
     item("👤","Meus dados","Nome, usuário e senha",()=>abrirConta()),
     item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
-    item("☰","Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else irPara("relatorios"); }),
+    item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
     item("⎋","Sair","Volta para a tela de login",sair)]);
 }
@@ -2357,6 +2617,72 @@ function abrirSheet(titulo, corpo){
 }
 function abrirPagina(titulo,corpo){ abrirSheet.pagina=true; return abrirSheet(titulo,corpo); }
 /* página dentro do app (igual à tela de faturas): cabeçalho + conteúdo, a casinha volta ao início */
+/* Entregador: dia por dia do mês, com a quantidade de entregas; tocando no dia, abre os pedidos dele */
+async function abrirMeusPedidosMes(mes){
+  const [y,m]=mes.split("-").map(Number);
+  const ini=mes+"-01", fimMes=isoDia(new Date(y,m,0)), fim=fimMes<hoje()?fimMes:hoje();
+  const nomeMes=new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+  const ant=h("button",{class:"ic-btn",type:"button","aria-label":"Mês anterior"},"‹");
+  const prox=h("button",{class:"ic-btn",type:"button","aria-label":"Próximo mês",disabled:fimMes>=hoje()},"›");
+  const nav=h("div",{class:"dia",style:"gap:10px"},ant,h("div",{class:"titulo",style:"text-align:center"},h("h2",{style:"font-size:18px;text-transform:capitalize",text:nomeMes})),prox);
+  ant.addEventListener("click",()=>abrirMeusPedidosMes(isoDia(new Date(y,m-2,1)).slice(0,7)));
+  prox.addEventListener("click",()=>{ if(fimMes<hoje()) abrirMeusPedidosMes(isoDia(new Date(y,m,1)).slice(0,7)); });
+  const total=h("div",{class:"painel",style:"flex-direction:row;align-items:center;justify-content:space-between"});
+  const lista=h("div",{class:"lista",style:"gap:6px"},h("p",{class:"muted",style:"margin:0",text:"Carregando…"}));
+  mostrarPagina("Meus pedidos","Entregas dia por dia",[nav,total,lista]);
+  if(ini>hoje()){ lista.replaceChildren(); return; }
+  let ps=[]; try{ ps=await buscarPeriodo(ini,fim); }catch(e){ lista.replaceChildren(h("p",{class:"aviso",text:"Não foi possível carregar ("+(e&&e.code||"erro")+")."})); return; }
+  if(!document.body.contains(lista)) return;
+  const porDia={}, adDia={}; ps.filter(p=>p.status==="entregue").forEach(p=>{ porDia[p.data]=(porDia[p.data]||0)+1; adDia[p.data]=(adDia[p.data]||0)+(unidades(p)-1); });
+  const totalMes=Object.values(porDia).reduce((a,b)=>a+b,0), adMes=Object.values(adDia).reduce((a,b)=>a+b,0);
+  total.style.flexDirection="column"; total.style.alignItems="stretch"; total.style.gap="6px";
+  const linhaTot=(rot,v,cor)=>h("div",{style:"display:flex;justify-content:space-between;align-items:baseline"},h("span",{style:"font-weight:700",text:rot}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:24px;color:"+cor,text:String(v)}));
+  total.replaceChildren(linhaTot("Entregas no mês",totalMes,"var(--ok)"),linhaTot("Adicionais pagos pela central",adMes,"var(--royal)"),linhaTot("Total (entregas + adicionais)",totalMes+adMes,"var(--ink)"));
+  const dias=[]; for(let d=fim; d>=ini; d=somaDias(d,-1)) dias.push(d);
+  lista.replaceChildren(...dias.map(d=>{
+    const n=porDia[d]||0, na=adDia[d]||0;
+    const b=h("button",{type:"button",class:"eq",style:"width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit"+(n?"":";opacity:.55")},
+      h("span",{class:"nm",style:"text-transform:capitalize",text:(d===hoje()?"Hoje · ":d===somaDias(hoje(),-1)?"Ontem · ":"")+diaSemana(d)+", "+diaCurto(d)}),
+      h("b",{class:"num",style:"font-family:var(--f-display);font-size:20px;color:"+(n?"var(--ok)":"var(--muted)"),text:String(n)}),
+      h("span",{class:"muted",style:"font-size:12px;width:74px;line-height:1.2",text:(n===1?"entrega":"entregas")+(na?" + "+na+(na>1?" adic.":" adic."):"")}));
+    b.addEventListener("click",()=>abrirMeusPedidosDia(d)); return b;
+  }));
+}
+/* Entregador: os pedidos que ele fez no dia, com setas para mudar de dia (o mais simples possível) */
+async function abrirMeusPedidosDia(dia){
+  const nav=h("div",{class:"dia",style:"gap:10px"});
+  const lista=h("div",{class:"lista"});
+  const total=h("div",{class:"painel",style:"flex-direction:row;align-items:center;justify-content:space-between"});
+  const ant=h("button",{class:"ic-btn",type:"button","aria-label":"Dia anterior"},"‹");
+  const prox=h("button",{class:"ic-btn",type:"button","aria-label":"Próximo dia",disabled:dia>=hoje()},"›");
+  const tit=h("div",{class:"titulo",style:"text-align:center"},
+    h("div",{class:"eyebrow",text:dia===hoje()?"Hoje":dia===somaDias(hoje(),-1)?"Ontem":diaSemana(dia)}),
+    h("h2",{style:"font-size:18px",text:diaLongo(dia)}));
+  nav.append(ant,tit,prox);
+  ant.addEventListener("click",()=>abrirMeusPedidosDia(somaDias(dia,-1)));
+  prox.addEventListener("click",()=>{ if(dia<hoje()) abrirMeusPedidosDia(somaDias(dia,1)); });
+  lista.append(h("p",{class:"muted",style:"margin:0",text:"Carregando…"}));
+  const voltar=h("button",{class:"btn sec full",type:"button",onclick:()=>abrirMeusPedidosMes(dia.slice(0,7))},"📅 Ver todos os dias do mês");
+  mostrarPagina("Meus pedidos","Pedidos do dia",[nav,total,lista,voltar]);
+  let ps=[]; try{ ps=await buscarPeriodo(dia,dia); }catch(e){ lista.replaceChildren(h("p",{class:"aviso",text:"Não foi possível carregar ("+(e&&e.code||"erro")+")."})); return; }
+  if(!document.body.contains(lista)) return;
+  const feitas=ps.filter(p=>p.status==="entregue").sort((a,b)=>String(a.entregueEm||"").localeCompare(String(b.entregueEm||"")));
+  { const ad=feitas.reduce((s,p)=>s+unidades(p)-1,0);
+    total.style.flexDirection="column"; total.style.alignItems="stretch"; total.style.gap="6px";
+    const lt=(rot,v,cor)=>h("div",{style:"display:flex;justify-content:space-between;align-items:baseline"},h("span",{style:"font-weight:700",text:rot}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:24px;color:"+cor,text:String(v)}));
+    total.replaceChildren(lt("Entregas feitas",feitas.length,"var(--ok)"),lt("Adicionais pagos pela central",ad,"var(--royal)"),lt("Total (entregas + adicionais)",feitas.length+ad,"var(--ink)")); }
+  if(!feitas.length){ lista.replaceChildren(h("p",{class:"muted",style:"margin:8px 0;text-align:center",text:"Nenhuma entrega finalizada neste dia."})); return; }
+  lista.replaceChildren(...feitas.map((p,i)=>{
+    const c=h("button",{type:"button",class:"parada",style:"text-align:left;width:100%;cursor:pointer;font:inherit;color:inherit"},
+      h("div",{class:"parada-cab"},h("span",{class:"parada-n num",text:String(i+1)}),
+        h("b",{style:"flex:1;min-width:0;overflow-wrap:anywhere",text:(p.cliente||p.telefone||"Cliente")+(p.numero?" · #"+p.numero:"")}),
+        h("span",{class:"muted num",style:"font-size:13px",text:p.entregueEm?new Date(p.entregueEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""})),
+      h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"—")}),
+      h("span",{class:"muted",style:"font-size:12px",text:(ehTransf(p)?"🔁 Transferência · ":"")+(p.coletaEmpresa||p.coletaEndereco||"")+(unidades(p)>1?" · +"+(unidades(p)-1)+(unidades(p)>2?" adicionais":" adicional"):"")}));
+    c.addEventListener("click",()=>abrirDetalhes(p));
+    return c;
+  }));
+}
 function mostrarPagina(eyebrow,titulo,corpo){
   const v=$("#v-pagina");
   v.replaceChildren(h("div",null,h("div",{class:"eyebrow",text:eyebrow}),h("h2",{text:titulo})),...corpo.filter(Boolean));
@@ -3194,6 +3520,141 @@ function ordemPorCoordenadas(pontos,inicio){
     for(let i=0;i<ord.length-1;i++) for(let j=i+1;j<ord.length;j++){ const n=[...ord.slice(0,i),...ord.slice(i,j+1).reverse(),...ord.slice(j+1)]; if(custo(n)+1e-9<custo(ord)){ ord.splice(0,ord.length,...n); melhorou=true; } } }
   return ord;
 }
+/* ---------- Ordem de entrega: depois de lançadas, todas as entregas abertas de cada entregador
+   entram numa rota numerada (1ª, 2ª, 3ª…). Recalcula quando entra entrega nova; quando uma é
+   finalizada ou cancelada, só renumera as que faltam, mantendo a ordem. ---------- */
+let tNumerar=null, numerando=false;
+function agendarNumeracao(){
+  if(comercio() || !S.db || !(central()||S.modo==="entregador")) return;
+  clearTimeout(tNumerar); tNumerar=setTimeout(numerarEntregas,2500+Math.random()*1500);
+}
+function entregasAbertasPorEntregador(){
+  const g={};
+  if(S.dia!==hoje()) return g;
+  S.pedidosDia.filter(p=>p.status==="pendente" && p._path).forEach(p=>{
+    const k = S.modo==="entregador" ? S.eu : p.entregadorId;
+    if(!k) return;
+    (g[k]=g[k]||[]).push(p);
+  });
+  return g;
+}
+const chaveOrdem=l=>l.map(p=>p.id).sort().join("|");
+async function numerarEntregas(){
+  if(numerando || comercio() || !S.db || S.dia!==hoje()) return;
+  numerando=true;
+  try{
+    for(const [k,lista] of Object.entries(entregasAbertasPorEntregador())){
+      // número escolhido é fixo: quando uma entrega é finalizada, as outras continuam com o mesmo número (2 de 5, 3 de 5…)
+      const numeradas=lista.filter(p=>num(p.ordemEntrega)>0 && p.ordemDe===k);
+      const novas=lista.filter(p=>!(num(p.ordemEntrega)>0 && p.ordemDe===k));
+      if(!novas.length) continue;                                   // nada novo: mantém a numeração como está
+      if(!numeradas.length){
+        if(lista.length<2) continue;                                // uma entrega só, sem rota
+        const ordem=await melhorOrdemEntregas(lista);               // primeira vez: monta a rota 1 de N, 2 de N…
+        await gravarOrdemEntregas(ordem,chaveOrdem(lista),{dono:k});
+        continue;
+      }
+      // entrou entrega nova numa rota já numerada: vai para o fim, os números das outras não mudam
+      const ultimo=Math.max(...numeradas.map(p=>Math.max(num(p.ordemEntrega),num(p.ordemQtd))));
+      const total=ultimo+novas.length;
+      const ordNovas=novas.length>1?await melhorOrdemEntregas(novas):novas;
+      for(let i=0;i<ordNovas.length;i++){ const p=ordNovas[i]; await comRetry(()=>S.db.doc(p._path).update({ordemEntrega:ultimo+i+1,ordemQtd:total,ordemDe:k})); }
+      for(const p of numeradas) if(num(p.ordemQtd)!==total) await comRetry(()=>S.db.doc(p._path).update({ordemQtd:total}));
+    }
+  }catch(e){ console.warn("ordem de entrega",e); }
+  numerando=false;
+}
+async function gravarOrdemEntregas(ordem,chave,op){
+  op=op||{}; const base=num(op.base), total=num(op.total)||base+ordem.length;
+  for(let i=0;i<ordem.length;i++){ const p=ordem[i];
+    const upd={ordemEntrega:base+i+1,ordemQtd:total,ordemChave:chave};
+    if(op.dono) upd.ordemDe=op.dono;
+    if(num(p.ordemEntrega)===upd.ordemEntrega && num(p.ordemQtd)===total && p.ordemChave===chave && (!op.dono||p.ordemDe===op.dono)) continue;
+    await comRetry(()=>S.db.doc(p._path).update(upd));
+  }
+}
+function coordsDaEntrega(p){
+  let c=coordsDe(p.localizacao); if(c) return c;
+  const cli=telValido(p.telefone)&&S.clientes?cliPorTel(p.telefone):null;
+  if(cli){ const x=enderecosDe(cli).find(y=>semAcento(y.endereco)===semAcento(p.endereco)||mesmoEndereco(y.endereco,p.endereco)); if(x) c=coordsDe(x.localizacao); }
+  return c||null;
+}
+async function melhorOrdemEntregas(lista){
+  // já coletadas (em rota) vão na frente; depois as que ainda faltam coletar
+  const out=[];
+  for(const fase of [lista.filter(p=>p.emRotaEm),lista.filter(p=>!p.emRotaEm)]){
+    const base=fase.slice().sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999) || String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
+    if(base.length<2){ out.push(...base); continue; }
+    const pts=base.map(coordsDaEntrega);
+    let ordem=null;
+    if(pts.every(Boolean)) ordem=ordemPorCoordenadas(pts,null);
+    else if(S.sample){
+      try{
+        const r=await S.sample.json(
+          "Você organiza a rota de um entregador de moto em Unaí-MG (Brasil). "+(fase[0].emRotaEm?"Ele já coletou todas estas entregas e está saindo para entregar.":"Ele ainda vai coletar estas entregas nos comércios indicados e depois entregar.")+" "+
+          "Entregas (índice, comércio de coleta, endereço de entrega e, quando houver, coordenadas lat,lng): "+
+          JSON.stringify(base.map((p,i)=>({i,coleta:[p.coletaEmpresa,p.coletaEndereco].filter(Boolean).join(" - "),entrega:(p.endereco||"")+", Unaí-MG",coord:pts[i]?pts[i].lat+","+pts[i].lng:""})))+". "+
+          "Ordene as entregas para o menor percurso total, usando seu conhecimento dos bairros e ruas de Unaí e as coordenadas quando houver; agrupe entregas do mesmo bairro e do mesmo comércio. "+
+          'Responda SOMENTE com JSON: {"ordem":[índices em ordem]}.',{modelTier:"default"});
+        const o=r&&Array.isArray(r.ordem)?r.ordem.map(Number):[];
+        if(o.length===base.length && new Set(o).size===o.length && o.every(k=>k>=0&&k<base.length)) ordem=o;
+      }catch(e){}
+    }
+    out.push(...(ordem?ordem.map(k=>base[k]):base));
+  }
+  return out;
+}
+function botaoOrdemEntregas(ent,lista){
+  const n=lista.length;
+  const todas=lista.every(p=>p.emRotaEm);
+  const b=h("button",{class:todas?"btn lar full":"btn sec full",type:"button",style:todas?"":"border-color:var(--laranja);color:var(--laranja-ink)"},todas?"🧭 Escolher a ordem das "+n+" entregas":"🧭 Rota de entregas ("+n+") · ver e ajustar a ordem");
+  b.addEventListener("click",()=>abrirOrdemEntregas(ent));
+  return b;
+}
+/* entregador saiu com a última entrega: todas em rota, ele escolhe a ordem (de qualquer comércio) */
+function escolherOrdemSeTodasEmRota(acabou){
+  if(S.modo!=="entregador") return;
+  const ids=new Set((acabou||[]).map(p=>p.id));
+  setTimeout(()=>{
+    const l=entregasAbertasPorEntregador()[S.eu]||[];
+    if(l.length>=2 && l.every(p=>p.emRotaEm||ids.has(p.id))) abrirOrdemEntregas(S.eu,{todasEmRota:true});
+  },900);
+}
+function abrirOrdemEntregas(ent,op){
+  op=op||{};
+  const pegar=()=>(entregasAbertasPorEntregador()[ent]||[]).slice().sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
+  let ordem=pegar();
+  const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
+  const info=h("div",{class:"muted",style:"font-size:13px",text:op.todasEmRota?"Todas as entregas estão em rota. Escolha a ordem em que você vai entregar (pode misturar comércios) e salve.":"Esta é a ordem em que cada entrega vai ser feita. Ajuste com as setas, se precisar."});
+  const msg=h("div",{class:"aviso",hidden:true});
+  const btOrg=h("button",{class:"btn sec full",type:"button"},"🧭 Organizar a melhor ordem de novo");
+  const salvar=h("button",{class:"btn full",type:"button"},"Salvar ordem");
+  const totalRota=()=>Math.max(ordem.length,...ordem.map(p=>p.ordemDe===ent?num(p.ordemQtd):0));
+  const desenhar=()=>caixa.replaceChildren(...ordem.map((p,i)=>h("div",{class:"parada"},
+    h("div",{class:"parada-cab"},h("span",{class:"parada-n num",style:"width:auto;min-width:28px;padding:0 6px;border-radius:14px",text:(totalRota()-ordem.length+i+1)+"/"+totalRota()}),
+      h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")}),
+      h("button",{class:"mini",type:"button","aria-label":"Subir entrega",disabled:i===0,onclick:()=>{ [ordem[i-1],ordem[i]]=[ordem[i],ordem[i-1]]; desenhar(); }},"↑"),
+      h("button",{class:"mini",type:"button","aria-label":"Descer entrega",disabled:i===ordem.length-1,onclick:()=>{ [ordem[i+1],ordem[i]]=[ordem[i],ordem[i+1]]; desenhar(); }},"↓")),
+    h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
+    h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))}))));
+  btOrg.addEventListener("click",async()=>{
+    btOrg.disabled=true; btOrg.textContent="Organizando…";
+    ordem=await melhorOrdemEntregas(ordem.map(p=>({...p,ordemEntrega:null})));
+    btOrg.disabled=false; btOrg.textContent="🧭 Organizar a melhor ordem de novo"; info.textContent="Ordem sugerida. Confira e salve."; desenhar();
+  });
+  salvar.addEventListener("click",async()=>{
+    const atual=pegar();
+    if(chaveOrdem(atual)!==chaveOrdem(ordem)){ ordem=atual; desenhar(); msg.hidden=false; msg.textContent="As entregas mudaram enquanto você ajustava. Confira a lista de novo e salve."; return; }
+    salvar.disabled=true; salvar.textContent="Salvando…";
+    try{
+      // as que já foram entregues mantêm os primeiros números; as que faltam ficam na ordem escolhida depois delas
+      const total=Math.max(ordem.length,...ordem.map(p=>p.ordemDe===ent?num(p.ordemQtd):0));
+      await gravarOrdemEntregas(ordem,chaveOrdem(ordem),{base:total-ordem.length,total,dono:ent}); fechar(); toast("Ordem das entregas salva"); }
+    catch(e){ salvar.disabled=false; salvar.textContent="Salvar ordem"; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
+  });
+  desenhar();
+  const fechar=abrirSheet("Rota de entregas"+(central()?" · "+nomeEnt(ent):""),[info,caixa,btOrg,msg,salvar]);
+}
 function abrirEscanearOpcoes(){
   const item=(icone,titulo,desc,acao)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
       h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
@@ -3421,7 +3882,7 @@ function montarRotaPorFotos(restaurar){
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),taxaCobrada:TAXA_PADRAO,
-          status:"pendente",acertado:false,criadoEm:agora,criadoPor:S.uid||"",aceitoEm:agora,registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido feito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido aceito",em:agora}],
+          status:"pendente",acertado:false,criadoEm:agora,criadoPor:S.uid||"",aceitoEm:agora,emRotaEm:agora,saiuEm:agora,registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido feito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido aceito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Saiu para entrega (em rota)",em:agora}],
           ...(N>1?{rotaId,rotaQtd:N,rotaOrdem:i+1}:{})};
         await comRetry(()=>S.db.doc(colDe(S.eu)+"/"+rotaId+"-"+(i+1)).set(dados));
       }
@@ -3459,14 +3920,25 @@ function abrirMenuMais(){
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),desc?h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc}):null));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
   const podeRota=central()||(S.modo==="entregador"&&!!S.sample);
-  const fechar=abrirSheet("Nova entrega",[
+  const fechar=abrirSheet("Lançar serviço",[
     S.sample?item("📷","Escanear comanda","Fotografa a comanda e lança a entrega",()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),true):null,
     S.sample?item("🖼","Escanear foto da galeria","Usa uma foto da comanda que já está no celular",()=>escanearDaGaleria()):null,
     podeRota?item("🗺","Criar rota","Fotografa as comandas e monta a ordem das entregas",()=>{ if(central()) abrirRota({escanear:true}); else abrirRotaPorFotos(); },!S.sample):null,
-    item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null))]);
+    item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null)),
+    item("🔁","Transferência / busca de receita","Levar mercadoria entre lojas ou buscar receita",()=>abrirPedido(null,null,{tipoServico:"transferencia",pagamento:"pix"}))]);
 }
 $("#fabRota").addEventListener("click",()=>abrirRota());
-$("#fabCli").addEventListener("click",()=>{ if(!central()) return; garantirClientes(); editarCliente(null,{foto:!!S.sample}); });
+$("#fabCli").addEventListener("click",()=>{
+  if(!central()) return; garantirClientes();
+  if(!S.sample){ editarCliente(null); return; }   // sem leitura de foto disponível: vai direto ao cadastro normal
+  const item=(icone,titulo,desc,acao)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
+      h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
+      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:desc})));
+    b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
+  const fechar=abrirSheet("Cadastrar cliente",[
+    item("📷","Cadastrar com foto","Fotografa a comanda e o app preenche os dados",()=>editarCliente(null,{foto:true})),
+    item("✍️","Cadastrar normal","Digita nome, telefone e endereço",()=>editarCliente(null))]);
+});
 function atuFabScan(){ const b=$("#fabScan"); if(b) b.hidden = true; }
 $("#fabScan").addEventListener("click",()=>{ if(!S.sample) return; garantirClientes(); if(S.modo==="entregador") abrirEscanearOpcoes(); else abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)); });
 /* Câmera traseira: usa o visor próprio quando a página pode usar a câmera; senão, o seletor do celular já pedindo a traseira */
@@ -3595,6 +4067,8 @@ function importarCodigoDoPedido(d){
 }
 const TAXA_MIN_COMERCIO = 4;
 function abrirPedido(p,arquivoComanda,pre){
+  // pedido lançado que ainda está esperando um entregador pegar (enviado a todos ou pedido de comércio)
+  const aguardandoEnt = !!(p && p._path && central() && p.status==="solicitado" && /^(abertos|lojas)\//.test(p._path));
   // pedido finalizado não se edita: mostra só os detalhes
   if(p && p.status==="entregue"){ abrirDetalhes(p); return; }
   if(p && !central()){ toast("Só a central pode alterar pedidos."); return; }
@@ -3646,7 +4120,7 @@ function abrirPedido(p,arquivoComanda,pre){
   fEnd.addEventListener("input",verEnd);
   const fTel=h("input",{class:"inp",id:"pTel",type:"tel",inputmode:"tel",placeholder:"(38) 99999-9999",value:p.telefone||""});
   const fRota=h("select",{class:"inp",id:"pRota"},h("option",{value:"",text:"Pedido sozinho"}),...(novo&&central()?rotasDisponiveis():[]).map(r=>h("option",{value:r.id,text:r.rotulo})));
-  const fEnt=h("select",{class:"inp",id:"pEnt"},h("option",{value:"",text:novo?"Enviar para todos (quem aceitar primeiro)":"Escolher entregador"}),
+  const fEnt=h("select",{class:"inp",id:"pEnt"},h("option",{value:"",text:(novo||aguardandoEnt)?"Enviar para todos (quem aceitar primeiro)":"Escolher entregador"}),
     ...ativos().map(e=>h("option",{value:e.id,text:e.nome+(e.uid?"":" (sem acesso ao app)")})));
   fEnt.value=p.entregadorId||"";
   const fObs=h("textarea",{id:"pObs",placeholder:"Ex.: apartamento 202, ligar ao chegar"});
@@ -3887,8 +4361,44 @@ function abrirPedido(p,arquivoComanda,pre){
       ok].filter(Boolean));
     resumo.hidden=false;
   }
+  // tipo de serviço: entrega normal ou transferência / busca de receita
+  let servico = p.tipoServico || (p._origemReceita ? "transferencia" : "entrega");
+  const servBtns={};
+  const segServ=h("div",{class:"seg",role:"group","aria-label":"Tipo de serviço"},
+    ...[["entrega","📦 Entrega"],["transferencia","🔁 Transferência / Receita"]].map(([k,t])=>servBtns[k]=h("button",{type:"button",onclick:()=>{ servico=k; atuServ(); }},t)));
+  const blocoServ=h("div",{class:"campo"},h("span",{class:"lbl",text:"Tipo de serviço"}),segServ);
+  const dicaServ=h("div",{class:"muted",style:"font-size:12px",hidden:true,text:"Levar mercadoria de uma loja para outra ou buscar receita. Nada a cobrar do cliente e o telefone é opcional."});
+  const tituloDestino=h("div",{class:"eyebrow",text:"Entrega"});
+  const lblEnd=h("label",{for:"pEnd",text:"Endereço de entrega"});
+  const lblTel=h("label",{for:"pTel",text:"Telefone / WhatsApp do cliente"});
+  const blocoPagForm=h("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  // transferência: já no lançamento escolhe de qual loja busca e em qual entrega (igual à finalização)
+  let trDe=p.transfDe||"", trPara=p.transfPara||"";
+  const segLoja=(get,set,rot,campo)=>{ const bts={};
+    const seg=h("div",{class:"seg",role:"group","aria-label":rot,style:"grid-template-columns:repeat(4,1fr)"},
+      ...LOJAS_TRANSF.map(l=>bts[l]=h("button",{type:"button","aria-pressed":String(get()===l),onclick:()=>{
+        const antes=get(); set(l); Object.entries(bts).forEach(([k,b])=>b.setAttribute("aria-pressed",String(k===l)));
+        // preenche o nome da loja no campo (sem apagar o que a pessoa digitou)
+        if(l!=="Outros" && (!campo.value.trim() || campo.value.trim()===antes)) campo.value=l;
+        if(l==="Outros" && LOJAS_TRANSF.includes(campo.value.trim())) campo.value="";
+      }},l)));
+    return seg; };
+  const blocoLojas=h("div",{class:"painel",style:"gap:10px;border-color:var(--royal)",hidden:true},
+    h("b",{style:"color:var(--royal)",text:"🔁 Transferência / busca de receita"}),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Buscar em"}),segLoja(()=>trDe,v=>{trDe=v;},"Buscar em",fEmp)),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Entregar no"}),segLoja(()=>trPara,v=>{trPara=v;},"Entregar no",fCli)));
+  function atuServ(){
+    Object.entries(servBtns).forEach(([k,b])=>b.setAttribute("aria-pressed",String(servico===k)));
+    const tr=servico==="transferencia";
+    dicaServ.hidden=!tr; blocoPagForm.hidden=tr; blocoLojas.hidden=!tr;
+    tituloDestino.textContent=tr?"Destino":"Entrega";
+    lblEnd.textContent=tr?"Para onde levar (endereço)":"Endereço de entrega";
+    lblTel.textContent=tr?"Telefone de contato (opcional)":"Telefone / WhatsApp do cliente";
+    if(tr){ pag="pix"; receita=false; atualiza(); atuRec(); }
+  }
   const corpo=[
     blocoFoto,
+    blocoServ, blocoLojas, dicaServ,
     h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"pNum",text:"Pedido nº"}),fNum),h("div",{class:"campo"},h("label",{for:"pData",text:"Data"}),fData)),
     campoPedCom,
     comercio()?null:h("div",{class:"painel"},
@@ -3898,20 +4408,21 @@ function abrirPedido(p,arquivoComanda,pre){
       central()?h("div",{class:"campo"},h("label",{for:"pTaxa",text:"Taxa da entrega cobrada da empresa (R$)"}),fTaxa):null,
       central()?h("div",{class:"campo"},h("label",{for:"pAdic",text:"Adicionais para o entregador ("+fmt(VALOR_ADICIONAL)+" cada)"}),fAdic):null),
     h("div",{class:"painel"},
-      h("div",{class:"eyebrow",text:"Entrega"}),
+      tituloDestino,
       campoCliente(fCli,fEnd,"pCli",fTel),
       (central()||comercio())?campoCodCom:null,
 
-      h("div",{class:"campo"},h("label",{for:"pEnd",text:"Endereço de entrega"}),
+      h("div",{class:"campo"},lblEnd,
         h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fEnd),maisEnd),avisoEnd),
-      h("div",{class:"campo"},h("label",{for:"pTel",text:"Telefone / WhatsApp do cliente"}),fTel)),
+      h("div",{class:"campo"},lblTel,fTel)),
     central()?h("div",{class:"campo"},h("label",{for:"pEnt",text:novo?"Entregador (opcional)":"Entregador"}),fEnt):null,
     novo&&central()&&fRota.options.length>1?h("div",{class:"campo"},h("label",{for:"pRota",text:"Adicionar a uma rota (opcional)"}),fRota):null,
     comercio()?h("div",{class:"campo"},h("label",{for:"pTaxa",text:"Taxa da entrega (R$) · mínimo "+fmt(TAXA_MIN_COMERCIO)}),fTaxa):null,
     S.modo==="entregador"?h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between;align-items:center"},h("span",{class:"muted",text:"Sua taxa nesta entrega"}),h("b",{class:"num",style:"font-size:18px",text:fmt(num(S.euTaxa)||TAXA_MINIMA)})):null,
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Como o cliente paga o pedido"}),seg,dica),
-    campoDin, campoCartao, campoNota, avisoValor,
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Tem que pegar a receita?"}),segRec),
+    (blocoPagForm.append(
+      h("div",{class:"campo"},h("span",{class:"lbl",text:"Como o cliente paga o pedido"}),seg,dica),
+      campoDin, campoCartao, campoNota, avisoValor,
+      h("div",{class:"campo"},h("span",{class:"lbl",text:"Tem que pegar a receita?"}),segRec)), blocoPagForm),
     h("div",{class:"nota"},h("label",{for:"pObs",class:"lbl",text:"Observações para o entregador"}),fObs),
     msg, salvar
   ];
@@ -3924,25 +4435,26 @@ function abrirPedido(p,arquivoComanda,pre){
     });
     corpo.push(del);
   }
+  atuServ();
   const fechar=abrirSheet(novo?"Novo pedido":"Pedido "+(p.numero?"#"+p.numero:""),corpo);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     const entId = central() ? fEnt.value : comercio() ? "" : S.eu;
     // empresa de coleta é opcional (não precisa estar cadastrada)
     if(endPendente){ msg.hidden=false; msg.textContent="Escolha qual é o endereço desta entrega (cadastro ou comanda)."; return; }
-    if(!telValido(fTel.value) && !(semCadastro && !fTel.value.trim())){ msg.hidden=false; msg.textContent="Informe o telefone do cliente com DDD."; return; }
+    if(servico!=="transferencia" && !telValido(fTel.value) && !(semCadastro && !fTel.value.trim())){ msg.hidden=false; msg.textContent="Informe o telefone do cliente com DDD."; return; }
     if(!fEnd.value.trim()){ msg.hidden=false; msg.textContent="Informe o endereço de entrega."; return; }
     if(comercio() && num(fTaxa.value)<TAXA_MIN_COMERCIO){ msg.hidden=false; msg.textContent="A taxa da entrega precisa ser de pelo menos "+fmt(TAXA_MIN_COMERCIO)+"."; return; }
     if(pag==="dinheiro" && !num(fDin.value)){ msg.hidden=false; msg.textContent="Informe o valor que o entregador vai receber em dinheiro."; return; }
     if((central()||comercio()) && pag==="cartao" && !num(fCartao.value)){ msg.hidden=false; msg.textContent="Informe o valor total do pedido para cobrar no cartão."; try{ fCartao.focus(); }catch(e){} return; }
     if((central()||comercio()) && pag==="convenio" && !num(fNota.value)){ msg.hidden=false; msg.textContent="Informe o valor total da nota que o cliente vai assinar."; try{ fNota.focus(); }catch(e){} return; }
-    if(!entId && !comercio() && !(central() && novo)){ msg.hidden=false; msg.textContent="Escolha o entregador. Se a lista estiver vazia, cadastre a equipe na aba Equipe."; return; }
+    if(!entId && !comercio() && !(central() && (novo||aguardandoEnt))){ msg.hidden=false; msg.textContent="Escolha o entregador. Se a lista estiver vazia, cadastre a equipe na aba Equipe."; return; }
     const dados={
       numero:novo?"":(p.numero||""), data:fData.value||S.dia,
       coletaEmpresa:comercio()?S.euNome:fEmp.value.trim(), coletaEndereco:comercio()?S.euEndereco:fColEnd.value.trim(),
       cliente:fCli.value.trim(), clienteCodigo:fCli.dataset.cliente||p.clienteCodigo||"", pedidoComercio:fPedCom.value.trim(),
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
-      entregadorId:entId, pagamento:pag,
+      entregadorId:entId, pagamento:pag, tipoServico:servico, ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
       valorNota: pag==="convenio" ? num(fNota.value) : 0,
@@ -3960,13 +4472,13 @@ function abrirPedido(p,arquivoComanda,pre){
       const acoes=[];
       if(novo) acoes.push("Pedido feito"+(nAdN?" com "+nAdN+(nAdN>1?" adicionais":" adicional"):""));
       else { if(central() && "adicionais" in dados && nAdN!==nAdA) acoes.push(nAdN>nAdA?"Adicional colocado (+"+(nAdN-nAdA)+", total "+nAdN+")":"Adicional retirado (total "+nAdN+")"); else acoes.push("Pedido alterado"); }
-      if(novo && S.modo==="entregador") acoes.push("Pedido aceito");
+      if(novo && S.modo==="entregador"){ acoes.push("Pedido aceito"); acoes.push("Saiu para entrega (em rota)"); }
       let reg=novo?{}:{registros:p.registros}; acoes.forEach(a=>{ reg=comRegistro(reg,a,{}); });
       dados.registros=reg.registros;
     }
     salvar.disabled=true; salvar.textContent="Salvando…";
     { const atual=clienteSel();
-      if(semCadastro && !telValido(fTel.value)){ /* entrega sem cadastro de cliente, confirmada pelo entregador */ }
+      if((semCadastro || servico==="transferencia") && !telValido(fTel.value)){ /* sem cadastro de cliente (entrega confirmada pelo entregador, ou transferência sem telefone) */ }
       else if(!podeCadastrarCliente()){
         const c=atual&&digTel(atual.telefone)===digTel(fTel.value)?atual:cliPorTel(fTel.value);
         dados.clienteCodigo=(c&&c.codigo)||""; if(c && !dados.cliente && c.nome) dados.cliente=c.nome;
@@ -4002,8 +4514,17 @@ function abrirPedido(p,arquivoComanda,pre){
         toast("Pedido enviado a todos os entregadores");
       }else if(novo){
         const agoraIso=new Date().toISOString();
-        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso}:{})}));
+        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso,emRotaEm:agoraIso,saiuEm:agoraIso}:{})}));
         toast("Pedido lançado");
+      }else if(aguardandoEnt){
+        // ainda ninguém pegou: atualiza no mesmo lugar (as ofertas aos entregadores são refeitas sozinhas)
+        const sn=await S.db.doc(p._path).get();
+        if(!sn.exists || (sn.data()||{}).status!=="solicitado") throw {code:"ja_pegou"};
+        const {entregadorId:_e,...semEnt}=dados;
+        if(!semEnt.numero) delete semEnt.numero;
+        await comRetry(()=>S.db.doc(p._path).update(semEnt));
+        if(entId){ const ok=await designar({...p,...(sn.data()||{}),...semEnt},entId); toast(ok?"Pedido atualizado e enviado para "+nomeEnt(entId):"Pedido atualizado"); }
+        else toast("Pedido atualizado e enviado de novo aos entregadores");
       }else if(comercio()){
         await comRetry(()=>S.db.doc(p._path).update(dados));
         toast("Pedido atualizado");
@@ -4029,7 +4550,7 @@ function abrirPedido(p,arquivoComanda,pre){
       if(dados.data!==S.dia) mudarDia(dados.data);
     }catch(e){
       salvar.disabled=false; salvar.textContent=novo?"Lançar pedido":"Salvar alterações";
-      msg.hidden=false; msg.textContent = e&&e.code==="invalid_argument" ? "Sua conta não tem permissão para salvar aqui. Fale com a central." : "Não foi possível salvar ("+(e&&e.code||"erro")+"). Confira a internet e tente de novo.";
+      msg.hidden=false; msg.textContent = e&&e.code==="ja_pegou" ? "Um entregador acabou de pegar este pedido. Feche e edite pelo cartão dele." : e&&e.code==="invalid_argument" ? "Sua conta não tem permissão para salvar aqui. Fale com a central." : "Não foi possível salvar ("+(e&&e.code||"erro")+"). Confira a internet e tente de novo.";
     }
   });
 }
@@ -4084,13 +4605,14 @@ function abrirConfirmacao(p){
   const pintaTroco=()=>{ [[btDeiTroco,"dei","var(--ok)"],[btSemTroco,"falta","var(--bad)"]].forEach(([b,k,c])=>{ b.style.cssText="flex:1;padding:8px;"+(trocoEscolha===k?"background:"+c+";color:#fff":""); }); };
   btDeiTroco.addEventListener("click",()=>{ trocoEscolha="dei"; pintaTroco(); });
   btSemTroco.addEventListener("click",()=>{ trocoEscolha="falta"; pintaTroco(); });
-  const fObsFin=h("input",{class:"inp",id:"fObsFin",placeholder:"Observação (ex.: pagou R$ 20 em dinheiro e o resto no cartão)",hidden:true});
+  const fObsFin=h("textarea",{class:"inp",id:"fObsFin",rows:2,style:"resize:vertical;min-height:52px",placeholder:"Alguma coisa a informar? Ex.: deixei com o porteiro, cliente pagou parte em dinheiro…"});
+  const blocoObsFin=h("div",{class:"campo"},h("label",{for:"fObsFin",text:"Observações (opcional)"}),fObsFin);
   const segPag=h("div",{class:"seg",role:"group","aria-label":"Forma de pagamento recebida"},
     ...Object.keys(PAG).map(k=>btsPag[k]=h("button",{type:"button","aria-pressed":String(formaRec===k),onclick:()=>{formaRec=k;atPag();}},PAG[k])));
   function atPag(){
+    if(typeof atuBotoesDin==="function") try{ atuBotoesDin(); }catch(e){}
     Object.keys(btsPag).forEach(k=>btsPag[k].setAttribute("aria-pressed",String(formaRec===k)));
     campoVal.hidden = formaRec!=="dinheiro" || (boxMudarPag.hidden && !pagouDin); blocoNota.hidden = formaRec!=="convenio";
-    fObsFin.hidden = !(pagouDin || !boxMudarPag.hidden);
     const sobra0 = formaRec==="dinheiro" && valPedido>0 ? Math.round((num(fValRec.value)-valPedido)*100)/100 : 0;
     const levouTroco = num(p.trocoPara)>0 && num(fValRec.value)<=num(p.trocoPara)+0.009;
     const sobra = levouTroco ? 0 : sobra0;
@@ -4104,7 +4626,7 @@ function abrirConfirmacao(p){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,btMudarPag,box,boxMudarPag,campoVal,trocoBox,fObsFin,avisoPag,blocoNota);
+    infoValor,btMudarPag,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
@@ -4149,6 +4671,15 @@ function abrirConfirmacao(p){
   // "Pagou em dinheiro": cliente mudou para dinheiro na hora; pede o valor recebido
   const btDin=h("button",{class:"btn sec",type:"button",style:"border-color:var(--ok);color:var(--ok)"},"Pagou em dinheiro");
   const linhaOk=h("div",{style:"display:grid;grid-template-columns:"+(anunc==="dinheiro"?"1fr":"1fr 1fr")+";gap:8px"},ok,anunc==="dinheiro"?null:btDin);
+  // pago em dinheiro: botão grande (70%) = o dinheiro volta para a loja; botão menor = dinheiro fica com a central
+  let dinCentral=false;
+  const btCentral=h("button",{class:"btn sec",type:"button",style:"border-color:var(--royal);color:var(--royal);font-size:13px;padding:10px 8px;line-height:1.2"},"Dinheiro com a central");
+  btCentral.addEventListener("click",()=>{ dinCentral=true; ok.click(); setTimeout(()=>{ if(!ok.disabled) dinCentral=false; },50); });
+  function atuBotoesDin(){
+    const din=formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p);
+    if(din){ ok.textContent="Finalizar · dinheiro volta para a loja"; if(btDin.isConnected) btDin.remove(); if(!btCentral.isConnected) linhaOk.append(btCentral); linhaOk.style.gridTemplateColumns="7fr 3fr"; }
+    else { ok.textContent=ehTransf(p)?"Finalizar transferência":"Finalizar entrega"; if(btCentral.isConnected) btCentral.remove(); linhaOk.style.gridTemplateColumns=btDin.isConnected?"1fr 1fr":"1fr"; }
+  }
   btDin.addEventListener("click",()=>{ pagouDin=true; formaRec="dinheiro"; fValRec.value=""; btDin.remove(); linhaOk.style.gridTemplateColumns="1fr";
     campoVal.querySelector("label").textContent="Quanto o cliente pagou em dinheiro? (R$)"; atPag();
     setTimeout(()=>{ try{ campoVal.scrollIntoView({block:"center",behavior:"smooth"}); fValRec.focus(); }catch(e){} },60); });
@@ -4158,12 +4689,27 @@ function abrirConfirmacao(p){
   // adicional lançado pela central (ou por quem não é o entregador) vai automático: nada para confirmar nem motivo para escrever
   const adicAuto = adic>0 && S.modo==="entregador" && (p.adicionaisPelaCentral || !(p.criadoPor && p.criadoPor===S.uid));
   if(adicAuto) blocoAd.hidden=true;
-  const fechar=abrirSheet("Finalizar entrega",[resumo,blocoReceita,blocoPag,blocoAd,msg,linhaOk]);
+  // transferência / busca de receita: na finalização escolhe de qual loja saiu e para qual foi
+  const transf=ehTransf(p); let transfDe=p.transfDe||"", transfPara=p.transfPara||"";
+  const segLojas=(atual,onSel,rot)=>{ const bts={}; const seg=h("div",{class:"seg",role:"group","aria-label":rot,style:"grid-template-columns:repeat(4,1fr)"},
+      ...LOJAS_TRANSF.map(l=>bts[l]=h("button",{type:"button","aria-pressed":String(atual===l),onclick:()=>{ onSel(l); Object.entries(bts).forEach(([k,b])=>b.setAttribute("aria-pressed",String(k===l))); }},l)));
+    return seg; };
+  const blocoTransf = transf ? h("div",{class:"painel",style:"gap:10px;border-color:var(--royal)"},
+      h("b",{style:"color:var(--royal)",text:"🔁 Transferência / busca de receita"}),
+      h("div",{class:"campo"},h("span",{class:"lbl",text:"Coletado em"}),segLojas(transfDe,l=>{ transfDe=l; },"Coletado em")),
+      h("div",{class:"campo"},h("span",{class:"lbl",text:"Entregue no"}),segLojas(transfPara,l=>{ transfPara=l; },"Entregue no"))) : null;
+  if(transf){ ok.textContent="Finalizar transferência"; box.remove(); btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
+  else atuBotoesDin();
+  const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
+    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoObsFin,msg,linhaOk]);
   // se faltar alguma coisa, o aviso aparece e a tela rola até ele
   ok.addEventListener("click",()=>setTimeout(()=>{ if(!msg.hidden){ try{ msg.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} msg.style.outline="3px solid var(--bad)"; setTimeout(()=>msg.style.outline="",1500); } },30));
   ok.addEventListener("click",async()=>{
     msg.hidden=true;
-    if(formaRec==="dinheiro" && !num(fValRec.value)){ msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValRec.focus(); }catch(e){} return; }
+    if(transf && !transfDe){ msg.hidden=false; msg.textContent="Escolha em qual loja foi coletado."; return; }
+    if(transf && !transfPara){ msg.hidden=false; msg.textContent="Escolha em qual loja foi entregue."; return; }
+    if(transf){ formaRec=anunc; }
+    if(!transf && formaRec==="dinheiro" && !num(fValRec.value)){ msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValRec.focus(); }catch(e){} return; }
     if(!adicAuto){ const ini=Math.max(0,Math.round(num(p.adicionais))), mot=motivo.value.trim();
       if(adic>0 && !mot){ msg.hidden=false; msg.textContent="Escreva o motivo do adicional."; motivo.focus(); return; }
       if(adic>ini && mot===String(p.adicionalMotivo||"").trim()){ msg.hidden=false; msg.textContent="Escreva o motivo do adicional que você acrescentou."; motivo.focus(); return; } }
@@ -4192,9 +4738,11 @@ function abrirConfirmacao(p){
     const valRec = formaRec==="dinheiro" ? num(fValRec.value) : 0;
     const alterado = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(valRec-valAnunc)>0.009);
     Object.assign(upd,{pagamentoConfirmado:true,pagamentoAnunciado:anunc,valorAnunciado:valAnunc,pagamento:formaRec,valorDinheiro:valRec,pagamentoAlterado:alterado});
+    if(formaRec==="dinheiro") upd.dinheiroCom = dinheiroFicaNaLoja(p) ? "loja" : dinCentral ? "central" : "loja";
     if(fotoId) upd.fotoId=fotoId;
     if(fObsFin.value.trim()) upd.obsFinalizacao=fObsFin.value.trim();
-    Object.assign(upd,comRegistro(p,"Entrega finalizada"+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
+    if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
+    Object.assign(upd,comRegistro(p,(transf?"Transferência finalizada: "+transfDe+" → "+transfPara:"Entrega finalizada")+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
     if(formaRec==="dinheiro" && trocoBox.hidden && valRec>valPedido+0.009 && num(p.trocoPara)>0 && valRec<=num(p.trocoPara)+0.009) upd.valorDinheiro=valPedido; // deu o troco que já levava
     if(!trocoBox.hidden && trocoEscolha){
       const sobra=Math.round((valRec-valPedido)*100)/100;
@@ -4238,6 +4786,8 @@ function abrirDetalhes(p){
   if(p.pegarReceita && Array.isArray(p.produtosReceita) && p.produtosReceita.length) add("Controlados",p.produtosReceita.join(", "),true);
   if(p.pegarReceita) add("Receita",p.status==="entregue"?(p.receitaRecolhida?"Recolhida pelo entregador":p.receitaResolvida?"Pendência resolvida":"Pendente · "+(MOTIVO_RECEITA[p.receitaMotivo]||"")+(p.receitaObs?" · "+p.receitaObs:"")):"Pegar a receita com o cliente",true);
   if(p.pagamento==="convenio" && p.status==="entregue") add("Nota",p.notaDevolvida?"Devolvida ao comércio"+(p.notaDevolvidaEm?" em "+new Date(p.notaDevolvidaEm).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):""):"Assinada · falta devolver ao comércio",true);
+  if(ehTransf(p)){ add("Serviço","Transferência / busca de receita"); add("Coletado em",p.transfDe); add("Entregue no",p.transfPara); }
+  if(p.dinheiroCom) add("Dinheiro ficou com",p.dinheiroCom==="central"?"A central":"O entregador (devolve à loja)");
   add("Obs. do entregador",p.obsFinalizacao,true);
   if(num(p.trocoDevido)) add("Troco ao cliente",fmt(p.trocoDevido)+(p.trocoPendente?" · falta enviar":p.trocoResolvido==="pix"?" · enviado por Pix":" · enviado"),true);
   if(p.pagamentoAlterado) add("Anunciado",p.pagamentoAnunciado==="dinheiro"?fmt(p.valorAnunciado)+" (dinheiro)":(PAG[p.pagamentoAnunciado]||""));
@@ -4345,6 +4895,45 @@ async function buscarPeriodo(de,ate,entId){
   return ps;
 }
 
+/* Fatura: toca na semana e vê todas as entregas dela, dia a dia, e os adicionais recebidos */
+function abrirSemanaFatura(w,n,com,nome){
+  const itens=w.itens.slice().sort((a,b)=>(a.data+(a.entregueEm||"")).localeCompare(b.data+(b.entregueEm||"")));
+  const nAd=somaUn(itens)-itens.length;
+  const lt=(rot,v,cor)=>h("div",{style:"display:flex;justify-content:space-between;align-items:baseline;gap:10px"},h("span",{style:"font-weight:700",text:rot}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:20px;color:"+(cor||"var(--ink)"),text:v}));
+  const resumo=h("div",{class:"painel",style:"gap:6px"},
+    lt("Entregas",String(itens.length),"var(--ok)"),
+    com?null:lt("Adicionais pagos pela central",String(nAd),"var(--royal)"),
+    com?null:lt("Total (entregas + adicionais)",String(itens.length+nAd)),
+    lt(com?"Taxas da semana":"Valor da semana",fmt(w.valor)));
+  const porDia={}; itens.forEach(p=>{ (porDia[p.data]=porDia[p.data]||[]).push(p); });
+  // os 7 dias da semana, com setinhas para passar de um dia para o outro
+  const dias7=[]; for(let d=w.a; d<=w.f; d=somaDias(d,1)) dias7.push(d);
+  let idx=Math.max(0,dias7.findIndex(d=>porDia[d]));
+  const ant=h("button",{class:"ic-btn",type:"button","aria-label":"Dia anterior"},"‹");
+  const prox=h("button",{class:"ic-btn",type:"button","aria-label":"Próximo dia"},"›");
+  const titDia=h("div",{style:"flex:1;text-align:center;min-width:0"});
+  const navDia=h("div",{style:"display:flex;align-items:center;gap:10px;margin-top:4px"},ant,titDia,prox);
+  const listaDia=h("div",{style:"display:flex;flex-direction:column;gap:6px"});
+  const pintarDia=()=>{
+    const d=dias7[idx], l=porDia[d]||[], ad=somaUn(l)-l.length;
+    ant.disabled=idx===0; prox.disabled=idx===dias7.length-1;
+    titDia.replaceChildren(h("b",{style:"display:block;text-transform:capitalize",text:diaSemana(d)+", "+diaCurto(d)}),
+      h("span",{class:"muted num",style:"font-size:13px",text:"Dia "+(idx+1)+" de 7 · "+l.length+(l.length===1?" entrega":" entregas")+(!com&&ad?" + "+ad+" adic.":"")}));
+    listaDia.replaceChildren(...(l.length?l.map(p=>{ const a=unidades(p)-1;
+        const b=h("button",{type:"button",class:"parada",style:"text-align:left;width:100%;cursor:pointer;font:inherit;color:inherit;padding:8px 10px;gap:2px"},
+          h("div",{style:"display:flex;justify-content:space-between;gap:8px"},
+            h("b",{style:"min-width:0;overflow-wrap:anywhere",text:(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.telefone||"Cliente")}),
+            h("span",{class:"num",style:"flex:none;font-weight:700",text:fmt(com?num(p.taxaCobrada):ganhoPedido(p))})),
+          h("span",{class:"muted",style:"font-size:12px",text:(com?"":(p.coletaEmpresa||"")+" · ")+(p.entregueEm?new Date(p.entregueEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"")+(!com&&a?" · +"+a+(a>1?" adicionais":" adicional"):"")}));
+        b.addEventListener("click",()=>abrirDetalhes(p)); return b; })
+      :[h("p",{class:"muted",style:"margin:8px 0;text-align:center",text:"Nenhuma entrega neste dia."})]));
+  };
+  ant.addEventListener("click",()=>{ if(idx>0){ idx--; pintarDia(); } });
+  prox.addEventListener("click",()=>{ if(idx<dias7.length-1){ idx++; pintarDia(); } });
+  pintarDia();
+  const dias=[navDia,listaDia];
+  abrirSheet("Semana "+n+" · "+diaCurto(w.a)+" a "+diaCurto(w.f)+(central()?" · "+nome:""),[resumo,...dias].filter(Boolean));
+}
 /* ---------- FATURA SEMANAL ----------
    Semana de segunda a domingo; fecha no domingo. O mês tem as semanas cujo domingo cai nele (4 ou 5).
    Pagamento ao entregador marca pagoEntregadorEm nos pedidos; repasse do comércio marca pagoComercioEm. */
@@ -4422,6 +5011,11 @@ async function calcularFatura(){
         h("h3",{text:"Semana "+(i+1)+" · "+diaCurto(w.a)+" a "+diaCurto(w.f)}),h("b",{class:"num",text:fmt(w.valor)})),
       h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,
         h("span",{class:"quem-ped",text:w.itens.length+(w.itens.length===1?" entrega":" entregas")+(!com&&nAd?" · "+nAd+(nAd>1?" adicionais":" adicional"):"")})));
+    if(w.itens.length){
+      card.style.cursor="pointer"; card.title="Toque para ver as entregas da semana";
+      card.append(h("span",{class:"muted",style:"font-size:12px;font-weight:700;color:var(--royal)",text:"Ver as entregas da semana ›"}));
+      card.addEventListener("click",e=>{ if(e.target.closest("button")) return; abrirSemanaFatura(w,i+1,com,nome); });
+    }
     if(central() && w.fechada && w.itens.length){
       const dec=(S.fatDecis||{})[chaveFat(fatTipo,quem,w.f)];
       if(!w.pago){
@@ -4600,8 +5194,8 @@ async function calcularAcerto(){
   catch(e){ out.replaceChildren(h("div",{class:"aviso",text:"Não foi possível buscar os pedidos ("+(e&&e.code||"erro")+"). Tente de novo."})); return; }
   todos.sort((a,b)=>(a.data+(a.criadoEm||"")).localeCompare(b.data+(b.criadoEm||"")));
   const entregues=todos.filter(p=>p.status==="entregue");
-  const comDinheiro=entregues.filter(p=>dinheiroDoPedido(p)>0);
-  const pendente=p=>!p.dinheiroDevolvido && !p.acertado;
+  const comDinheiro=entregues.filter(p=>dinheiroRetivel(p));
+  const pendente=p=>!p.dinheiroDevolvido && !p.acertado && p.dinheiroCom!=="central";
   // agrupa por empresa
   const grupos={};
   comDinheiro.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa informada"; (grupos[k]=grupos[k]||[]).push(p); });
@@ -4616,17 +5210,18 @@ async function calcularAcerto(){
   const ganhos=somaGanho(entregues);
   const souEu = !central();
 
-  const cards=lista.map(g=>{
+  const devolvidoTot=lista.reduce((s,g)=>s+g.devolvido,0);
+  const cards=lista.filter(g=>g.valorPend>0).map(g=>{
     const st = g.valorPend>0 ? h("span",{class:"pill pend num",text:"Não devolvido "+fmt(g.valorPend)})
       : g.itens.every(p=>p.dinheiroDevolvido) ? h("span",{class:"pill ok",text:"Devolvido à empresa"})
       : h("span",{class:"pill acert",text:"Acertado com a central"});
     const linhas=h("div",{style:"display:flex;flex-direction:column;gap:2px;font-size:13px"},
-      ...g.itens.map(p=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"+(pendente(p)?"":";color:var(--muted)")},
+      ...g.pend.map(p=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},
         h("span",{style:"min-width:0;overflow-wrap:anywhere",text:diaCurto(p.data)+" · "+(p.numero?"#"+p.numero+" ":"")+(p.cliente||"")}),
         h("span",{class:"num",style:"flex:none",text:fmt(dinheiroDoPedido(p))+(p.dinheiroDevolvido?" ✓":p.acertado?" (central)":"")}))));
     const card=h("div",{class:"painel"},
-      h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("h3",{text:g.emp}),h("b",{class:"num",text:fmt(g.total)})),
-      h("div",{class:"meta",style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,h("span",{class:"quem-ped",text:g.itens.length+(g.itens.length>1?" entregas em dinheiro":" entrega em dinheiro")})),
+      h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("h3",{text:g.emp}),h("b",{class:"num",text:fmt(g.valorPend)})),
+      h("div",{class:"meta",style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,h("span",{class:"quem-ped",text:g.pend.length+(g.pend.length>1?" entregas em dinheiro a devolver":" entrega em dinheiro a devolver")})),
       linhas);
     if(g.valorPend>0){
       const b=h("button",{class:"btn lar full",type:"button"},(souEu?"Devolvi ":"Marcar devolvido ")+fmt(g.valorPend)+" à empresa");
@@ -4645,18 +5240,19 @@ async function calcularAcerto(){
     return card;
   });
 
-  out.replaceChildren(
+  out.replaceChildren(...[
+
     h("div",{class:"totais"},
       h("div",{class:"tot destaque"},h("span",{text:souEu?"Dinheiro ainda com você (não devolvido às empresas)":"Dinheiro ainda com o entregador"}),h("b",{class:"num",text:fmt(totalPend)})),
-      h("div",{class:"tot"},h("span",{text:"Empresas com dinheiro recebido"}),h("b",{class:"num",text:String(lista.length)})),
+      h("div",{class:"tot"},h("span",{text:"Já devolvido às empresas"}),h("b",{class:"num",style:"color:var(--ok)",text:fmt(devolvidoTot)})),
       h("div",{class:"tot"},h("span",{text:"Empresas sem devolução"}),h("b",{class:"num",style:empPend.length?"color:var(--warn)":"",text:String(empPend.length)})),
       h("div",{class:"tot"},h("span",{text:"Entregas no período"}),h("b",{class:"num",text:String(entregues.length)})),
       h("div",{class:"tot"},h("span",{text:(souEu?"Seus ganhos":"Ganhos do entregador")+": "+entregues.length+" entregas + "+(somaUn(entregues)-entregues.length)+" adicionais"}),h("b",{class:"num",text:fmt(ganhos)}))
     ),
     empPend.length?h("div",{class:"aviso",text:"Falta devolver: "+empPend.map(g=>g.emp+" ("+fmt(g.valorPend)+")").join(", ")+"."}):null,
-    lista.length?null:h("div",{class:"vazio"},h("h3",{text:"Nenhuma entrega em dinheiro"}),h("p",{class:"muted",style:"margin:0",text:"Não há entregas pagas em dinheiro neste período."})),
+    totalPend>0?null:h("div",{class:"vazio"},h("h3",{text:lista.length?"Tudo devolvido ✓":"Nenhuma entrega em dinheiro"}),h("p",{class:"muted",style:"margin:0",text:lista.length?"Todo o dinheiro do período já foi devolvido às empresas.":"Não há entregas pagas em dinheiro neste período."})),
     ...cards
-  );
+  ].filter(Boolean));
   if(totalPend>0 && central()){
     const aberto=lista.flatMap(g=>g.pend);
     const b=h("button",{class:"btn full",type:"button"},"Registrar acerto com a central: "+fmt(totalPend));
@@ -4701,6 +5297,7 @@ function ehMesInteiro(de,ate){ const d=deIso(de); return d.getDate()===1 && ate.
 function periodo(p){
   const t=hoje(), d=new Date();
   if(p==="hoje") return [t,t];
+  if(p==="ontem"){ const o=somaDias(t,-1); return [o,o]; }
   if(p==="semana") return [inicioSemana(t),t];
   if(p==="semant"){ const i=somaDias(inicioSemana(t),-7); return [i,somaDias(i,6)]; }
   if(p==="7") return [somaDias(t,-6),t];
@@ -4711,7 +5308,14 @@ document.querySelectorAll("#relAtalhos .chip").forEach(c=>c.addEventListener("cl
   document.querySelectorAll("#relAtalhos .chip").forEach(x=>x.setAttribute("aria-pressed",String(x===c)));
   const [a,b]=periodo(c.dataset.p); $("#relDe").value=a; $("#relAte").value=b; gerarRelatorio();
 }));
-["#relDe","#relAte"].forEach(s=>$(s).addEventListener("change",()=>document.querySelectorAll("#relAtalhos .chip").forEach(x=>x.setAttribute("aria-pressed","false"))));
+// escolheu uma data no "De": mostra só aquele dia (o "Até" acompanha); para um período, mude o "Até" depois
+["#relDe","#relAte"].forEach(sel=>$(sel).addEventListener("change",()=>{
+  document.querySelectorAll("#relAtalhos .chip").forEach(x=>x.setAttribute("aria-pressed","false"));
+  const de=$("#relDe"), ate=$("#relAte");
+  if(sel==="#relDe" && de.value) ate.value=de.value;
+  if(sel==="#relAte" && ate.value && de.value && ate.value<de.value) de.value=ate.value;
+  if(de.value && ate.value) gerarRelatorio();
+}));
 $("#relGerar").addEventListener("click",gerarRelatorio);
 function tabela(cab, linhas){
   return h("div",{class:"tabela-wrap"},h("table",null,
@@ -4729,11 +5333,11 @@ async function gerarRelatorio(){
   renderRelatorio(filtrarRel(ps),de,ate);
 }
 /* filtros do relatório: aplicados sobre os pedidos já buscados (trocar filtro não busca de novo) */
-const RF=["relFTexto","relFCom","relFEnt","relFPag","relFTaxa","relFAd","relFRec","relFTroco","relFRota"];
+const RF=["relFTexto","relFCom","relFEnt","relFPag","relFTaxa","relFAd","relFRec","relFTroco","relFRota","relFServ"];
 /* central escolhe primeiro qual relatório: entregadores, comércios ou pedidos; busca e filtros mudam com o tipo */
 let relTipo="";
 const REL_TIPOS=[["entregadores","Entregadores"],["comercios","Comércios"],["pedidos","Pedidos"]];
-const REL_FILTROS={entregadores:["relFEnt","relFPag","relFAd","relFRota"],comercios:["relFCom","relFPag","relFTaxa","relFRec"],pedidos:["relFCom","relFEnt","relFPag","relFTaxa","relFAd","relFRec","relFTroco","relFRota"]};
+const REL_FILTROS={entregadores:["relFEnt","relFPag","relFAd","relFRota","relFServ"],comercios:["relFCom","relFPag","relFTaxa","relFRec","relFServ"],pedidos:["relFCom","relFEnt","relFPag","relFTaxa","relFAd","relFRec","relFTroco","relFRota","relFServ"]};
 const REL_BUSCA={entregadores:"Pesquisar entregador",comercios:"Pesquisar comércio",pedidos:"Pesquisar pedido, cliente, telefone, comércio ou entregador"};
 function pintarRelTipo(){
   const seg=$("#relTipo"); seg.hidden=true;
@@ -4748,7 +5352,7 @@ function pintarRelTipo(){
 function escolherRelTipo(k){
   relTipo=k; RF.forEach(id=>{ $("#"+id).value=""; }); $("#relFiltros").hidden=true; atuBotaoFiltros(); pintarRelTipo();
   if(S.relCache) renderRelatorio(filtrarRel(S.relCache.ps),S.relCache.de,S.relCache.ate);
-  else { const c=document.querySelector('#relAtalhos .chip[data-p="semana"]'); if(c) c.click(); else gerarRelatorio(); }
+  else { const c=document.querySelector('#relAtalhos .chip[data-p="hoje"]'); if(c) c.click(); else gerarRelatorio(); }
 }
 function montarFiltrosRel(ps){
   const opts=(id,lista)=>{ const sel=$("#"+id), atual=sel.value; sel.replaceChildren(...lista.map(([v,t])=>h("option",{value:v,text:t}))); if([...sel.options].some(o=>o.value===atual)) sel.value=atual; };
@@ -4767,6 +5371,7 @@ function montarFiltrosRel(ps){
   opts("relFRec",[["","Escolher"],["sim","Pegar receita"],["pend","Receita pendente"],["nao","Sem receita"]]);
   opts("relFTroco",[["","Escolher"],["sim","Com troco"],["nao","Sem troco"]]);
   opts("relFRota",[["","Escolher"],["rota","Em rota"],["avulsa","Entrega avulsa"]]);
+  opts("relFServ",[["","Escolher"],["entrega","Entrega"],["transferencia","Transferência / Receita"]]);
   pintarRelTipo(); atuBotaoFiltros();
 }
 function filtrarRel(ps){
@@ -4785,6 +5390,7 @@ function filtrarRel(ps){
     const tr=trocoDe(p)>0||num(p.trocoPara)>0;
     if(v("relFTroco")==="sim"&&!tr) return false; if(v("relFTroco")==="nao"&&tr) return false;
     if(v("relFRota")==="rota"&&!p.rotaId) return false; if(v("relFRota")==="avulsa"&&p.rotaId) return false;
+    if(v("relFServ")==="transferencia"&&p.tipoServico!=="transferencia") return false; if(v("relFServ")==="entrega"&&p.tipoServico==="transferencia") return false;
     return true;
   });
 }
@@ -4848,7 +5454,7 @@ function renderRelTipo(ps,ent,de,ate){
   const grupo=(lst,chave)=>{ const m=new Map(); lst.forEach(p=>{ const k=chave(p); if(!m.has(k)) m.set(k,[]); m.get(k).push(p); }); return [...m.entries()]; };
   if(relTipo==="entregadores"){
     const e2=ent.filter(p=>!q||semAcento(nomeEnt(p.entregadorId)).includes(q));
-    const comEles=e2.filter(p=>dinheiroDoPedido(p)>0&&!p.dinheiroDevolvido&&!p.acertado);
+    const comEles=e2.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&p.dinheiroCom!=="central");
     const nAd=somaUn(e2)-e2.length;
     cards.replaceChildren(
       kpi("Total a pagar aos entregadores",fmt(somaGanho(e2)),"destaque"),
@@ -4857,12 +5463,12 @@ function renderRelTipo(ps,ent,de,ate){
       kpi("Adicionais",String(nAd)),
       kpi("Valor dos adicionais",fmt(somaGanho(e2)-somaGanhoEntregas(e2))),
       kpi("Recebido em dinheiro",fmt(din(e2))),
-      kpi("Dinheiro com entregadores",fmt(din(comEles))),
+      kpiDinheiro("Dinheiro a devolver às lojas",e2),
       kpi("Entregadores",String(new Set(e2.map(p=>p.entregadorId)).size)),
       kpi("Tempo médio",fmtMin(tempoMedio(e2))));
     const g=grupo(e2,p=>p.entregadorId||"-").map(([id,l])=>[nomeEnt(id),l]).sort((a,b)=>a[0].localeCompare(b[0]));
     out.replaceChildren(...lin([resumoFiltros(), g.length?tabela(["Entregador","Entregas","Adicionais","Valor entregas","Valor adicionais","Total a pagar","Dinheiro","Com ele"],
-      g.map(([n,l])=>[n,String(l.length),String(somaUn(l)-l.length),fmt(somaGanhoEntregas(l)),fmt(somaGanho(l)-somaGanhoEntregas(l)),fmt(somaGanho(l)),fmt(din(l)),fmt(din(l.filter(p=>dinheiroDoPedido(p)>0&&!p.dinheiroDevolvido&&!p.acertado)))])):semNada]));
+      g.map(([n,l])=>[n,String(l.length),String(somaUn(l)-l.length),fmt(somaGanhoEntregas(l)),fmt(somaGanho(l)-somaGanhoEntregas(l)),fmt(somaGanho(l)),fmt(din(l)),fmt(din(l.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&p.dinheiroCom!=="central")))])):semNada]));
     return;
   }
   if(relTipo==="comercios"){
@@ -4874,7 +5480,7 @@ function renderRelTipo(ps,ent,de,ate){
       kpi("Adicionais",String(somaUn(e2)-e2.length)),
       kpi("Pago aos entregadores",fmt(pagos)),
       kpi("Margem da central",fmt(cob-pagos)),
-      kpi("Recebido em dinheiro",fmt(din(e2))),
+      kpiDinheiro("Dinheiro a devolver às lojas",e2),
       kpi("Notas a devolver",String(e2.filter(p=>p.pagamento==="convenio"&&!p.notaDevolvida).length)),
       kpi("Receitas pendentes",String(e2.filter(p=>p.pegarReceita&&!p.receitaRecolhida&&!p.receitaResolvida).length)),
       kpi("Comércios",String(new Set(e2.map(p=>slug(p.coletaEmpresa||""))).size)));
@@ -4896,7 +5502,7 @@ function renderRelTipo(ps,ent,de,ate){
     kpi("Entregues",conta(p=>p.status==="entregue")),
     kpi("Em andamento",conta(p=>!["entregue","recusado","cancelado"].includes(p.status))),
     kpi("Cancelados",conta(p=>p.status==="recusado"||p.status==="cancelado")),
-    kpi("Valor em dinheiro",fmt(din(ent))),
+    kpiDinheiro("Dinheiro a devolver às lojas",ent),
     kpi("Com troco",conta(p=>trocoDe(p)>0||num(p.trocoPara)>0)),
     kpi("Cartão",conta(p=>p.pagamento==="cartao")),
     kpi("Pedido pago",conta(p=>p.pagamento==="pix")),
@@ -4912,7 +5518,67 @@ function renderRelTipo(ps,ent,de,ate){
       h("td",{class:"r num",text:trocoDe(p)>0?fmt(trocoDe(p)):"—"}),h("td",{class:"r num",text:String(Math.max(0,Math.round(num(p.adicionais))))}),
       h("td",{class:"r num",text:fmt(p.taxaCobrada)}),h("td",{class:"r",text:nomeStatus(p)}));
       tr.addEventListener("click",()=>abrirDetalhes(p)); return tr; })))):semNada;
-  out.replaceChildren(...lin([resumoFiltros(), wrap]));
+  // por entregador e comércio: entregas, adicionais pagos pela central, total com adicionais e valor
+  const porEC=(()=>{
+    const m=new Map(); ent.forEach(p=>{ const k=nomeEnt(p.entregadorId)+"\u0001"+(p.coletaEmpresa||"Sem comércio"); if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
+    if(!m.size) return null;
+    const linhas=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([k,l])=>{ const [e,c]=k.split("\u0001"); const ad=somaUn(l)-l.length;
+      return [e,c,String(l.length),String(ad),String(l.length+ad),fmt(somaGanho(l))]; });
+    const tE=ent.length, tA=somaUn(ent)-ent.length;
+    linhas.push(["Total","",String(tE),String(tA),String(tE+tA),fmt(somaGanho(ent))]);
+    const t=h("div",{class:"tabela-wrap"},h("table",null,
+      h("thead",null,h("tr",null,...["Entregador","Comércio","Entregas","Adicionais","Total c/ adic.","Valor total"].map((c,i)=>h("th",{class:i>1?"r":"",text:c})))),
+      h("tbody",null,...linhas.map((l,i)=>h("tr",{style:i===linhas.length-1?"font-weight:800;background:var(--royal-soft)":""},...l.map((c,j)=>h("td",{class:j>1?"r num":"",style:j===0?"font-weight:700":"",text:c})))))));
+    return [h("h3",{text:"Entregas e adicionais por entregador e comércio"}),t];
+  })();
+  out.replaceChildren(...lin([resumoFiltros(), ...(porEC||[]), h("h3",{text:"Pedidos"}), wrap]));
+}
+/* Central: dinheiro retido com os entregadores, por empresa; a central resolve (devolvido à empresa ou acertado com a central) até zerar */
+const retido = p => p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado;
+function kpiDinheiro(rot,ps){
+  const v=ps.filter(retido).reduce((s,p)=>s+dinheiroDoPedido(p),0);
+  const b=h("button",{type:"button",class:"kpi",style:"text-align:left;cursor:pointer;font:inherit;color:inherit;"+(v>0?"border-color:var(--laranja);background:var(--warn-bg)":""),title:"Toque para ver por empresa"},
+    h("span",{text:rot+" ›"}),h("b",{class:"num",style:v>0?"color:var(--warn)":"",text:fmt(v)}));
+  b.addEventListener("click",()=>abrirDinheiroRetido(ps));
+  return b;
+}
+function abrirDinheiroRetido(ps){
+  const pend=ps.filter(retido);
+  const corpo=h("div",{style:"display:flex;flex-direction:column;gap:10px"});
+  const desenhar=()=>{
+    const l=pend.filter(retido);
+    const total=l.reduce((s,p)=>s+dinheiroDoPedido(p),0);
+    const g={}; l.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa informada"; (g[k]=g[k]||[]).push(p); });
+    const marcar=async(itens,campo,bt,txt)=>{
+      bt.disabled=true; bt.textContent="Registrando…";
+      try{ const agora=new Date().toISOString();
+        for(const p of itens){ const upd=campo==="dev"?{dinheiroDevolvido:true,devolvidoEm:agora,devolvidoPor:S.uid||""}:{acertado:true,acertadoEm:agora};
+          await comRetry(()=>S.db.doc(p._path).update(upd)); Object.assign(p,upd); }
+        desenhar(); if(typeof gerarRelatorio==="function") gerarRelatorio();
+      }catch(e){ bt.disabled=false; bt.textContent=txt; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
+    };
+    const cards=Object.entries(g).sort((a,b)=>b[1].reduce((s,p)=>s+dinheiroDoPedido(p),0)-a[1].reduce((s,p)=>s+dinheiroDoPedido(p),0)).map(([emp,itens])=>{
+      const v=itens.reduce((s,p)=>s+dinheiroDoPedido(p),0);
+      const porEnt={}; itens.forEach(p=>{ const k=p.dinheiroCom==="central"?"🏢 Com a central":"🛵 "+nomeEnt(p.entregadorId); porEnt[k]=(porEnt[k]||0)+dinheiroDoPedido(p); });
+      const bDev=h("button",{class:"btn full",type:"button"},"✓ Devolvido à empresa");
+      const bCen=h("button",{class:"btn sec full",type:"button"},"Acertado com a central");
+      bDev.addEventListener("click",()=>marcar(itens,"dev",bDev,"✓ Devolvido à empresa"));
+      bCen.addEventListener("click",()=>marcar(itens,"cen",bCen,"Acertado com a central"));
+      return h("div",{class:"painel",style:"gap:8px"},
+        h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("h3",{text:emp}),h("b",{class:"num",style:"color:var(--warn)",text:fmt(v)})),
+        ...Object.entries(porEnt).map(([n,x])=>h("div",{style:"display:flex;justify-content:space-between;font-size:14px"},h("span",{text:n}),h("span",{class:"num",text:fmt(x)}))),
+        h("span",{class:"muted",style:"font-size:12px",text:itens.length+(itens.length>1?" entregas em dinheiro: ":" entrega em dinheiro: ")+itens.map(p=>(p.numero?"#"+p.numero:p.cliente||"")+" ("+diaCurto(p.data||"")+")").join(", ")}),
+        h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},bDev,bCen));
+    });
+    const zerar=l.length>1?h("button",{class:"btn lar full",type:"button"},"Marcar tudo como devolvido ("+fmt(total)+")"):null;
+    if(zerar){ let armado=false; zerar.addEventListener("click",()=>{ if(!armado){ armado=true; zerar.textContent="Confirmar: zerar "+fmt(total)+" de todas as empresas"; setTimeout(()=>{ if(armado){ armado=false; zerar.textContent="Marcar tudo como devolvido ("+fmt(total)+")"; } },4000); return; } marcar(l,"dev",zerar,"Marcar tudo como devolvido"); }); }
+    corpo.replaceChildren(...[
+      h("div",{class:"tot destaque"},h("span",{text:"Dinheiro a devolver às lojas (com entregadores e com a central)"}),h("b",{class:"num",text:fmt(total)})),
+      ...(l.length?cards:[h("div",{class:"vazio"},h("h3",{text:"Tudo zerado ✓"}),h("p",{class:"muted",style:"margin:0",text:"Nenhum dinheiro retido com os entregadores neste período."}))]),
+      zerar].filter(Boolean));
+  };
+  desenhar();
+  abrirSheet("Dinheiro a devolver às lojas",[corpo]);
 }
 function renderRelatorio(ps,de,ate){
   const out=$("#relResultado");
@@ -4969,7 +5635,7 @@ function renderRelatorio(ps,de,ate){
   if(!central()){
     const ganhos=somaGanho(ent), nAd=somaUn(ent)-ent.length, vEnt=somaGanhoEntregas(ent);
     const porEmp=agrupa(p=>p.coletaEmpresa||"Sem empresa informada");
-    const comVoce=ent.filter(p=>dinheiroDoPedido(p)>0 && !p.dinheiroDevolvido && !p.acertado).reduce((s,p)=>s+dinheiroDoPedido(p),0);
+    const comVoce=ent.filter(p=>dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && p.dinheiroCom!=="central").reduce((s,p)=>s+dinheiroDoPedido(p),0);
     const mes=ehMesInteiro(de,ate), semana=(de===inicioSemana(de) && somaDias(de,6)>=ate);
     const rotulo = mes ? "Fechamento do mês: a receber" : semana ? "Seus ganhos na semana" : "Seus ganhos no período";
     const semanas=semanasDoPeriodo(de,ate,ent,itens=>[String(itens.length),String(somaUn(itens)-itens.length),fmt(somaGanho(itens)),fmt(itens.reduce((s,p)=>s+dinheiroDoPedido(p),0))]);
@@ -5106,7 +5772,7 @@ async function aprovar(sol, alvoId, taxaNova){
 async function sincronizarVinculo(m, mud){
   if(!m.uid) return;
   const n={...m,...mud};
-  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false}));
+  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional}));
 }
 /* ---------- CADASTROS: clientes · entregadores · comércios ---------- */
 /* número de ordem de cadastro (000001, 000002…), pela data em que foi cadastrado */
@@ -5492,7 +6158,7 @@ function editarEntregador(e){
 function editarEq(e){
   S.editandoEq=e; $("#eqForm").hidden=false;
   $("#eqFormTit").textContent="Editar "+e.nome;
-  $("#eqNome").value=e.nome; $("#eqTaxa").value=fmtInput(e.taxa);
+  $("#eqNome").value=e.nome; $("#eqTaxa").value=fmtInput(e.taxa); $("#eqSemAd").checked=!!e.semAdicional;
   $("#eqSalvar").textContent="Salvar"; $("#eqCancelar").hidden=false;
   const tog=$("#eqAtivo"); tog.hidden=false; tog.textContent = e.ativo===false ? "Reativar" : "Desativar";
   const ex=$("#eqExcluir"); ex.hidden=false; ex.textContent="Excluir"; delete ex.dataset.conf;
@@ -5500,7 +6166,7 @@ function editarEq(e){
 }
 function limparEq(){
   S.editandoEq=null; $("#eqFormTit").textContent="Novo entregador"; $("#eqForm").hidden=true;
-  $("#eqNome").value=""; $("#eqTaxa").value=""; $("#eqSalvar").textContent="Adicionar"; $("#eqCancelar").hidden=true; $("#eqAtivo").hidden=true; $("#eqExcluir").hidden=true;
+  $("#eqNome").value=""; $("#eqTaxa").value=""; $("#eqSemAd").checked=false; $("#eqSalvar").textContent="Adicionar"; $("#eqCancelar").hidden=true; $("#eqAtivo").hidden=true; $("#eqExcluir").hidden=true;
 }
 $("#eqCancelar").addEventListener("click",limparEq);
 /* Excluir cadastro: tira o acesso e apaga o cadastro. Os pedidos e faturas antigos continuam nos relatórios. */
@@ -5521,19 +6187,20 @@ $("#eqAtivo").addEventListener("click",async()=>{
   try{ await comRetry(()=>S.db.doc("equipe/"+x.id).update({ativo})); await sincronizarVinculo(x,{ativo}); toast(ativo?"Reativado":"Desativado: ele não vê mais o app"); limparEq(); }
   catch(err){ toast("Não foi possível salvar."); }
 });
+$("#contEnt").addEventListener("click",()=>abrirMeusPedidosMes(hoje().slice(0,7)));
 $("#eqSalvar").addEventListener("click",async()=>{
-  const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value);
+  const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value), semAdicional=$("#eqSemAd").checked;
   if(!nome){ toast("Informe o nome."); return; }
   try{
-    if(S.editandoEq){ await comRetry(()=>S.db.doc("equipe/"+S.editandoEq.id).update({nome,taxa})); await sincronizarVinculo(S.editandoEq,{nome,taxa}); }
-    else await comRetry(()=>S.db.collection("equipe").add({nome,taxa,ativo:true,criadoEm:new Date().toISOString()}));
+    if(S.editandoEq){ await comRetry(()=>S.db.doc("equipe/"+S.editandoEq.id).update({nome,taxa,semAdicional})); await sincronizarVinculo(S.editandoEq,{nome,taxa,semAdicional}); }
+    else await comRetry(()=>S.db.collection("equipe").add({nome,taxa,semAdicional,ativo:true,criadoEm:new Date().toISOString()}));
     toast(S.editandoEq?"Salvo":"Entregador adicionado"); limparEq();
   }catch(e){ toast("Não foi possível salvar ("+(e&&e.code||"erro")+")."); }
 });
 
 /* ---------- início ---------- */
 renderDia(); renderPedidos(); aplicarModo();
-{ const [a,b]=periodo("mes"); $("#relDe").value=a; $("#relAte").value=b; }
+{ const [a,b]=periodo("hoje"); $("#relDe").value=a; $("#relAte").value=b; }
 $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
 
 (async function iniciar(){
@@ -5583,7 +6250,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       const v=s.exists?s.data():null;
       const antes=S.modo;
       if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); }
-      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); }
+      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; }
       else if(v){ S.modo="desativado"; }
       else { S.modo="semacesso"; }
       if(antes!==S.modo){ aplicarModo(); assinarOfertas(); if(S.modo==="entregador"||S.modo==="comercio") exigirSenha(S.modo); } else renderQuem();
