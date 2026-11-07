@@ -1589,7 +1589,15 @@ function renderPedidos(){
     box.append(g);
   };
   caixa("disponiveis",central()?"Aguardando um entregador aceitar":"Entregas disponíveis",listaAbertas.length,"var(--laranja)",
-    corpo=>listaAbertas.forEach(o=>corpo.append(central()?cartaoSolicitacaoLoja(o):cartaoOferta(o))));
+    corpo=>{
+      if(!central() && S.modo==="entregador" && listaAbertas.length>=5){
+        const todas=[...listaAbertas];
+        corpo.append(h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
+          h("span",{class:"muted",style:"font-size:13px",text:todas.length+" entregas disponíveis. Quer pegar todas de uma vez?"}),
+          deslizar("Aceitar todas ("+todas.length+")",()=>aceitarTodasOfertas(todas))));
+      }
+      listaAbertas.forEach(o=>corpo.append(central()?cartaoSolicitacaoLoja(o):cartaoOferta(o)));
+    });
   if(S.modo==="entregador"){
     const minhas=[...grupos.aceite,...grupos.coletar,...grupos.rota];
     minhas.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
@@ -1766,10 +1774,10 @@ async function trocarEntregador(lista, entId){
   const destinoCol=colDe(entId);
   for(const x of lista){
     const {id,_path,...d}=x;
-    const novo=comRegistro(x,"Entrega passada de "+nomeEnt(d.entregadorId)+" para "+(m.nome||nomeEnt(entId)),{...d,entregadorId:entId,aceitoEm:null,emRotaEm:null,status:"pendente",substituidoEm:new Date().toISOString(),entregadorAnterior:d.entregadorId||""});
+    const novo=comRegistro(x,"Entrega passada de "+nomeEnt(d.entregadorId)+" para "+(m.nome||nomeEnt(entId)),{...d,entregadorId:entId,aceitoEm:null,emRotaEm:null,status:"pendente",substituidoEm:new Date().toISOString(),entregadorAnterior:d.entregadorId||"",...(num(d.ordemEntrega)>0?{ordemDe:entId}:{})});
     const destino=destinoCol+"/"+id;
     if(destino!==_path){ await comRetry(()=>S.db.doc(destino).set(novo)); await comRetry(()=>S.db.doc(_path).delete()); }
-    else await comRetry(()=>S.db.doc(_path).update({aceitoEm:null,emRotaEm:null,status:"pendente",entregadorId:entId,...(novo.registros?{registros:novo.registros}:{})}));
+    else await comRetry(()=>S.db.doc(_path).update({aceitoEm:null,emRotaEm:null,status:"pendente",entregadorId:entId,...(num(d.ordemEntrega)>0?{ordemDe:entId}:{}),...(novo.registros?{registros:novo.registros}:{})}));
     // avisa o comércio e o registro de quem aceitou
     if(x.viaOferta) await S.db.doc("aceites/"+id).update({entregadorId:entId,entregadorNome:m.nome||"",aceitoPor:m.uid||"",status:"aceita",syncEstado:"aceita"}).catch(()=>{});
     const o=x.origem||{};
@@ -2211,7 +2219,19 @@ async function travarAceite(id, registro){
   await comRetry(()=>ref.set(registro));
   return true;
 }
-async function aceitarOferta(o){
+async function aceitarTodasOfertas(lista){
+  if(!S.disponivel){ toast("Fique disponível para aceitar entregas."); return false; }
+  let ok=0, perdidas=0, dia=null;
+  for(const o of lista){
+    try{ if(await aceitarOferta(o,true)){ ok++; if(!dia && o.data) dia=o.data; } else perdidas++; }
+    catch(e){ perdidas++; }
+  }
+  if(!ok){ toast("Não foi possível aceitar. Outro entregador pegou antes."); return false; }
+  toast(ok+(ok>1?" entregas aceitas":" entrega aceita")+(perdidas?" · "+perdidas+" já tinham sido pegas por outro":"")+". Estão em Minhas entregas.");
+  if(dia && dia!==S.dia) mudarDia(dia);
+  return true;
+}
+async function aceitarOferta(o,silencioso){
   if(!S.disponivel){ toast("Fique disponível para aceitar entregas."); return false; }
   const agora=new Date().toISOString();
   if(o.tipo==="rota"){
@@ -2220,8 +2240,8 @@ async function aceitarOferta(o){
     for(const d of docsDaRota({...o,rotaId:o.id},{entregadorId:S.eu,aceitoEm:agora,valorEntrega:num(o.valorEntrega),origem:{path:o.origemPath||""},criadoPor:S.uid||""}))
       await comRetry(()=>S.db.doc("entregas/"+S.uid+"/pedidos/"+d.id).set(comRegistro(d.dados,"Pedido aceito",d.dados)));
     S.db.doc("entregas/"+S.uid+"/ofertas/"+o.id).delete().catch(()=>{});
-    toast("Rota aceita. As paradas estão em Minhas entregas.");
-    if(o.data && o.data!==S.dia) mudarDia(o.data);
+    if(!silencioso){ toast("Rota aceita. As paradas estão em Minhas entregas.");
+    if(o.data && o.data!==S.dia) mudarDia(o.data); }
     return true;
   }
   const ok=await travarAceite(o.id,{lojaUid:o.lojaUid||"",pedidoId:o.pedidoId,origemPath:o.origemPath||"",aceitoPor:S.uid,entregadorId:S.eu,entregadorNome:S.euNome,aceitoEm:agora,status:"aceita"});
@@ -2229,8 +2249,8 @@ async function aceitarOferta(o){
   const {id,_path,...d}=o;
   await comRetry(()=>S.db.doc("entregas/"+S.uid+"/pedidos/"+o.id).set(comRegistro(d,"Pedido aceito",{...copiaDaOferta(d),entregadorId:S.eu,aceitoEm:agora,criadoPor:S.uid||""})));
   S.db.doc("entregas/"+S.uid+"/ofertas/"+o.id).delete().catch(()=>{});
-  toast("Entrega aceita. Ela é sua!");
-  if(d.data && d.data!==S.dia) mudarDia(d.data);
+  if(!silencioso){ toast("Entrega aceita. Ela é sua!");
+  if(d.data && d.data!==S.dia) mudarDia(d.data); }
   return true;
 }
 async function designar(p, entId){
@@ -3545,8 +3565,9 @@ async function numerarEntregas(){
   try{
     for(const [k,lista] of Object.entries(entregasAbertasPorEntregador())){
       // número escolhido é fixo: quando uma entrega é finalizada, as outras continuam com o mesmo número (2 de 5, 3 de 5…)
-      const numeradas=lista.filter(p=>num(p.ordemEntrega)>0 && p.ordemDe===k);
-      const novas=lista.filter(p=>!(num(p.ordemEntrega)>0 && p.ordemDe===k));
+      // o número vale mesmo se a entrega foi passada de outro entregador (fica o número dado no primeiro)
+      const numeradas=lista.filter(p=>num(p.ordemEntrega)>0);
+      const novas=lista.filter(p=>!(num(p.ordemEntrega)>0));
       if(!novas.length) continue;                                   // nada novo: mantém a numeração como está
       if(!numeradas.length){
         if(lista.length<2) continue;                                // uma entrega só, sem rota
@@ -3624,35 +3645,62 @@ function abrirOrdemEntregas(ent,op){
   op=op||{};
   const pegar=()=>(entregasAbertasPorEntregador()[ent]||[]).slice().sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
   let ordem=pegar();
+  const totalSalvo=()=>Math.max(0,...ordem.map(p=>num(p.ordemQtd)));
+  // número de cada entrega: o que já foi dado (vale mesmo se a entrega veio de outro entregador); sem número, entra em sequência
+  const numerar=forcar=>{
+    const nums=ordem.map(p=>num(p.ordemEntrega));
+    const ok=!forcar && nums.every(n=>n>0) && new Set(nums).size===nums.length;
+    const base=Math.max(0,Math.max(ordem.length,totalSalvo())-ordem.length);
+    ordem.forEach((p,i)=>{ p._n = ok ? nums[i] : base+i+1; });
+  };
+  const maior=()=>Math.max(ordem.length,totalSalvo(),...ordem.map(p=>p._n));
   const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
-  const info=h("div",{class:"muted",style:"font-size:13px",text:op.todasEmRota?"Todas as entregas estão em rota. Escolha a ordem em que você vai entregar (pode misturar comércios) e salve.":"Esta é a ordem em que cada entrega vai ser feita. Ajuste com as setas, se precisar."});
+  const info=h("div",{class:"muted",style:"font-size:13px",text:op.todasEmRota?"Todas as entregas estão em rota. Escolha o número de cada entrega (1 é a primeira a entregar) e salve.":"Escolha o número de cada entrega: 1 é a primeira a ser entregue. Ao trocar um número, a entrega que tinha esse número fica com o número antigo."});
   const msg=h("div",{class:"aviso",hidden:true});
   const btOrg=h("button",{class:"btn sec full",type:"button"},"🧭 Organizar a melhor ordem de novo");
   const salvar=h("button",{class:"btn full",type:"button"},"Salvar ordem");
-  const totalRota=()=>Math.max(ordem.length,...ordem.map(p=>p.ordemDe===ent?num(p.ordemQtd):0));
-  const desenhar=()=>caixa.replaceChildren(...ordem.map((p,i)=>h("div",{class:"parada"},
-    h("div",{class:"parada-cab"},h("span",{class:"parada-n num",style:"width:auto;min-width:28px;padding:0 6px;border-radius:14px",text:(totalRota()-ordem.length+i+1)+"/"+totalRota()}),
-      h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")}),
-      h("button",{class:"mini",type:"button","aria-label":"Subir entrega",disabled:i===0,onclick:()=>{ [ordem[i-1],ordem[i]]=[ordem[i],ordem[i-1]]; desenhar(); }},"↑"),
-      h("button",{class:"mini",type:"button","aria-label":"Descer entrega",disabled:i===ordem.length-1,onclick:()=>{ [ordem[i+1],ordem[i]]=[ordem[i],ordem[i+1]]; desenhar(); }},"↓")),
-    h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
-    h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))}))));
+  const desenhar=()=>{
+    ordem.sort((a,b)=>a._n-b._n);
+    const M=maior();
+    caixa.replaceChildren(...ordem.map(p=>{
+      const sel=h("select",{class:"inp numeroDaEntregaSel num","aria-label":"Número da entrega","style":"width:auto;min-width:84px;padding:6px 8px;font-weight:800"},
+        ...Array.from({length:M},(_,k)=>h("option",{value:String(k+1),text:(k+1)+"/"+M})));
+      sel.value=String(p._n);
+      sel.addEventListener("change",()=>{
+        const novo=Number(sel.value), velho=p._n;
+        const outra=ordem.find(x=>x!==p && x._n===novo);
+        if(outra) outra._n=velho;           // troca: quem tinha esse número fica com o antigo
+        p._n=novo; msg.hidden=true; desenhar();
+      });
+      return h("div",{class:"parada"},
+        h("div",{class:"parada-cab"},sel,
+          h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")})),
+        h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
+        h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))+(p.entregadorAnterior&&p.entregadorAnterior!==ent?" · veio de "+nomeEnt(p.entregadorAnterior):"")}));
+    }));
+  };
   btOrg.addEventListener("click",async()=>{
     btOrg.disabled=true; btOrg.textContent="Organizando…";
-    ordem=await melhorOrdemEntregas(ordem.map(p=>({...p,ordemEntrega:null})));
-    btOrg.disabled=false; btOrg.textContent="🧭 Organizar a melhor ordem de novo"; info.textContent="Ordem sugerida. Confira e salve."; desenhar();
+    const nova=await melhorOrdemEntregas(ordem.map(p=>({...p,ordemEntrega:null})));
+    const usados=ordem.map(p=>p._n).sort((a,b)=>a-b);   // reaproveita os mesmos números, na ordem sugerida
+    ordem=nova; ordem.forEach((p,i)=>{ p._n=usados[i]; });
+    btOrg.disabled=false; btOrg.textContent="🧭 Organizar a melhor ordem de novo"; info.textContent="Ordem sugerida. Confira os números e salve."; desenhar();
   });
   salvar.addEventListener("click",async()=>{
     const atual=pegar();
-    if(chaveOrdem(atual)!==chaveOrdem(ordem)){ ordem=atual; desenhar(); msg.hidden=false; msg.textContent="As entregas mudaram enquanto você ajustava. Confira a lista de novo e salve."; return; }
+    if(chaveOrdem(atual)!==chaveOrdem(ordem)){ ordem=atual; numerar(); desenhar(); msg.hidden=false; msg.textContent="As entregas mudaram enquanto você ajustava. Confira a lista de novo e salve."; return; }
+    if(new Set(ordem.map(p=>p._n)).size!==ordem.length){ msg.hidden=false; msg.textContent="Duas entregas estão com o mesmo número. Ajuste e salve."; return; }
     salvar.disabled=true; salvar.textContent="Salvando…";
     try{
-      // as que já foram entregues mantêm os primeiros números; as que faltam ficam na ordem escolhida depois delas
-      const total=Math.max(ordem.length,...ordem.map(p=>p.ordemDe===ent?num(p.ordemQtd):0));
-      await gravarOrdemEntregas(ordem,chaveOrdem(ordem),{base:total-ordem.length,total,dono:ent}); fechar(); toast("Ordem das entregas salva"); }
+      const total=maior(), chave=chaveOrdem(ordem);
+      for(const p of ordem){
+        if(num(p.ordemEntrega)===p._n && num(p.ordemQtd)===total && p.ordemDe===ent && p.ordemChave===chave) continue;
+        await comRetry(()=>S.db.doc(p._path).update({ordemEntrega:p._n,ordemQtd:total,ordemChave:chave,ordemDe:ent}));
+      }
+      fechar(); toast("Ordem das entregas salva"); }
     catch(e){ salvar.disabled=false; salvar.textContent="Salvar ordem"; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
   });
-  desenhar();
+  numerar(); desenhar();
   const fechar=abrirSheet("Rota de entregas"+(central()?" · "+nomeEnt(ent):""),[info,caixa,btOrg,msg,salvar]);
 }
 function abrirEscanearOpcoes(){
