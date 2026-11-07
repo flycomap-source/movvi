@@ -319,6 +319,7 @@
       ${cad ? '<label>Seu nome<input id="mlNome" autocomplete="name" required></label>' : ""}
       <label>Usuário<input id="mlUser" autocomplete="username" autocapitalize="none" required></label>
       <label>Senha<input id="mlSenha" type="password" autocomplete="${cad ? "new-password" : "current-password"}" required></label>
+      ${cad ? '<label>Repita a senha<input id="mlSenha2" type="password" autocomplete="new-password" required></label>' : ""}
       <div class="er" id="mlErro" hidden></div>
       <button class="bt" type="submit">${cad ? "Criar acesso" : "Entrar"}</button>
       <button class="tr" type="button" id="mlTroca">${cad ? "Já tenho acesso — entrar" : "Primeira vez? Criar acesso"}</button>
@@ -331,6 +332,7 @@
       ev.preventDefault(); er.hidden = true;
       const user = el.querySelector("#mlUser").value.trim(), senha = el.querySelector("#mlSenha").value;
       if (senha.length < 6) { er.hidden = false; er.textContent = "A senha precisa ter pelo menos 6 caracteres."; return; }
+      if (cad && senha !== el.querySelector("#mlSenha2").value) { er.hidden = false; er.textContent = "As duas senhas não são iguais. Digite de novo."; return; }
       const email = user.toLowerCase().replace(/[^a-z0-9._-]/g, "") + "@" + DOMINIO;
       const bt = f.querySelector(".bt"); bt.disabled = true; bt.textContent = "Aguarde…";
       const r = cad
