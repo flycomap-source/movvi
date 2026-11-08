@@ -1,6 +1,6 @@
 /* Movvi+ — service worker: permite instalar o app e mostra os avisos de entrega com o app fechado.
    Não guarda dados: tudo vem sempre do servidor (pedidos ao vivo). */
-const VERSAO = "movvi-v2";
+const VERSAO = "movvi-v3";
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {
@@ -20,7 +20,7 @@ self.addEventListener("push", (e) => {
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { corpo: e.data ? e.data.text() : "" }; }
   e.waitUntil(self.registration.showNotification(d.titulo || "Movvi+ Entregas", {
     body: d.corpo || "Abra o app para ver.",
-    icon: "icone-192.png", badge: "icone-192.png",
+    icon: "icone-192.png", badge: "badge-96.png",
     tag: d.tag || "movvi", renotify: true, requireInteraction: true,
     vibrate: [200, 80, 200, 80, 300],
     data: { url: d.url || "./" },
