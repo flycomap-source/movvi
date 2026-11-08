@@ -341,7 +341,7 @@
       if (r.error) {
         bt.disabled = false; bt.textContent = cad ? "Criar acesso" : "Entrar"; er.hidden = false;
         const t = r.error.message || "";
-        er.textContent = /Invalid login/i.test(t) ? "Usuário ou senha incorretos." : /already registered/i.test(t) ? "Esse usuário já existe. Escolha outro ou entre." : "Não foi possível: " + t;
+        er.textContent = /Invalid login/i.test(t) ? "Usuário ou senha incorretos. Se é sua primeira vez neste app, toque em “Primeira vez? Criar acesso” abaixo — a senha do app antigo não vale aqui." : /already registered/i.test(t) ? "Esse usuário já existe. Escolha outro ou entre." : "Não foi possível: " + t;
         return;
       }
       await entrar();
@@ -364,6 +364,17 @@
   window.movviTrocarSenha = async (nova) => {
     const { error } = await sb.auth.updateUser({ password: nova });
     if (error) throw new Error(/different from the old/i.test(error.message) ? "a nova senha é igual à atual" : error.message);
+  };
+  window.movviListarContas = async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch(SUPABASE_URL + "/functions/v1/senha", {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + (session ? session.access_token : "") },
+      body: JSON.stringify({ listar: true }),
+    });
+    let j = null; try { j = await r.json(); } catch (_) {}
+    if (!r.ok || !j || j.erro) throw new Error((j && (j.detalhe || j.erro)) || "erro " + r.status);
+    return j.contas || [];
   };
   window.movviRedefinirSenha = async (uid, nova) => {
     const { data: { session } } = await sb.auth.getSession();

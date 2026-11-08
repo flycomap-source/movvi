@@ -969,6 +969,7 @@ function abrirMenuCentral(){
     item("☺","Clientes","Cadastrar, editar e buscar clientes",()=>{ irPara("equipe"); mostrarCadastro("clientes"); }),
     item("🛵","Entregadores","Cadastrar, editar, senhas e pedidos de acesso",()=>{ irPara("equipe"); mostrarCadastro("entregadores"); }),
     item("🏪","Comércios","Cadastrar, editar, senhas e pedidos de acesso",()=>{ irPara("equipe"); mostrarCadastro("comercios"); }),
+    window.movviListarContas?item("🔑","Contas de acesso","Ver quem criou usuário e redefinir senhas",()=>abrirContasAcesso()):null,
     item("●","Acesso e status","On-line, disponível, bloquear e desbloquear",()=>abrirControle()),
     sec("Aparelho"),
     item("☀",wakeLock?"Tela ligada (desligar)":"Manter tela ligada","Evita que a tela apague durante o expediente",()=>$("#btnTela").click()),
@@ -1386,17 +1387,37 @@ async function exigirSenha(tipo){
 }
 async function redefinirSenha(uid,nome){
   if(window.movviUmaEntrada){
-    const nova=window.prompt("Nova senha para "+nome+" (mínimo 6 caracteres). Passe essa senha para ele:");
-    if(nova===null) return;
-    if(String(nova).length<6){ toast("A senha precisa ter pelo menos 6 caracteres."); return; }
-    try{ await window.movviRedefinirSenha(uid,String(nova)); toast("Senha de "+nome+" redefinida."); }
-    catch(e){ toast("Não foi possível redefinir ("+((e&&e.message)||"erro")+")."); }
+    const f=h("input",{class:"inp",id:"rsNova",type:"text",autocomplete:"off",autocapitalize:"none",placeholder:"Nova senha (mínimo 6)"});
+    const msg=h("div",{class:"aviso",hidden:true});
+    const ok=h("button",{class:"btn full",type:"button"},"Salvar nova senha");
+    ok.addEventListener("click",async()=>{ const nova=f.value.trim(); msg.hidden=true;
+      if(nova.length<6){ msg.hidden=false; msg.textContent="A senha precisa ter pelo menos 6 caracteres."; return; }
+      ok.disabled=true; ok.textContent="Salvando…";
+      try{ await window.movviRedefinirSenha(uid,nova); fechar(); toast("Senha de "+nome+" redefinida. Passe a nova senha para ele."); }
+      catch(e){ ok.disabled=false; ok.textContent="Salvar nova senha"; msg.hidden=false; msg.textContent="Não foi possível redefinir ("+((e&&e.message)||"erro")+")."; }
+    });
+    const fechar=abrirSheet("Nova senha · "+(nome||"conta"),[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Digite a nova senha e passe para ele. O usuário continua o mesmo."}),h("div",{class:"campo"},h("label",{for:"rsNova",text:"Nova senha"}),f),msg,ok]);
+    setTimeout(()=>{ try{ f.focus(); }catch(e){} },100);
     return;
   }
   try{ await comRetry(()=>S.db.doc("senhas/"+uid).delete()); toast("Senha de "+nome+" redefinida. No próximo acesso, ele cria uma nova."); }
   catch(e){ toast("Não foi possível redefinir ("+(e&&e.code||"erro")+")."); }
 }
 
+/* central: todas as contas do app novo (quem já criou usuário), com redefinir senha */
+async function abrirContasAcesso(){
+  const lista=h("div",{class:"lista",style:"gap:8px"},h("p",{class:"muted",style:"margin:0",text:"Carregando contas…"}));
+  mostrarPagina("Central","Contas de acesso",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Todas as pessoas que já criaram usuário no app. Toque em “Nova senha” quando alguém esquecer a senha."}),lista]);
+  let cs=[]; try{ cs=await window.movviListarContas(); }catch(e){ lista.replaceChildren(h("p",{class:"aviso",text:"Não foi possível carregar ("+((e&&e.message)||"erro")+")."})); return; }
+  const tipo={central:"Central",entregador:"Entregador",comercio:"Comércio",pendente:"Aguardando liberação"};
+  cs.sort((a,b)=>(a.papel==="pendente"?0:1)-(b.papel==="pendente"?0:1)||String(a.nome||a.usuario).localeCompare(String(b.nome||b.usuario)));
+  lista.replaceChildren(...(cs.length?cs.map(c=>h("div",{class:"eq",style:"flex-wrap:wrap;gap:8px"},
+    h("span",{style:"display:flex;flex-direction:column;min-width:0;flex:1"},
+      h("b",{style:"overflow-wrap:anywhere",text:c.nome||c.usuario}),
+      h("span",{class:"muted",style:"font-size:12px",text:"usuário: "+c.usuario+" · "+(tipo[c.papel]||c.papel)+(c.ativo?"":" · desativado")+(c.ultimoAcesso?" · último acesso "+new Date(c.ultimoAcesso).toLocaleDateString("pt-BR"):"")})),
+    c.uid===S.uid?h("span",{class:"pill",text:"você"}):h("button",{class:"btn sec",type:"button",style:"padding:8px 12px",onclick:()=>redefinirSenha(c.uid,c.nome||c.usuario)},"🔑 Nova senha")))
+    :[h("p",{class:"muted",style:"margin:0",text:"Ninguém criou conta ainda."})]));
+}
 /* ---------- tela de acesso (entregador) ---------- */
 (function(){ const l=$("#acessoLogo"); l.append(icone(56)); })();
 function renderAcesso(){
