@@ -961,7 +961,8 @@ function abrirMenuCentral(){
     item("●","Acesso e status","On-line, disponível, bloquear e desbloquear",()=>abrirControle()),
     sec("Aparelho"),
     item("☀",wakeLock?"Tela ligada (desligar)":"Manter tela ligada","Evita que a tela apague durante o expediente",()=>$("#btnTela").click()),
-    item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
+    item("♪","Testar som do alerta","Toque Movvi+",()=>testarSom()),
+    item("🔔","Avisos com o app fechado","Receber notificação de pedido de comércio no celular",()=>ativarAvisos()),
     sec("Conta"),
     item("👤","Meus dados","Usuário e senha da central",()=>abrirConta()),
     item("⚙","Configurações","Nome, senha, valor do adicional, bairros e fotos",()=>abrirConfiguracoes()),
@@ -1232,6 +1233,31 @@ function renovarSessao(){
 }
 ["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,()=>renovarSessao(),{capture:true,passive:true}));
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") renovarSessao(); });
+/* avisos com o app fechado (Web Push pelo Supabase): o celular se inscreve uma vez e o servidor avisa quando cai entrega */
+const URL_AVISAR="https://ilhizctomafdutxcdhxa.supabase.co/functions/v1/avisar";
+const avisosAtivos=()=>{ try{ return Notification.permission==="granted" && ls.get("movvi.avisos."+S.uid)==="1"; }catch(e){ return false; } };
+function b64paraBytes(b){ const p="=".repeat((4-b.length%4)%4), s=atob((b+p).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from(s,c=>c.charCodeAt(0)); }
+async function ativarAvisos(silencioso){
+  const sb=window.movviSupabase;
+  if(!sb||!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)){ if(!silencioso) toast("Este celular não aceita avisos com o app fechado."); return false; }
+  try{
+    let perm=Notification.permission; if(perm==="default") perm=await Notification.requestPermission();
+    if(perm!=="granted"){ if(!silencioso) toast("Os avisos estão bloqueados. Libere as notificações do Movvi+ nas configurações do celular."); return false; }
+    const reg=await navigator.serviceWorker.ready;
+    const {publica}=await fetch(URL_AVISAR).then(r=>r.json());
+    let sub=await reg.pushManager.getSubscription();
+    if(sub && sub.options && sub.options.applicationServerKey){ const a=new Uint8Array(sub.options.applicationServerKey), b=b64paraBytes(publica); if(a.length!==b.length||a.some((x,i)=>x!==b[i])){ await sub.unsubscribe(); sub=null; } }
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64paraBytes(publica)});
+    const j=sub.toJSON();
+    const {error}=await sb.from("push_inscricoes").upsert({endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth,user_id:S.uid},{onConflict:"endpoint"});
+    if(error) throw error;
+    ls.set("movvi.avisos."+S.uid,"1");
+    if(!silencioso) toast("Avisos ativados. Quando cair entrega, o celular avisa mesmo com o app fechado.");
+    return true;
+  }catch(e){ if(!silencioso) toast("Não foi possível ativar os avisos ("+((e&&e.message)||"erro")+")."); return false; }
+}
+// quem já ativou: renova a inscrição ao abrir o app (o celular às vezes troca)
+setTimeout(()=>{ try{ if(window.movviSupabase && S.uid && Notification.permission==="granted") ativarAvisos(true); }catch(e){} },8000);
 /* entregador: primeira vez que abre o app no dia (depois da meia-noite) → "Bom dia, fulano! Está pronto para trabalhar?" */
 function saudacaoDoDia(){
   if(S.modo!=="entregador" || !S.uid || !$("#trava").hidden || document.visibilityState!=="visible") return;
@@ -1246,7 +1272,7 @@ function saudacaoDoDia(){
       h("div",{style:"font-size:54px;line-height:1",text:ic}),
       h("h2",{style:"margin:0;font-family:var(--f-display);font-size:26px;color:var(--royal)",text:txt+(nomeBonito?", "+nomeBonito+"!":"!")}),
       h("p",{style:"margin:0;font-size:18px;font-weight:700",text:"Está pronto para trabalhar?"}),ok));
-  ok.addEventListener("click",()=>caixa.remove());
+  ok.addEventListener("click",()=>{ caixa.remove(); try{ if(window.movviSupabase && "Notification" in window && Notification.permission==="default") ativarAvisos(); }catch(e){} });
   document.body.append(caixa); setTimeout(()=>{ try{ ok.focus(); }catch(e){} },50);
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") setTimeout(saudacaoDoDia,800); });
@@ -2660,7 +2686,8 @@ function abrirMeuMenu(){
     item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
-    item("⎋","Sair","Volta para a tela de login",sair)]);
+    window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular":"Receber aviso de entrega nova mesmo com o app fechado",()=>ativarAvisos()):null,
+    item("⎋","Sair","Volta para a tela de login",sair)].filter(Boolean));
 }
 /* som só quando chega pedido; mudanças de status só mostram o aviso */
 /* Ao abrir o app (ou voltar para ele), o entregador com entregas esperando ouve o alerta uma vez.
