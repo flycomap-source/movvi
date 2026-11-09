@@ -4311,10 +4311,20 @@ function conferirCameraPerdida(tent){
     bt]);
   bt.addEventListener("click",()=>{ fechar(); escanearDaGaleria(); });
 }
+/* endereço da comanda: SEMPRE a Observação FISCAL; só se ela não tiver endereço, as outras observações; por último o campo Endereço */
+function leituraComEnderecoFiscal(sm){
+  const json=sm.json.bind(sm);
+  return Object.assign(Object.create(sm),{ json:async(prompt,op)=>{ const r=await json(prompt,op);
+    if(prompt===PROMPT_COMANDA && r && typeof r==="object"){
+      const f=String(r.enderecoFiscal||"").trim(), o=String(r.enderecoObservacoes||"").trim(), c=String(r.enderecoCampo||"").trim();
+      if(f) r.endereco=f; else if(o) r.endereco=o; else if(!String(r.endereco||"").trim() && c) r.endereco=c;
+    }
+    return r; } });
+}
 const PROMPT_COMANDA =
   "A foto é de uma comanda/pedido de entrega de um comércio de Unaí-MG (Brasil): pode ser a comanda impressa da Drogaria Canaan ou um papel anotado à mão. "+
   "Responda SOMENTE com um objeto JSON neste formato: "+
-  '{"empresa":"","pedidoComercio":"","codigoCliente":"","cliente":"","clienteDoEndereco":"","telefone":"","telefoneCadastro":"","endereco":"","bairro":"","pegarReceita":false,"transferencia":false,"osTipo":"","osLoja":"","osDestino":"","produtosControlados":[],"trocoPara":0,"pagamento":"dinheiro|cartao|pago|convenio","valorProdutos":0,"taxaEntrega":0,"valor":0,"previsaoPagamento":"","observacoes":"","confianca":"alta|media|baixa"}. '+
+  '{"empresa":"","pedidoComercio":"","codigoCliente":"","cliente":"","clienteDoEndereco":"","telefone":"","telefoneCadastro":"","endereco":"","enderecoFiscal":"","enderecoObservacoes":"","enderecoCampo":"","bairro":"","pegarReceita":false,"transferencia":false,"osTipo":"","osLoja":"","osDestino":"","produtosControlados":[],"trocoPara":0,"pagamento":"dinheiro|cartao|pago|convenio","valorProdutos":0,"taxaEntrega":0,"valor":0,"previsaoPagamento":"","observacoes":"","confianca":"alta|media|baixa"}. '+
   "Há dois modelos comuns: (1) comanda impressa da Drogaria Canaan, com cliente identificado pelo telefone; (2) notinha da Farmácia Campos, preenchida à mão, com Sr.(a) = nome do cliente, End. = endereço, lista de produtos, TOTAL R$, e embaixo, junto da NOTA PROMISSÓRIA, a taxa de entrega abreviada \"TX\" e o valor total com a taxa. Farmacêuticos abreviam e escrevem rápido: leia com atenção nomes de ruas de Unaí (ex.: \"Princesa Isabel\"). "+
   "Regras: "+
   "empresa = nome do comércio (ex.: em \"Filial: 2 - DROGARIA CANAAN - LJ02 - UNAI\" responda \"Drogaria Canaan\"). "+
@@ -4323,6 +4333,7 @@ const PROMPT_COMANDA =
   "cliente = nome do cliente impresso no cabeçalho. clienteDoEndereco = nome de quem recebe, escrito junto do endereço de entrega nas observações (ex.: \"para Dona Natália\"); vazio se não houver. "+
   "enderecoTrocado = true se for comanda impressa (ex.: Drogaria Canaan); senão false. "+
   "endereco = endereço de entrega com rua, número, bairro e complemento (apto, bloco). NA COMANDA IMPRESSA (ex.: Drogaria Canaan): IGNORE COMPLETAMENTE o campo \"Endereco\" da parte de baixo e pegue o endereço das Observações, nesta ordem: 1º) verifique PRIMEIRO a \"Observação FISCAL\" (\"Observações FISCAL\"/\"Obs. Fiscal\"): se ela tiver um endereço, use esse endereço; 2º) se a Observação FISCAL estiver vazia ou não tiver endereço, use como endereço o que estiver escrito nas observações que ficam ACIMA dela na comanda (as outras Observações impressas em cima). Na notinha escrita à mão (ex.: Farmácia Campos), use o campo End. "+
+  "enderecoFiscal = o endereço escrito na Observação FISCAL, exatamente como está (vazio se ela não tiver endereço). enderecoObservacoes = o endereço das outras Observações, acima da FISCAL (vazio se não tiver). enderecoCampo = o campo \"Endereco\" impresso embaixo, do cadastro (vazio se não tiver). Preencha os três separadamente, mesmo que repitam. "+
   "telefone = o telefone que está nas Observações junto com o endereço de entrega (na mesma observação de onde saiu o endereço: a FISCAL ou, se ela não tiver endereço, a de cima).NA COMANDA IMPRESSA: nunca use o \"Fone\"/\"Telefone\" do cabeçalho (perto do Cliente e CPF) nem números do campo Endereco de baixo; se não houver telefone nas Observações, deixe vazio. CEP (8 dígitos começando com 386) não é telefone. Só números com DDD. "+
   "telefoneCadastro = o número do campo \"Fone\" do cabeçalho, só números. "+
   "bairro = o bairro do endereço de entrega, só quando estiver indicado como bairro (ex.: \"Bairro Santa Clara\" ou o nome do bairro depois do número: em \"Rua Topógrafo 59 Alvorada\" o bairro é \"Alvorada\"; a palavra que vem logo depois do número da casa é sempre o bairro). Copie o número ou algarismo romano do bairro quando houver (ex.: \"Água Branca 1\", \"Água Branca II\"). Nome de rua ou avenida NÃO é bairro: \"Rua Santa Clara\" e \"Avenida Santa Clara\" são ruas. Vazio se não houver. "+
@@ -6702,7 +6713,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
   use("assets").then(a=>{ if(a) S.assets=a;
     if(a && S.admin) db.doc("config/fotos").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; if(num(d.dias)>0) S.fotosDias=Math.round(num(d.dias)); avisarFotosAntigas(); },()=>avisarFotosAntigas());
   });
-  use("sample").then(async sm=>{ if(!sm) return; try{ const lim=await sm.limits(); if(lim && lim.images){ S.sample=sm; S.sampleImgs=lim.images; atuFabScan(); setTimeout(conferirCameraPerdida,800); } }catch(e){} });
+  use("sample").then(async sm=>{ if(!sm) return; try{ const lim=await sm.limits(); if(lim && lim.images){ S.sample=leituraComEnderecoFiscal(sm); S.sampleImgs=lim.images; atuFabScan(); setTimeout(conferirCameraPerdida,800); } }catch(e){} });
   // presença: quem está com o app aberto
   use("room").then(room=>{
     if(!room) return;
