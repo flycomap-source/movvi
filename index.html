@@ -5902,13 +5902,19 @@ function renderRelTipo(ps,ent,de,ate){
   const porEC=(()=>{
     const m=new Map(); ent.forEach(p=>{ const k=nomeEnt(p.entregadorId)+"\u0001"+(p.coletaEmpresa||"Sem comércio"); if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
     if(!m.size) return null;
-    const linhas=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([k,l])=>{ const [e,c]=k.split("\u0001"); const ad=somaUn(l)-l.length;
-      return [e,c,String(l.length),String(ad),String(l.length+ad),fmt(somaGanho(l))]; });
+    // cada entregador aparece uma vez: as linhas de baixo são os comércios dele, e no fim o total dele
+    const linhas=[], porE=new Map();
+    [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k,l])=>{ const [e,c]=k.split("\u0001"); if(!porE.has(e)) porE.set(e,[]); porE.get(e).push([c,l]); });
+    porE.forEach((cs,e)=>{
+      cs.forEach(([c,l],i)=>{ const ad=somaUn(l)-l.length; linhas.push({tipo:i?"sub":"ent",c:[i?"":e,c,String(l.length),String(ad),String(l.length+ad),fmt(somaGanho(l))]}); });
+      if(cs.length>1){ const l=cs.flatMap(x=>x[1]), ad=somaUn(l)-l.length; linhas.push({tipo:"tot",c:["","Total de "+e,String(l.length),String(ad),String(l.length+ad),fmt(somaGanho(l))]}); }
+    });
     const tE=ent.length, tA=somaUn(ent)-ent.length;
-    linhas.push(["Total","",String(tE),String(tA),String(tE+tA),fmt(somaGanho(ent))]);
+    linhas.push({tipo:"geral",c:["Total","",String(tE),String(tA),String(tE+tA),fmt(somaGanho(ent))]});
+    const estilo={ent:"border-top:2px solid var(--line)",sub:"",tot:"font-weight:800;background:var(--bg)",geral:"font-weight:800;background:var(--royal-soft)"};
     const t=h("div",{class:"tabela-wrap"},h("table",null,
       h("thead",null,h("tr",null,...["Entregador","Comércio","Entregas","Adicionais","Total c/ adic.","Valor total"].map((c,i)=>h("th",{class:i>1?"r":"",text:c})))),
-      h("tbody",null,...linhas.map((l,i)=>h("tr",{style:i===linhas.length-1?"font-weight:800;background:var(--royal-soft)":""},...l.map((c,j)=>h("td",{class:j>1?"r num":"",style:j===0?"font-weight:700":"",text:c})))))));
+      h("tbody",null,...linhas.map(l=>h("tr",{style:estilo[l.tipo]},...l.c.map((c,j)=>h("td",{class:j>1?"r num":"",style:j===0?"font-weight:700":"",text:c})))))));
     return [h("h3",{text:"Entregas e adicionais por entregador e comércio"}),t];
   })();
   out.replaceChildren(...lin([resumoFiltros(), ...(porEC||[]), h("h3",{text:"Pedidos"}), wrap]));
