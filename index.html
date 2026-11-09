@@ -5641,7 +5641,7 @@ $("#relGerar").addEventListener("click",gerarRelatorio);
 function tabela(cab, linhas){
   return h("div",{class:"tabela-wrap"},h("table",null,
     h("thead",null,h("tr",null,...cab.map((c,i)=>h("th",{class:i?"r":"",text:c})))),
-    h("tbody",null,...linhas.map(l=>h("tr",null,...l.map((c,i)=>h("td",{class:i?"r num":"",text:c})))))));
+    h("tbody",null,...linhas.map(l=>h("tr",null,...l.map((c,i)=>(c&&typeof c==="object"&&c.nodeType)?h("td",{class:i?"r":""},c):h("td",{class:i?"r num":"",text:c})))))));
 }
 /* relatório de pedidos (central) e do comércio: abre limpo; só busca depois que escolhe o dia ou o período */
 /* escolheu dia, atalho ou filtro: o relatório só aparece quando tocar em "Gerar relatório" */
@@ -6028,9 +6028,82 @@ function renderRelatorio(ps,de,ate){
     h("h3",{text:ehMesInteiro(de,ate)?"Fechamento mensal por entregador (a pagar)":"Por entregador"}),
     porEnt.length?tabela(["Entregador","Entregas","Valor entregas","Adicionais","Valor adicionais","Qtd. paga","Total a pagar","Dinheiro"],
       porEnt.map(([id,v])=>[nomeEnt(id),String(v.n),fmt(v.ge),String(v.u-v.n),fmt(v.ga-v.ge),String(v.u),fmt(v.ga),fmt(v.din)])):vazio,
+    fechamentoCentral(ent,de,ate),
     h("h3",{text:"Por empresa de coleta"}),
     porEmp.length?tabela(["Empresa","Entregas","Dinheiro","Taxas"],porEmp.map(([k,v])=>[k,String(v.n),fmt(v.din),fmt(v.tx)])):vazio,
     h("h3",{text:"Por forma de pagamento"}), tabPag, rodape, listaFin);
+}
+
+/* ---------- FECHAMENTO NO FORMATO DA PLANILHA + VALES (só a central) ----------
+   Entregador: (empresa principal + outras + adicionais) × taxa dele, menos os vales do período.
+   Central: tudo o que foi cobrado dos comércios menos o que foi pago aos entregadores de fora da central
+   (as entregas feitas por quem é da central ficam inteiras para a central; os adicionais saem da parte dela).
+   vales/<id> = {entregadorId, valor, data, obs, criadoEm, criadoPor} */
+function fechamentoCentral(ent,de,ate){
+  if(!central()) return null;
+  const box=h("div",{class:"view",style:"display:flex;flex-direction:column;gap:10px"});
+  const desenhar=async()=>{
+    let vales=[];
+    try{ const snap=await S.db.collection("vales").get(); vales=snap.docs.map(d=>({id:d.id,_path:"vales/"+d.id,...d.data()})).filter(v=>v.data>=de && v.data<=ate).sort((a,b)=>String(a.data).localeCompare(String(b.data))); }catch(e){}
+    // empresa principal = a que mais teve entregas no período (ex.: Canaã)
+    const contEmp={}; ent.forEach(p=>{ const k=slug(p.coletaEmpresa||""); if(k) contEmp[k]=(contEmp[k]||0)+1; });
+    const kPrin=Object.keys(contEmp).sort((a,b)=>contEmp[b]-contEmp[a])[0]||"";
+    const nomePrin=kPrin?((ent.find(p=>slug(p.coletaEmpresa||"")===kPrin)||{}).coletaEmpresa||"Principal"):"Principal";
+    const daCentral=id=>!!((S.equipe||[]).find(m=>m.id===id)||{}).semAdicional;
+    const g={}; ent.forEach(p=>{ const id=p.entregadorId||"-"; const x=(g[id]=g[id]||{prin:0,outras:0,ad:0,valor:0,cob:0});
+      if(kPrin && slug(p.coletaEmpresa||"")===kPrin) x.prin++; else x.outras++;
+      x.ad+=unidades(p)-1; x.valor+=ganhoPedido(p); x.cob+=num(p.taxaCobrada); });
+    const valesDe=id=>vales.filter(v=>v.entregadorId===id).reduce((s,v)=>s+num(v.valor),0);
+    const ids=Object.keys(g).sort((a,b)=>nomeEnt(a).localeCompare(nomeEnt(b)));
+    const fora=ids.filter(id=>!daCentral(id)), dentro=ids.filter(daCentral);
+    const cobTotal=ids.reduce((s,id)=>s+g[id].cob,0), pagoFora=fora.reduce((s,id)=>s+g[id].valor,0);
+    const linhas=fora.map(id=>{ const x=g[id], vl=valesDe(id); return [nomeEnt(id),String(x.prin),String(x.outras),String(x.ad),String(x.prin+x.outras+x.ad),fmt(x.valor),vl?"− "+fmt(vl):"—",fmt(x.valor-vl)]; });
+    const doCentral=dentro.reduce((s,id)=>s+g[id].prin+g[id].outras,0);
+    const valorCentral=cobTotal-pagoFora;
+    linhas.push(["Central"+(dentro.length?" ("+dentro.map(nomeEnt).join(", ")+")":""),String(dentro.reduce((s,id)=>s+g[id].prin,0)),String(dentro.reduce((s,id)=>s+g[id].outras,0)),"—",String(doCentral),fmt(valorCentral),"—",fmt(valorCentral)]);
+    const totPrin=ids.reduce((s,id)=>s+g[id].prin,0), totOut=ids.reduce((s,id)=>s+g[id].outras,0);
+    const btVale=h("button",{class:"btn sec",type:"button"},"＋ Lançar vale (adiantamento)");
+    btVale.addEventListener("click",()=>abrirVale(de,ate,desenhar));
+    box.replaceChildren(
+      h("h3",{text:"Fechamento (formato da planilha)"}),
+      h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Entregador: ("+nomePrin+" + outras + adicionais) × taxa dele, menos os vales. Central: taxas cobradas menos o que foi pago aos entregadores; as entregas de quem é da central ficam inteiras para a central e os adicionais saem da parte dela."}),
+      ent.length?tabela(["Quem",nomePrin,"Outras","Adic.","Unid.","Valor","Vales","A pagar / receber"],linhas):h("p",{class:"muted",style:"margin:0",text:"Nenhuma entrega concluída no período."}),
+      h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Total "+nomePrin+": "+totPrin+" · Outras empresas: "+totOut}),
+      h("h3",{text:"Vales do período"}),
+      vales.length?tabela(["Data","Entregador","Valor","Obs.",""],vales.map(v=>[String(v.data||"").split("-").reverse().join("/"),nomeEnt(v.entregadorId),fmt(num(v.valor)),v.obs||"",
+        h("button",{class:"btn sec",type:"button",style:"padding:4px 10px;font-size:13px",onclick:async e=>{ const b=e.currentTarget; if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent="Confirmar"; return; } b.disabled=true; try{ await S.db.doc(v._path).delete(); toast("Vale apagado"); desenhar(); }catch(x){ b.disabled=false; toast("Não foi possível apagar."); } }},"Apagar")]))
+        :h("p",{class:"muted",style:"margin:0",text:"Nenhum vale lançado no período."}),
+      btVale);
+  };
+  box.append(h("p",{class:"muted",style:"margin:0",text:"Montando o fechamento…"}));
+  desenhar();
+  return box;
+}
+function abrirVale(de,ate,depois){
+  const ents=(S.equipe||[]).filter(m=>m.ativo!==false && !m.semAdicional).sort((a,b)=>String(a.nome).localeCompare(String(b.nome)));
+  const fEnt=h("select",{class:"inp",id:"valeEnt"},h("option",{value:"",text:"Escolha o entregador"}),...ents.map(m=>h("option",{value:m.id,text:m.nome})));
+  const fVal=h("input",{class:"inp num",id:"valeVal",inputmode:"decimal",placeholder:"0,00"});
+  const dia=(hoje()>=de && hoje()<=ate)?hoje():ate;
+  const fData=h("input",{class:"inp",id:"valeData",type:"date",value:dia});
+  const fObs=h("input",{class:"inp",id:"valeObs",placeholder:"Observação (opcional)"});
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"Salvar vale");
+  ok.addEventListener("click",async()=>{
+    msg.hidden=true;
+    if(!fEnt.value){ msg.hidden=false; msg.textContent="Escolha o entregador."; return; }
+    if(!(num(fVal.value)>0)){ msg.hidden=false; msg.textContent="Informe o valor do vale."; return; }
+    if(!fData.value){ msg.hidden=false; msg.textContent="Informe a data."; return; }
+    ok.disabled=true; ok.textContent="Salvando…";
+    try{ const id="v"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await comRetry(()=>S.db.doc("vales/"+id).set({entregadorId:fEnt.value,valor:num(fVal.value),data:fData.value,obs:fObs.value.trim(),criadoEm:new Date().toISOString(),criadoPor:S.uid||""}));
+      fechar(); toast("Vale lançado"); if(depois) depois(); }
+    catch(e){ ok.disabled=false; ok.textContent="Salvar vale"; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Lançar vale",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"O vale é descontado do entregador no fechamento do período em que foi lançado."}),
+    h("div",{class:"campo"},h("label",{for:"valeEnt",text:"Entregador"}),fEnt),
+    h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"valeVal",text:"Valor (R$)"}),fVal),h("div",{class:"campo"},h("label",{for:"valeData",text:"Data"}),fData)),
+    h("div",{class:"campo"},h("label",{for:"valeObs",text:"Observação"}),fObs),msg,ok]);
 }
 
 /* ---------- EQUIPE (central) ---------- */
