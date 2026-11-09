@@ -1599,7 +1599,7 @@ $("#diaPicker").addEventListener("click",()=>{ const i=$("#diaInput"); try{ i.sh
 $("#diaInput").addEventListener("change",e=>{ if(e.target.value) mudarDia(e.target.value); });
 function mudarDia(d){ S.dia=d; renderDia(); assinarDia(); }
 /* virou o dia com o app aberto: quem estava vendo "hoje" passa para o dia novo sozinho */
-let ultimoHoje=null;
+let ultimoHoje=hoje();
 function conferirViradaDia(){ const h=hoje(); if(ultimoHoje && h!==ultimoHoje && S.dia===ultimoHoje) mudarDia(h); ultimoHoje=h; }
 setInterval(conferirViradaDia,60000);
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") conferirViradaDia(); });
