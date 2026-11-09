@@ -1287,11 +1287,15 @@ function saudacaoDoDia(){
   ok.addEventListener("click",()=>{ caixa.remove(); try{ if(window.movviSupabase && "Notification" in window && Notification.permission==="default") ativarAvisos(); }catch(e){} });
   document.body.append(caixa); setTimeout(()=>{ try{ ok.focus(); }catch(e){} },50);
 }
-/* entregador: metas do dia (10, 20 e 30 entregas concluídas hoje) → aviso na tela; na de 30, confete */
+/* entregador: metas do dia (10, 20, 30, 40, 50 e depois a cada 10 entregas concluídas hoje) → aviso na tela; de 30 em diante, confete */
 const METAS=[
-  {n:10,ic:"🏅",tit:"Objetivo alcançado!",txt:"Você conquistou suas 10 primeiras entregas. Vamos continuar?"},
-  {n:20,ic:"🏆",tit:"Objetivo alcançado!",txt:"Você já concluiu suas 20 entregas. Vamos continuar?"},
-  {n:30,ic:"🎉",tit:"Meta batida!",txt:"Alcançamos 30 entregas. Vamos continuar?",confete:true}];
+  {n:10,ic:"🔥",tit:"10 entregas concluídas!",txt:"Você está no ritmo! Cada entrega é mais uma conquista. Bora pra próxima!"},
+  {n:20,ic:"⚡",tit:"20 entregas na conta!",txt:"Você não está para brincadeira! Foco, agilidade e determinação. Continue assim!"},
+  {n:30,ic:"🚀",tit:"30 entregas! Você é máquina!",txt:"Seu esforço está fazendo a diferença. O resultado vem para quem não para!",confete:true},
+  {n:40,ic:"🏆",tit:"40 entregas concluídas!",txt:"Nível de produtividade lá em cima! Você está fazendo acontecer!",confete:true},
+  {n:50,ic:"👑",tit:"50 ENTREGAS! LENDA!",txt:"Isso é determinação de verdade! Você chegou longe. Respeito pelo seu corre!",confete:true}];
+/* 60 ou mais: a cada 10 entregas (60, 70, 80…) */
+const metaDe=n=>n>=60?{n,ic:"💎",tit:"VOCÊ É DIFERENCIADO!",txt:"Mais um marco alcançado! Sua dedicação merece reconhecimento. O próximo desafio já está esperando!",confete:true,qtd:n}:METAS.find(x=>x.n===n);
 function entreguesHoje(){
   if(S.modo!=="entregador" || S.dia!==hoje()) return -1;
   return (S.pedidosDia||[]).filter(p=>p.status==="entregue" && (!p.entregadorId || p.entregadorId===S.eu) && (!p.data || p.data===hoje())).length;
@@ -1303,7 +1307,8 @@ function verificarMetas(){
   const k="movvi.metas."+S.uid, d=hoje();
   let feito={}; try{ feito=JSON.parse(ls.get(k)||"{}"); }catch(e){}
   if(feito.d!==d) feito={d,n:0};
-  const m=METAS.filter(x=>n>=x.n && x.n>num(feito.n)).pop(); if(!m) return;   // mostra só a maior meta ainda não comemorada
+  const alvo=Math.floor(n/10)*10; if(alvo<=num(feito.n)) return;   // mostra só a maior meta ainda não comemorada
+  const m=metaDe(alvo); if(!m) return;
   feito.n=m.n; ls.set(k,JSON.stringify(feito));
   mostrarMeta(m);
 }
@@ -1313,6 +1318,7 @@ function mostrarMeta(m){
     h("div",{style:"position:relative;z-index:2;background:var(--card,#fff);border-radius:24px;padding:28px 22px;max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
       h("div",{style:"font-size:58px;line-height:1",text:m.ic}),
       h("h2",{style:"margin:0;font-family:var(--f-display);font-size:28px;color:var(--royal)",text:m.tit}),
+      m.qtd?h("div",{class:"num",style:"font-size:20px;font-weight:800;color:var(--laranja-ink,#b35c00)",text:m.qtd+" entregas hoje"}):null,
       h("p",{style:"margin:0;font-size:18px;font-weight:700",text:m.txt}),ok));
   let parar=()=>{};
   ok.addEventListener("click",()=>{ parar(); caixa.remove(); });
