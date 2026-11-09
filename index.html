@@ -860,8 +860,22 @@ function colDe(entId){
   const m=membro(entId);
   return m && m.uid ? "entregas/"+m.uid+"/pedidos" : "pedidos";
 }
+/* comércio também vê as entregas lançadas no nome dele pela central ou pelo entregador (coletaEmpresa = nome do comércio) */
+const chaveNomeCom = x => semAcento(String(x||"")).toLowerCase().replace(/[^a-z0-9]/g,"").replace(/(^|[a-z])0+(\d)/g,"$1$2");
+function ehDoMeuComercio(p){
+  if(!p) return false;
+  if(p.origem && p.origem.lojaUid===S.uid) return false;   // já aparece pelo pedido que o próprio comércio fez
+  const eu=chaveNomeCom(S.euNome); if(!eu) return false;
+  return chaveNomeCom(p.coletaEmpresa)===eu || (p.tipoServico==="transferencia" && chaveNomeCom(p.transfDe)===eu);
+}
+/* entrega lançada pela central/entregador vista pelo comércio: mesmo jeito dos pedidos dele */
+function comoPedidoDaLoja(p){
+  const st = p.status==="entregue"?"entregue" : p.status==="cancelado"?"recusado" : p.emRotaEm?"a_caminho" : p.aceitoEm?"aceita" : "solicitado";
+  const m=(S.equipe||[]).find(e=>e.id===p.entregadorId);
+  return {...p,status:st,statusOriginal:p.status,entregadorNome:p.entregadorNome||(m&&m.nome)||"",lancadoPelaCentral:true};
+}
 function fontes(entId){
-  if(comercio()) return ["lojas/"+S.uid+"/pedidos"];
+  if(comercio()){ const set=new Set(["lojas/"+S.uid+"/pedidos","pedidos"]); (S.equipe||[]).forEach(m=>{ if(m.uid) set.add("entregas/"+m.uid+"/pedidos"); }); return [...set]; }
   if(!central()) return ["entregas/"+S.uid+"/pedidos"];
   if(entId) return [colDe(entId)];
   const set=new Set(["pedidos"]);
@@ -1597,6 +1611,10 @@ $("#perData").addEventListener("change",e=>{ const d=e.target.value; if(!d) retu
 const LIM_3H=()=>new Date(Date.now()-3*3600000).toISOString();
 
 let chaveDia="";
+function filtrarFonte(col,ps){
+  if(!comercio() || col.startsWith("lojas/")) return ps;
+  return ps.filter(ehDoMeuComercio).map(comoPedidoDaLoja);
+}
 function assinarDia(forcar){
   if(!S.db || !(central()||comercio()||S.modo==="entregador")){ S.subsDia.forEach(u=>u()); S.subsDia=[]; S.pedidosDia=[]; renderPedidos(); return; }
   const fs=fontes();
@@ -1628,14 +1646,14 @@ function assinarDia(forcar){
         });
       }
       primeira=false;
-      S.fontesDia[col]=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}));
+      S.fontesDia[col]=filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})));
       S.pedidosDia=[].concat(...Object.values(S.fontesDia));
       renderPedidos();
     },err=>console.warn(col,err)));
     // central em "Últimas 3 horas" logo depois da meia-noite: inclui as finalizadas de ontem dentro da janela
     if(S.periodo==="3h" && S.dia===hoje() && new Date(Date.now()-3*3600000).toDateString()!==new Date().toDateString()){
       S.subsDia.push(S.db.collection(col).where("data","==",somaDias(hoje(),-1)).onSnapshot(snap=>{
-        S.fontesDia[col+"#ontem3h"]=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})).filter(p=>p.status==="entregue"||p.status==="cancelado");
+        S.fontesDia[col+"#ontem3h"]=filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}))).filter(p=>p.status==="entregue"||p.status==="cancelado");
         S.pedidosDia=[].concat(...Object.values(S.fontesDia));
         renderPedidos();
       },err=>console.warn(col+" (ontem)",err)));
@@ -1644,7 +1662,7 @@ function assinarDia(forcar){
     if(S.dia===hoje()){
       const abertos = col.startsWith("lojas/") ? ["solicitado","aceita","a_caminho","em_rota"] : ["pendente"];
       S.subsDia.push(S.db.collection(col).where("status","in",abertos).onSnapshot(snap=>{
-        S.fontesDia[col+"#atras"]=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})).filter(p=>p.data && p.data<S.dia);
+        S.fontesDia[col+"#atras"]=filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}))).filter(p=>p.data && p.data<S.dia);
         S.pedidosDia=[].concat(...Object.values(S.fontesDia));
         renderPedidos();
       },err=>console.warn(col+" (dias anteriores)",err)));
@@ -5221,7 +5239,7 @@ function verFoto(p){
 async function buscarPeriodo(de,ate,entId){
   const fs=fontes(entId);
   const res=await Promise.all(fs.map(col=>comRetry(()=>S.db.collection(col).where("data",">=",de).where("data","<=",ate).limit(1000).get())
-    .then(snap=>snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})))));
+    .then(snap=>filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})))).catch(()=>[])));
   let ps=[].concat(...res);
   if(entId) ps=ps.filter(p=>p.entregadorId===entId);
   return ps;
@@ -6085,7 +6103,9 @@ function renderRelatorio(ps,de,ate){
    pedidoId, numero, cliente, endereco, texto, criadoEm, lidoEm}; o celular do entregador recebe aviso e a tela mostra o recado. */
 function destinoRecado(p){
   if(!p || ["entregue","cancelado","recusado"].includes(p.status)) return null;
-  if(comercio()){ const o=(S.minhasOfertas||{})[p.id]; if(o && o.aceitoPor && o.status!=="entregue") return {uid:o.aceitoPor,nome:o.entregadorNome||""}; return null; }
+  if(comercio()){ const o=(S.minhasOfertas||{})[p.id]; if(o && o.aceitoPor && o.status!=="entregue") return {uid:o.aceitoPor,nome:o.entregadorNome||""};
+    if(p.lancadoPelaCentral && p.entregadorId){ const m=(S.equipe||[]).find(e=>e.id===p.entregadorId); if(m && m.uid) return {uid:m.uid,nome:m.nome||""}; }
+    return null; }
   if(central() && p.entregadorId){ const m=membro(p.entregadorId); if(m && m.uid) return {uid:m.uid,nome:m.nome||""}; }
   return null;
 }
@@ -6764,7 +6784,8 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
     db.doc("vinculos/"+S.uid).onSnapshot(s=>{
       const v=s.exists?s.data():null;
       const antes=S.modo;
-      if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); }
+      if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO);
+        if(!S.subEquipeCom) S.subEquipeCom=db.collection("equipe").onSnapshot(snap=>{ S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); assinarDia(); },()=>{}); }
       else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; }
       else if(v){ S.modo="desativado"; }
       else { S.modo="semacesso"; }
