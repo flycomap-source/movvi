@@ -3775,12 +3775,13 @@ async function melhorOrdemEntregas(lista){
 function botaoOrdemEntregas(ent,lista){
   const n=lista.length;
   const todas=lista.every(p=>p.emRotaEm);
-  const b=h("button",{class:todas?"btn lar full":"btn sec full",type:"button",style:todas?"":"border-color:var(--laranja);color:var(--laranja-ink)"},todas?"🧭 Escolher a ordem das "+n+" entregas":"🧭 Rota de entregas ("+n+") · ver e ajustar a ordem");
+  const b=h("button",{class:"btn sec full",type:"button",style:"border-color:var(--laranja);color:var(--laranja-ink)"},"🧭 Rota de entregas ("+n+") · numerar a ordem (opcional)");
   b.addEventListener("click",()=>abrirOrdemEntregas(ent));
   return b;
 }
 /* entregador saiu com a última entrega: todas em rota, ele escolhe a ordem (de qualquer comércio) */
 function escolherOrdemSeTodasEmRota(acabou){
+  return; // numerar a rota é opcional: o entregador abre "Rota de entregas" só se quiser
   if(S.modo!=="entregador") return;
   const ids=new Set((acabou||[]).map(p=>p.id));
   setTimeout(()=>{
@@ -3801,7 +3802,7 @@ function abrirOrdemEntregas(ent,op){
   };
   let base=0,total=0; montar();
   const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
-  const info=h("div",{class:"muted",style:"font-size:13px",text:"Toque no número de cada entrega: ela sobe para essa posição. Os números ficam fixos, mesmo se a rota passar para outro entregador."});
+  const info=h("div",{class:"muted",style:"font-size:13px",text:"Numerar é opcional. Toque no número de uma entrega para colocá-la nessa posição; a que tinha esse número fica com o número antigo dela (ou sem número). Entrega nova entra sempre no fim. Os números ficam fixos, mesmo se a rota passar para outro entregador."});
   const falta=h("div",{style:"font-size:13px;font-weight:800;color:var(--laranja-ink)"});
   const msg=h("div",{class:"aviso",hidden:true});
   const btOrg=h("button",{class:"btn sec full",type:"button"},"🧭 Sugerir uma ordem");
@@ -3810,8 +3811,8 @@ function abrirOrdemEntregas(ent,op){
     const usados=new Set(Object.values(nums));
     const ord=itens.slice().sort((x,y)=>(nums[x.id]||999)-(nums[y.id]||999));
     const semN=itens.filter(p=>!nums[p.id]).length;
-    falta.textContent=semN?(semN===1?"Falta numerar 1 entrega":"Faltam numerar "+semN+" entregas"):"✓ Todas numeradas";
-    falta.style.color=semN?"var(--laranja-ink)":"var(--ok)";
+    falta.textContent=semN?(semN===1?"1 entrega sem número (pode deixar assim)":semN+" entregas sem número (pode deixar assim)"):"✓ Todas numeradas";
+    falta.style.color=semN?"var(--muted)":"var(--ok)";
     caixa.replaceChildren(...ord.map(p=>{ const n=nums[p.id]||0;
       return h("div",{class:"parada",style:n?"":"border-style:dashed"},
         h("div",{class:"parada-cab"},h("span",{class:"parada-n num",style:"width:auto;min-width:36px;padding:0 6px;border-radius:14px;"+(n?"":"background:var(--muted)"),text:n?n+"/"+total:"—"}),
@@ -3836,11 +3837,10 @@ function abrirOrdemEntregas(ent,op){
     const atual=pegar();
     if(chaveOrdem(atual)!==chaveOrdem(itens)){ itens=atual; montar(); desenhar(); msg.hidden=false; msg.textContent="As entregas mudaram enquanto você ajustava. Confira a lista de novo e salve."; return; }
     const semN=itens.filter(p=>!nums[p.id]).length;
-    if(semN){ msg.hidden=false; msg.textContent="Escolha o número de todas as entregas antes de salvar."; return; }
     salvar.disabled=true; salvar.textContent="Salvando…";
     try{
       const chave=chaveOrdem(itens);
-      for(const p of itens){ const upd={ordemEntrega:nums[p.id],ordemQtd:total,ordemChave:chave,ordemDe:ent};
+      for(const p of itens){ const upd={ordemEntrega:nums[p.id]||0,ordemQtd:total,ordemChave:chave,ordemDe:ent}; // sem número é permitido
         if(num(p.ordemEntrega)===upd.ordemEntrega && num(p.ordemQtd)===total && p.ordemChave===chave) continue;
         await comRetry(()=>S.db.doc(p._path).update(upd)); }
       fechar(); toast("Ordem das entregas salva"); }
