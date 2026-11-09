@@ -4189,12 +4189,13 @@ function montarRotaPorFotos(restaurar){
           taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:TAXA_PADRAO,
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
-          status:"pendente",acertado:false,criadoEm:agora,criadoPor:S.uid||"",aceitoEm:agora,emRotaEm:agora,saiuEm:agora,registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido feito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido aceito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Saiu para entrega (em rota)",em:agora}],
+          // lançada pelo entregador no ponto de coleta: fica "aceita, falta coletar"; só sai em rota quando ele tocar em Coletei
+          status:"pendente",acertado:false,criadoEm:agora,criadoPor:S.uid||"",aceitoEm:agora,registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido feito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido aceito",em:agora}],
           ...(N>1?{rotaId,rotaQtd:N,rotaOrdem:i+1}:{})};
         await comRetry(()=>S.db.doc(colDe(S.eu)+"/"+rotaId+"-"+(i+1)).set(dados));
       }
       rascunhoRotaLimpar();
-      fechar(); toast(N>1?"Rota com "+N+" entregas lançada":"Entrega lançada");
+      fechar(); toast((N>1?"Rota com "+N+" entregas lançada":"Entrega lançada")+". Toque em Coletei quando sair para entregar.");
     }catch(e){ salvar.disabled=false; salvar.textContent="OK, lançar rota"; msg.hidden=false; msg.textContent="Não foi possível lançar ("+(e&&e.code||"erro")+"). Tente de novo."; }
   });
   function aplicar(lista){
@@ -4862,7 +4863,7 @@ function abrirPedido(p,arquivoComanda,pre){
         toast("Pedido enviado a todos os entregadores");
       }else if(novo){
         const agoraIso=new Date().toISOString();
-        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso,emRotaEm:agoraIso,saiuEm:agoraIso}:{})}));
+        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso}:{})}));   // entregador: aceita, falta coletar (sai em rota no "Coletei")
         toast("Pedido lançado");
       }else if(aguardandoEnt){
         // ainda ninguém pegou: atualiza no mesmo lugar (as ofertas aos entregadores são refeitas sozinhas)
