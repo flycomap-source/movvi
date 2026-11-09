@@ -698,7 +698,11 @@ const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
 /* Quanto o entregador recebe por entrega:
    mínimo da taxa dele (R$ 6,00); se a taxa cobrada do comércio passar de R$ 8,00, recebe 75% dela (a central fica com 25%). */
 const PCT_ENTREGADOR = 0.75, TAXA_MINIMA = 6;
+/* convênio, transferência e busca de receita: a central cobra R$ 4,00 da empresa e fica com tudo (vale para pedidos marcados com taxaFixaCentral, a partir de 09/11/2026) */
+const TAXA_FIXA_CENTRAL = 4;
+const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
 function ganhoUnit(p){
+  if(p && p.taxaFixaCentral) return 0;
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
   if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));
   return Math.round(Math.max(min, num(p.taxaCobrada)*PCT_ENTREGADOR)*100)/100;
@@ -2356,7 +2360,9 @@ function docsDaRota(r, extra){
     numero:x.numero||"",data:r.data||hoje(),coletaEmpresa:r.coletaEmpresa||"",coletaEndereco:r.coletaEndereco||"",
     cliente:x.cliente||"",telefone:x.telefone||"",endereco:x.endereco||"",pagamento:x.pagamento||"dinheiro",valorDinheiro:num(x.valorDinheiro),valorNota:num(x.valorNota),pegarReceita:!!x.pegarReceita,produtosReceita:Array.isArray(x.produtosReceita)?x.produtosReceita:[],trocoPara:num(x.trocoPara),obs:x.obs||"",
     adicionais:0,criadoEm:r.criadoEm||new Date().toISOString(),status:"pendente",acertado:false,
-    rotaId:r.rotaId,rotaQtd:N,rotaOrdem:i+1,...extra}}));
+    rotaId:r.rotaId,rotaQtd:N,rotaOrdem:i+1,...extra,
+    ...(x.tipoServico==="transferencia"?{tipoServico:"transferencia",transfDe:x.transfDe||r.coletaEmpresa||"",transfPara:x.transfPara||x.cliente||x.endereco||""}:{}),
+    ...(servicoTaxaFixa(x.tipoServico,x.pagamento)?{taxaCobrada:TAXA_FIXA_CENTRAL,taxaFixaCentral:true}:{})}}));
 }
 function cartaoOferta(o){
   if(o.tipo==="rota"){
@@ -3928,7 +3934,7 @@ function abrirEscanearOpcoes(){
 }
 /* Rascunho da rota por fotos: cada comanda lida fica salva (no aparelho e na conta),
    para não perder o que já foi lido se o celular fechar o app por falta de memória. */
-const RASC_CAMPOS=["nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
+const RASC_CAMPOS=["servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
 let tRasc=null;
 function rascunhoRotaSalvar(paradas){
   clearTimeout(tRasc);
@@ -4017,7 +4023,8 @@ function montarRotaPorFotos(restaurar){
       aviso:[emprestado&&!trocado?"Comanda com cadastro de outra pessoa: valeu o telefone junto do endereço.":"", (prod&&tx&&valor&&Math.abs(soma-valor)>0.009)?"Confira o valor: "+fmt(prod)+" + taxa "+fmt(tx)+" = "+fmt(soma)+", mas está escrito "+fmt(valor)+".":""].filter(Boolean).join(" "),
       candidatos:[],cliente:null,lida:true,
       produtos:Array.isArray(r.produtosControlados)?r.produtosControlados.map(x=>String(x).trim()).filter(Boolean):[],
-      receita:r.pegarReceita===true||r.pegarReceita==="true"||(Array.isArray(r.produtosControlados)&&r.produtosControlados.length>0),bairroLido:String(r.bairro||""),adicOk:null,adicB:null};
+      receita:r.pegarReceita===true||r.pegarReceita==="true"||(Array.isArray(r.produtosControlados)&&r.produtosControlados.length>0),bairroLido:String(r.bairro||""),adicOk:null,adicB:null,
+      servico:(r.transferencia===true||r.transferencia==="true")?"transferencia":"entrega"};
     if(tel.length>=10){ const c=cliPorTel(tel); if(c){ usarClienteNaParada(st,c); if(!c.nome&&nome) st.nome=nome; } else st.novo=true; }
     else if(end){ st.candidatos=(S.clientes||[]).filter(c=>c.telefone && enderecosDe(c).some(x=>mesmoEndereco(x.endereco,end))).slice(0,3); st.semBase=!st.candidatos.length; }
     return st;
@@ -4084,6 +4091,8 @@ function montarRotaPorFotos(restaurar){
         st.erro?h("div",{class:"aviso",text:st.erro}):null, blocoConf, blocoSemBase, blocoNovo, blocoAd,
         st.cliente?h("div",{style:"font-size:13px;font-weight:700;color:var(--ok)",text:"Cliente da base"+(st.loc?" · com localização":"")}):null,
         cruz, fNome, fEnd, fTel, h("div",{class:"linha"},sel,fVal), fTr,
+        (()=>{ const c=h("input",{type:"checkbox",checked:st.servico==="transferencia"}); c.addEventListener("change",()=>{ st.servico=c.checked?"transferencia":"entrega"; lbl.style.color=c.checked?"var(--royal)":""; });
+          const lbl=h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700;"+(st.servico==="transferencia"?"color:var(--royal)":"")},c,"🔁 Transferência / busca de receita / cobrança"); return lbl; })(),
         (()=>{ const c=h("input",{type:"checkbox",checked:!!st.receita}); c.addEventListener("change",()=>{ st.receita=c.checked; lbl.style.color=c.checked?"var(--bad)":""; });
           const lbl=h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700;"+(st.receita?"color:var(--bad)":"")},c,"Pegar receita"+(st.produtos&&st.produtos.length?" · "+st.produtos.join(", "):"")); return lbl; })(),
         inp("obs","Observação para o entregador (opcional)"),
@@ -4143,7 +4152,10 @@ function montarRotaPorFotos(restaurar){
           cliente:String(x.nome||(c&&c.nome)||"").trim(),clienteCodigo:(c&&c.codigo)||"",pedidoComercio:x.pedidoComercio||"",codigoComercio:x.codigoComercio||"",
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
-          adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),taxaCobrada:TAXA_PADRAO,
+          adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
+          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:TAXA_PADRAO,
+          ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
+          ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
           status:"pendente",acertado:false,criadoEm:agora,criadoPor:S.uid||"",aceitoEm:agora,emRotaEm:agora,saiuEm:agora,registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido feito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Pedido aceito",em:agora},{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Saiu para entrega (em rota)",em:agora}],
           ...(N>1?{rotaId,rotaQtd:N,rotaOrdem:i+1}:{})};
         await comRetry(()=>S.db.doc(colDe(S.eu)+"/"+rotaId+"-"+(i+1)).set(dados));
@@ -4288,7 +4300,7 @@ function conferirCameraPerdida(tent){
 const PROMPT_COMANDA =
   "A foto é de uma comanda/pedido de entrega de um comércio de Unaí-MG (Brasil): pode ser a comanda impressa da Drogaria Canaan ou um papel anotado à mão. "+
   "Responda SOMENTE com um objeto JSON neste formato: "+
-  '{"empresa":"","pedidoComercio":"","codigoCliente":"","cliente":"","clienteDoEndereco":"","telefone":"","telefoneCadastro":"","endereco":"","bairro":"","pegarReceita":false,"produtosControlados":[],"trocoPara":0,"pagamento":"dinheiro|cartao|pago|convenio","valorProdutos":0,"taxaEntrega":0,"valor":0,"previsaoPagamento":"","observacoes":"","confianca":"alta|media|baixa"}. '+
+  '{"empresa":"","pedidoComercio":"","codigoCliente":"","cliente":"","clienteDoEndereco":"","telefone":"","telefoneCadastro":"","endereco":"","bairro":"","pegarReceita":false,"transferencia":false,"produtosControlados":[],"trocoPara":0,"pagamento":"dinheiro|cartao|pago|convenio","valorProdutos":0,"taxaEntrega":0,"valor":0,"previsaoPagamento":"","observacoes":"","confianca":"alta|media|baixa"}. '+
   "Há dois modelos comuns: (1) comanda impressa da Drogaria Canaan, com cliente identificado pelo telefone; (2) notinha da Farmácia Campos, preenchida à mão, com Sr.(a) = nome do cliente, End. = endereço, lista de produtos, TOTAL R$, e embaixo, junto da NOTA PROMISSÓRIA, a taxa de entrega abreviada \"TX\" e o valor total com a taxa. Farmacêuticos abreviam e escrevem rápido: leia com atenção nomes de ruas de Unaí (ex.: \"Princesa Isabel\"). "+
   "Regras: "+
   "empresa = nome do comércio (ex.: em \"Filial: 2 - DROGARIA CANAAN - LJ02 - UNAI\" responda \"Drogaria Canaan\"). "+
@@ -4306,6 +4318,7 @@ const PROMPT_COMANDA =
   "Se as observações disserem \"ENTREGAR NA/EM ...\" com outro endereço, ESSE é o endereço de entrega (e o telefone junto dele), mesmo que o campo Endereço tenha outro; o nome escrito junto (ex.: \"para Dona Natália\") é clienteDoEndereco. "+
   "valorProdutos = total dos produtos (ex.: TOTAL R$ da notinha). taxaEntrega = taxa de entrega escrita (ex.: \"TX 5\"), 0 se não houver. "+
   "valor = valor final que o cliente deve: \"Total a Receber\" da comanda, ou o total escrito com a taxa incluída; se só houver produtos e taxa, a soma dos dois. NUNCA use como valor a nota para troco nem o valor do troco: em \"valor da compra 157, troco para 200\" o valor é 157 e trocoPara é 200. Números com ponto decimal. "+
+  "transferencia = true se NÃO for entrega de produtos a um cliente, e sim: transferência de mercadoria entre lojas/filiais (ex.: \"TRANSFERENCIA\", \"PARA LOJA 2\", \"Filial destino\" com entrega numa LOJA), ir BUSCAR uma receita (sem levar produtos), ou ir só RECEBER/COBRAR um valor do cliente (cobrança, valores atrasados); senão false. Entrega de convênio para um cliente/empresa NÃO é transferência. "+
   "pagamento = \"pago\" se houver a marca escrita à mão \"Pg\"/pago, se a forma impressa for \"PIX CONFERIDO\"/PIX, ou se estiver escrito \"já está pago\" — isso vale mesmo que a forma impressa seja CONVENIO ou haja \"Total a Receber\"; nesse caso valor = 0 e ignore os outros valores; \"convenio\" se for convênio / nota para o cliente assinar (palavras convênio, conv, assinar, promissória preenchida, vencimento ou previsão de pagamento preenchidos) ou se for notinha da Farmácia Campos sem outra forma de pagamento indicada; \"cartao\" se for cartão; senão \"dinheiro\". "+
   "previsaoPagamento = o que estiver escrito em \"Previsão de pagamento\" ou \"Vencimento\" (vazio se nada). "+
   "observacoes = horário de entrega (ex.: \"ENTREGAR 12:00\"), referências e recados úteis ao entregador, sem repetir o endereço e o telefone usados. "+
@@ -4407,6 +4420,11 @@ function abrirPedido(p,arquivoComanda,pre){
   const campoCartao=h("div",{class:"campo"},h("label",{for:"pCartao",text:"Cobrar no cartão (R$)"}),fCartao);
   function atualiza(){
     campoDin.hidden = pag!=="dinheiro"; campoNota.hidden = pag!=="convenio"; campoCartao.hidden = pag!=="cartao";
+    // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
+    try{ const fixa=servicoTaxaFixa(servico,pag);
+      if(fixa && !fTaxa.disabled){ fTaxa._antes=fTaxa.value; fTaxa.value=fmtInput(TAXA_FIXA_CENTRAL); fTaxa.disabled=true; fTaxa.title="Convênio, transferência e busca de receita: taxa fixa de "+fmt(TAXA_FIXA_CENTRAL)+" para a central"; }
+      else if(!fixa && fTaxa.disabled){ fTaxa.disabled=false; if(fTaxa._antes!=null) fTaxa.value=fTaxa._antes; fTaxa.title=""; }
+    }catch(e){}
     Object.keys(segBtns).forEach(k=>segBtns[k].setAttribute("aria-pressed",String(pag===k)));
     dica.textContent = pag==="dinheiro" ? "O entregador recebe esse valor em mãos e repassa no acerto." : pag==="cartao" ? "Levar a maquininha: o cliente paga no cartão." : pag==="convenio" ? "Convênio: o cliente assina a nota na entrega e a nota assinada volta para o comércio. Nada a cobrar." : "Nada a cobrar do cliente na entrega.";
   }
@@ -4662,7 +4680,8 @@ function abrirPedido(p,arquivoComanda,pre){
     tituloDestino.textContent=tr?"Destino":"Entrega";
     lblEnd.textContent=tr?"Para onde levar (endereço)":"Endereço de entrega";
     lblTel.textContent=tr?"Telefone de contato (opcional)":"Telefone / WhatsApp do cliente";
-    if(tr){ pag="pix"; receita=false; atualiza(); atuRec(); }
+    if(tr){ pag="pix"; receita=false; atuRec(); }
+    atualiza();
   }
   const corpo=[
     blocoFoto,
@@ -4715,7 +4734,7 @@ function abrirPedido(p,arquivoComanda,pre){
     fTel.value=telComDDD(fTel.value);
     // endereço é opcional quando tem o nome do cliente
     if(!fEnd.value.trim() && !fCli.value.trim()){ msg.hidden=false; msg.textContent="Informe o nome do cliente ou o endereço de entrega."; return; }
-    if(comercio() && num(fTaxa.value)<TAXA_MIN_COMERCIO){ msg.hidden=false; msg.textContent="A taxa da entrega precisa ser de pelo menos "+fmt(TAXA_MIN_COMERCIO)+"."; return; }
+    if(comercio() && !servicoTaxaFixa(servico,pag) && num(fTaxa.value)<TAXA_MIN_COMERCIO){ msg.hidden=false; msg.textContent="A taxa da entrega precisa ser de pelo menos "+fmt(TAXA_MIN_COMERCIO)+"."; return; }
     if(pag==="dinheiro" && !num(fDin.value)){ msg.hidden=false; msg.textContent="Informe o valor que o entregador vai receber em dinheiro."; return; }
     if((central()||comercio()) && pag==="cartao" && !num(fCartao.value)){ msg.hidden=false; msg.textContent="Informe o valor total do pedido para cobrar no cartão."; try{ fCartao.focus(); }catch(e){} return; }
     if((central()||comercio()) && pag==="convenio" && !num(fNota.value)){ msg.hidden=false; msg.textContent="Informe o valor total da nota que o cliente vai assinar."; try{ fNota.focus(); }catch(e){} return; }
@@ -4726,6 +4745,7 @@ function abrirPedido(p,arquivoComanda,pre){
       cliente:fCli.value.trim(), clienteCodigo:fCli.dataset.cliente||p.clienteCodigo||"", pedidoComercio:fPedCom.value.trim(),
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
       entregadorId:entId, pagamento:pag, tipoServico:servico, ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
+      ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:TAXA_FIXA_CENTRAL}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
       valorNota: pag==="convenio" ? num(fNota.value) : 0,
@@ -4735,7 +4755,7 @@ function abrirPedido(p,arquivoComanda,pre){
       ...(central()?{adicionais:Math.max(0,Math.min(9,Math.round(num(fAdic.value)))),adicionaisPelaCentral:Math.round(num(fAdic.value))>0}:{}),
       ...((central()||S.modo==="entregador") && adicOk===true && adicEscolhido ? {adicionalMotivo:"Bairro "+adicEscolhido.nome, adicionalBairro:adicEscolhido.nome} : {}),
       ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd))} : {}),
-      taxaCobrada: (central()||comercio()) ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
+      taxaCobrada: servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : (central()||comercio()) ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
     // andamento: quem fez cada etapa
     if(quemAltera()){
