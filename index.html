@@ -698,12 +698,13 @@ const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
 /* Quanto o entregador recebe por entrega:
    mínimo da taxa dele (R$ 6,00); se a taxa cobrada do comércio passar de R$ 8,00, recebe 75% dela (a central fica com 25%). */
 const PCT_ENTREGADOR = 0.75, TAXA_MINIMA = 6;
-/* convênio, transferência e busca de receita: a central cobra R$ 4,00 da empresa e fica com tudo (vale para pedidos marcados com taxaFixaCentral, a partir de 09/11/2026) */
+/* convênio, transferência e busca de receita: a central cobra R$ 4,00 (pedidos marcados com taxaFixaCentral, a partir de 09/11/2026);
+   o entregador recebe a taxa normal dele (R$ 6,00), independente do valor cobrado */
 const TAXA_FIXA_CENTRAL = 4;
 const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
 function ganhoUnit(p){
-  if(p && p.taxaFixaCentral) return 0;
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
+  if(p && p.taxaFixaCentral) return min;
   if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));
   return Math.round(Math.max(min, num(p.taxaCobrada)*PCT_ENTREGADOR)*100)/100;
 }
