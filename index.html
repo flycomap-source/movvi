@@ -1105,7 +1105,7 @@ async function abrirContaUnica(){
       h("tr",null,h("td",{class:"muted",text:"Perfil"}),h("td",{class:"r",style:"font-weight:700",text:rotTipo})),
       h("tr",null,h("td",{class:"muted",text:"Usuário"}),h("td",{class:"r",style:"font-weight:700",text:window.movviUsuario||"—"})),
       h("tr",null,h("td",{class:"muted",text:"Nome"}),h("td",{class:"r",style:"font-weight:700;white-space:normal",text:central()?(S.nomeCentral||"Central"):S.euNome||"—"})),
-      tipo!=="central"?h("tr",null,h("td",{class:"muted",text:"Taxa"}),h("td",{class:"r num",text:(tipo==="entregador"?"mínimo ":"")+fmt(S.euTaxa)+" por entrega"})):null))),
+      tipo==="entregador"?h("tr",null,h("td",{class:"muted",text:"Taxa"}),h("td",{class:"r num",text:"mínimo "+fmt(S.euTaxa)+" por entrega"})):null))),
     h("div",{class:"eyebrow",text:"Trocar senha"}),
     h("div",{class:"campo"},h("label",{for:"cNova",text:"Nova senha (6+ caracteres)"}),comOlho(fN)),
     h("div",{class:"campo"},h("label",{for:"cConf",text:"Repita a nova senha"}),comOlho(fC)),
@@ -1139,7 +1139,7 @@ async function abrirContaAntiga(){
     h("div",{class:"tabela-wrap"},h("table",null,h("tbody",null,
       h("tr",null,h("td",{class:"muted",text:"Perfil"}),h("td",{class:"r",style:"font-weight:700",text:rotTipo})),
       h("tr",null,h("td",{class:"muted",text:"Nome"}),h("td",{class:"r",style:"font-weight:700;white-space:normal",text:central()?(S.nomeCentral||"Central"):S.euNome||"—"})),
-      tipo!=="central"?h("tr",null,h("td",{class:"muted",text:"Taxa"}),h("td",{class:"r num",text:(tipo==="entregador"?"mínimo ":"")+fmt(S.euTaxa)+" por entrega"})):null))),
+      tipo==="entregador"?h("tr",null,h("td",{class:"muted",text:"Taxa"}),h("td",{class:"r num",text:"mínimo "+fmt(S.euTaxa)+" por entrega"})):null))),
     h("div",{class:"campo"},h("label",{for:"cUsuario",text:"Usuário"}),fU),
     h("div",{class:"eyebrow",text:"Trocar senha (opcional)"}),
     h("div",{class:"campo"},h("label",{for:"cAtual",text:"Senha atual"}),comOlho(fA)),
@@ -2820,7 +2820,7 @@ function abrirMeuMenu(){
   const fechar=()=>{}; mostrarPagina(papel||"Menu",nome||"Meu menu",[
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:papel+(meuUsuario()?" · usuário "+meuUsuario():"")}),
     item("👤","Meus dados","Nome, usuário e senha",()=>abrirConta()),
-    item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
+    comercio()?null:item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
     window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular":"Receber aviso de entrega nova mesmo com o app fechado",()=>ativarAvisos()):null,
@@ -4768,7 +4768,7 @@ function abrirPedido(p,arquivoComanda,pre){
       h("div",{class:"campo"},lblTel,fTel)),
     central()?h("div",{class:"campo"},h("label",{for:"pEnt",text:novo?"Entregador (opcional)":"Entregador"}),fEnt):null,
     novo&&central()&&fRota.options.length>1?h("div",{class:"campo"},h("label",{for:"pRota",text:"Adicionar a uma rota (opcional)"}),fRota):null,
-    comercio()?h("div",{class:"campo"},h("label",{for:"pTaxa",text:"Taxa da entrega (R$) · mínimo "+fmt(TAXA_MIN_COMERCIO)}),fTaxa):null,
+    /* comércio: a taxa não aparece (vários funcionários usam); vale a taxa cadastrada pela central */
     S.modo==="entregador"?h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between;align-items:center"},h("span",{class:"muted",text:"Sua taxa nesta entrega"}),h("b",{class:"num",style:"font-size:18px",text:fmt(num(S.euTaxa)||TAXA_MINIMA)})):null,
     (blocoPagForm.append(
       h("div",{class:"campo"},h("span",{class:"lbl",text:"Como o cliente paga o pedido"}),seg,dica),
@@ -4798,7 +4798,7 @@ function abrirPedido(p,arquivoComanda,pre){
     fTel.value=telComDDD(fTel.value);
     // endereço é opcional quando tem o nome do cliente
     if(!fEnd.value.trim() && !fCli.value.trim()){ msg.hidden=false; msg.textContent="Informe o nome do cliente ou o endereço de entrega."; return; }
-    if(comercio() && !servicoTaxaFixa(servico,pag) && num(fTaxa.value)<TAXA_MIN_COMERCIO){ msg.hidden=false; msg.textContent="A taxa da entrega precisa ser de pelo menos "+fmt(TAXA_MIN_COMERCIO)+"."; return; }
+    if(comercio() && !servicoTaxaFixa(servico,pag) && num(fTaxa.value)<TAXA_MIN_COMERCIO) fTaxa.value=fmtInput(Math.max(num(S.euTaxa),TAXA_MIN_COMERCIO));
     if(pag==="dinheiro" && !num(fDin.value)){ msg.hidden=false; msg.textContent="Informe o valor que o entregador vai receber em dinheiro."; return; }
     if((central()||comercio()) && pag==="cartao" && !num(fCartao.value)){ msg.hidden=false; msg.textContent="Informe o valor total do pedido para cobrar no cartão."; try{ fCartao.focus(); }catch(e){} return; }
     if((central()||comercio()) && pag==="convenio" && !num(fNota.value)){ msg.hidden=false; msg.textContent="Informe o valor total da nota que o cliente vai assinar."; try{ fNota.focus(); }catch(e){} return; }
@@ -5156,7 +5156,7 @@ function abrirDetalhes(p){
     add("Valor da entrega",fmt(ganhoUnit(p)));
     if(nAd) add("Adicionais",nAd+" × "+fmt(VALOR_ADICIONAL)+" = "+fmt(nAd*VALOR_ADICIONAL));
     add("Total desta entrega",fmt(ganhoPedido(p)),true);
-  }else{
+  }else if(!comercio()){
     add("Taxa de entrega",fmt(p.taxaCobrada),true);
   }
   if(nAd) add("Motivo do adicional",p.adicionalMotivo);
@@ -5751,7 +5751,7 @@ function pintarRelTipo(){
   seg.replaceChildren(...REL_TIPOS.map(([k,t])=>h("button",{type:"button","aria-pressed":String(relTipo===k),onclick:()=>escolherRelTipo(k)},t)));
   const esconde=central()&&!relTipo;
   $("#relPainel").hidden=esconde; $("#relResultado").hidden=esconde; $("#relCards").hidden=esconde||!central();
-  const vis=central()?(REL_FILTROS[relTipo]||[]):RF.slice(1).filter(id=>id!=="relFEnt");
+  const vis=central()?(REL_FILTROS[relTipo]||[]):RF.slice(1).filter(id=>id!=="relFEnt" && !(comercio()&&id==="relFTaxa"));
   RF.slice(1).forEach(id=>{ const c=$("#"+id).closest(".campo"); if(c) c.hidden=!vis.includes(id); });
   $("#relFTexto").placeholder=central()&&relTipo?REL_BUSCA[relTipo]:"Buscar pedido, cliente, telefone, comércio ou entregador";
   $("#relTit").textContent=central()?(relTipo?"Relatório de "+REL_TIPOS.find(t=>t[0]===relTipo)[1].toLowerCase():"Qual relatório?"):$("#relTit").textContent;
@@ -6002,7 +6002,7 @@ function renderRelatorio(ps,de,ate){
   const listaFin=(()=>{ const l=ent.slice().sort((a,b)=>String(b.entregueEm||"").localeCompare(String(a.entregueEm||"")));
     if(!l.length) return null;
     const hr=iso=>iso?new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
-    const cab=["Data","Hora","Comércio","Cliente","Pagamento","Add"].concat(central()?["Entregador","Taxa"]:S.modo==="entregador"?["Ganho"]:["Taxa"]);
+    const cab=["Data","Hora","Comércio","Cliente","Pagamento","Add"].concat(central()?["Entregador","Taxa"]:S.modo==="entregador"?["Ganho"]:["Entregador"]);
     const wrap=h("div",{class:"tabela-wrap"},h("table",null,
       h("thead",null,h("tr",null,...cab.map((c,i)=>h("th",{class:i>4?"r":"",text:c})))),
       h("tbody",null,...l.map(p=>{
@@ -6011,7 +6011,7 @@ function renderRelatorio(ps,de,ate){
           h("td",{style:"font-weight:700",text:p.coletaEmpresa||"—"}),h("td",{text:p.cliente||p.telefone||"—"}),
           h("td",{text:(PAG[p.pagamento]||"—")+(valorACobrar(p)?" "+fmt(valorACobrar(p)):"")}),h("td",{class:"r num",text:String(Math.max(0,Math.round(num(p.adicionais))))}),
           ...(central()?[h("td",{class:"r",text:nomeEnt(p.entregadorId)}),h("td",{class:"r num",text:fmt(p.taxaCobrada)})]
-            :S.modo==="entregador"?[h("td",{class:"r num",text:fmt(ganhoPedido(p))})]:[h("td",{class:"r num",text:fmt(p.taxaCobrada)})]));
+            :S.modo==="entregador"?[h("td",{class:"r num",text:fmt(ganhoPedido(p))})]:[h("td",{class:"r",text:p.entregadorNome||"—"})]));
         tr.addEventListener("click",()=>abrirDetalhes(p)); return tr; }))));
     return h("div",{class:"view"},h("h3",{text:"Entregas finalizadas ("+l.length+")"}),h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Toque numa linha para ver os detalhes."}),wrap); })();
   const din=ent.reduce((s,p)=>s+dinheiroDoPedido(p),0);
@@ -6036,7 +6036,6 @@ function renderRelatorio(ps,de,ate){
     outP.replaceChildren(resumoFiltros(),
       h("div",{class:"totais"},
         tot("Entregas realizadas",String(ent.length),"destaque"),
-        tot("Taxas de entrega a pagar à central",fmt(taxasCob)),
         tot("Recebido em dinheiro pelos entregadores",fmt(din)),
         tot("Entregues com foto",ent.length?Math.round(comFoto/ent.length*100)+"%":"—"),
         tot("Tempo médio do pedido à entrega",fmtMin(tempoMedio(ent)))),
