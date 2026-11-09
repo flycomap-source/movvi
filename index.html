@@ -973,7 +973,7 @@ function abrirMenuCentral(){
     item("●","Acesso e status","On-line, disponível, bloquear e desbloquear",()=>abrirControle()),
     sec("Aparelho"),
     item("☀",wakeLock?"Tela ligada (desligar)":"Manter tela ligada","Evita que a tela apague durante o expediente",()=>$("#btnTela").click()),
-    item("♪","Testar som do alerta","Toque Movvi+",()=>testarSom()),
+    item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
     item("🔔","Avisos com o app fechado","Receber notificação de pedido de comércio no celular",()=>ativarAvisos()),
     sec("Conta"),
     item("👤","Meus dados","Usuário e senha da central",()=>abrirConta()),
@@ -2687,12 +2687,11 @@ function carregarToque(){
   try{ const bin=atob(TOQUE_MOVVI.split(",")[1]), arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
     audioCtx.decodeAudioData(arr.buffer,b=>{ toqueBuf=b; },()=>{ toqueCarregando=false; }); }catch(e){ toqueCarregando=false; }
 }
-document.addEventListener("pointerdown",()=>setTimeout(carregarToque,50),{passive:true});
 function bip(){
   if(!audioCtx) return;
   try{ if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){}
-  if(toqueBuf){ try{ const s=audioCtx.createBufferSource(), g=audioCtx.createGain(); g.gain.value=1; s.buffer=toqueBuf; s.connect(g); g.connect(audioCtx.destination); s.start(audioCtx.currentTime+0.02); }catch(e){} }
-  else { carregarToque(); try{ const t=audioCtx.currentTime+0.02; chaChing(t); }catch(e){} }
+  // som de caixa registradora ("tchá-tching" + moedas), duas vezes
+  try{ const t=audioCtx.currentTime+0.02; chaChing(t); chaChing(t+1.3); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate([200,80,200,80,300]); }catch(e){}
 }
 function testarSom(){ try{ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){} bip(); }

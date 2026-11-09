@@ -1,6 +1,6 @@
 /* Movvi+ — service worker: permite instalar o app e mostra os avisos de entrega com o app fechado.
    Não guarda dados: tudo vem sempre do servidor (pedidos ao vivo). */
-const VERSAO = "movvi-v3";
+const VERSAO = "movvi-v4";
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {
@@ -14,17 +14,27 @@ self.addEventListener("fetch", (e) => {
     { headers: { "Content-Type": "text/html; charset=utf-8" } })));
 });
 
-/* aviso de entrega nova (chega mesmo com o app fechado) */
+/* aviso de entrega nova (chega mesmo com o app fechado).
+   Todos os avisos ficam juntos numa notificação só: a nova substitui a anterior e lista os últimos pedidos. */
+const GRUPO = "movvi-avisos";
 self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { corpo: e.data ? e.data.text() : "" }; }
-  e.waitUntil(self.registration.showNotification(d.titulo || "Movvi+ Entregas", {
-    body: d.corpo || "Abra o app para ver.",
-    icon: "icone-192.png", badge: "badge-96.png",
-    tag: d.tag || "movvi", renotify: true, requireInteraction: true,
-    vibrate: [200, 80, 200, 80, 300],
-    data: { url: d.url || "./" },
-  }));
+  e.waitUntil((async () => {
+    const abertas = await self.registration.getNotifications({ tag: GRUPO }).catch(() => []);
+    const ant = (abertas[0] && abertas[0].data) || {};
+    const linha = [d.titulo, d.corpo].filter(Boolean).join(": ").replace(/^🛎️?\s*/, "");
+    const linhas = [linha, ...(ant.linhas || [])].slice(0, 6);
+    const n = (ant.n || 0) + 1;
+    abertas.forEach((x) => x.close());
+    await self.registration.showNotification(n > 1 ? "🛎️ " + n + " avisos novos · Movvi+" : (d.titulo || "Movvi+ Entregas"), {
+      body: n > 1 ? linhas.join("\n") + (n > linhas.length ? "\n+" + (n - linhas.length) + " anteriores" : "") : (d.corpo || "Abra o app para ver."),
+      icon: "icone-192.png", badge: "badge-96.png",
+      tag: GRUPO, renotify: true, requireInteraction: true,
+      vibrate: [200, 80, 200, 80, 300],
+      data: { url: d.url || "./", linhas, n },
+    });
+  })());
 });
 /* tocou no aviso: abre o app (ou traz para frente se já estiver aberto) */
 self.addEventListener("notificationclick", (e) => {
