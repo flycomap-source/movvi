@@ -2701,6 +2701,7 @@ function assinarOfertas(){
   if(S.subAceites){ S.subAceites(); S.subAceites=null; }
   S.ofertas=[]; S.minhasOfertas={}; S.aceitos=new Set();
   if(!S.db) return;
+  ouvirRecados();
   if(S.modo==="entregador"){
     let primeira=true;
     S.subOfertas=S.db.collection("entregas/"+S.uid+"/ofertas").onSnapshot(snap=>{
@@ -5146,8 +5147,10 @@ function abrirDetalhes(p){
     ...L.map(([k,v,f])=>h("tr",null,
       h("td",{class:"muted",style:"white-space:nowrap;vertical-align:top",text:k}),
       h("td",{class:"r num",style:"white-space:normal;overflow-wrap:anywhere;"+(f?"font-weight:800":""),text:v}))))));
+  const destRecado=destinoRecado(p);
   const fecharDet=abrirSheet("Detalhes da entrega",[
     h("div",{style:"font-family:var(--f-display);font-weight:900;font-size:24px;line-height:1.15;color:var(--royal);overflow-wrap:anywhere",text:p.coletaEmpresa||"Entrega"}),
+    destRecado?h("button",{class:"btn lar full",type:"button",onclick:()=>abrirRecado(p,destRecado)},"📣 Mandar recado para "+(destRecado.nome||"o entregador")):null,
     tabelaDet,
     cliPerfil?h("button",{class:"btn sec full",type:"button",onclick:()=>abrirPerfilCliente(cliPerfil)},"Ver perfil do cliente"):null,
     (()=>{
@@ -6075,6 +6078,59 @@ function renderRelatorio(ps,de,ate){
     h("h3",{text:"Por empresa de coleta"}),
     porEmp.length?tabela(["Empresa","Entregas","Dinheiro","Taxas"],porEmp.map(([k,v])=>[k,String(v.n),fmt(v.din),fmt(v.tx)])):vazio,
     h("h3",{text:"Por forma de pagamento"}), tabPag, rodape, listaFin);
+}
+
+/* ---------- RECADO PARA O ENTREGADOR ----------
+   O comércio (ou a central) manda um recado para quem está com o pedido. Vai para recados/<id> = {para, paraNome, de, deUid,
+   pedidoId, numero, cliente, endereco, texto, criadoEm, lidoEm}; o celular do entregador recebe aviso e a tela mostra o recado. */
+function destinoRecado(p){
+  if(!p || ["entregue","cancelado","recusado"].includes(p.status)) return null;
+  if(comercio()){ const o=(S.minhasOfertas||{})[p.id]; if(o && o.aceitoPor && o.status!=="entregue") return {uid:o.aceitoPor,nome:o.entregadorNome||""}; return null; }
+  if(central() && p.entregadorId){ const m=membro(p.entregadorId); if(m && m.uid) return {uid:m.uid,nome:m.nome||""}; }
+  return null;
+}
+function abrirRecado(p,dest){
+  const prontos=["Ligue para o cliente antes de entregar","O cliente mudou o endereço","O valor/troco mudou, confira com a loja","Volte na loja, faltou um item","Cuidado: produto frágil/geladeira"];
+  const txt=h("textarea",{class:"inp",id:"recadoTxt",rows:"3",maxlength:"300",placeholder:"Escreva o recado para o entregador"});
+  const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"📣 Enviar recado");
+  ok.addEventListener("click",async()=>{
+    const texto=txt.value.trim(); msg.hidden=true;
+    if(!texto){ msg.hidden=false; msg.textContent="Escreva o recado."; return; }
+    ok.disabled=true; ok.textContent="Enviando…";
+    try{ const id="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await comRetry(()=>S.db.doc("recados/"+id).set({para:dest.uid,paraNome:dest.nome||"",de:comercio()?(S.euNome||"Comércio"):"Central",deUid:S.uid||"",
+        pedidoId:p.id||"",numero:p.numero||"",cliente:p.cliente||"",endereco:p.endereco||"",empresa:p.coletaEmpresa||"",texto,criadoEm:new Date().toISOString()}));
+      fechar(); toast("Recado enviado para "+(dest.nome||"o entregador")); }
+    catch(e){ ok.disabled=false; ok.textContent="📣 Enviar recado"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Recado para "+(dest.nome||"o entregador"),[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedido "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||"")+". O entregador recebe um aviso no celular e o recado aparece na tela dele."}),
+    chips,txt,msg,ok]);
+}
+/* entregador: recados novos aparecem na tela até ele tocar em "Entendi" */
+function ouvirRecados(){
+  if(S.subRecados){ S.subRecados(); S.subRecados=null; }
+  if(!S.db || S.modo!=="entregador" || !S.uid) return;
+  S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
+    const novos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+    if(novos.length) mostrarRecado(novos[0]);
+  },()=>{});
+}
+function mostrarRecado(r){
+  if(document.getElementById("recadoTela")) return;
+  const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"Entendi");
+  const caixa=h("div",{id:"recadoTela",role:"alertdialog","aria-modal":"true","aria-label":"Recado",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
+    h("div",{style:"background:var(--card,#fff);border-radius:22px;padding:22px 20px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;border:3px solid var(--laranja);box-shadow:0 20px 60px rgba(0,0,0,.25)"},
+      h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--laranja-ink)",text:"📣 Recado de "+(r.de||"Comércio")}),
+      h("div",{style:"font-size:21px;font-weight:800;line-height:1.3;overflow-wrap:anywhere",text:r.texto||""}),
+      h("div",{class:"muted",style:"font-size:14px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente,r.endereco].filter(Boolean).join(" · ")}),
+      h("div",{class:"muted",style:"font-size:12px",text:r.criadoEm?"Enviado às "+new Date(r.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""}),ok));
+  ok.addEventListener("click",async()=>{ ok.disabled=true; try{ await S.db.doc("recados/"+r.id).update({lidoEm:new Date().toISOString()}); }catch(e){} caixa.remove(); });
+  document.body.append(caixa);
+  try{ if(audioCtx && audioCtx.state==="running") bip(); }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate([300,100,300]); }catch(e){}
 }
 
 /* ---------- FECHAMENTO NO FORMATO DA PLANILHA + VALES (só a central) ----------

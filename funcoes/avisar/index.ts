@@ -56,6 +56,11 @@ Deno.serve(async (req) => {
       const c = await rest("perfis?select=id&papel=eq.central");
       destinos = ((await c.json()) ?? []).map((x: { id: string }) => x.id);
       titulo = "🛎️ Novo pedido de comércio";
+    } else if (p[0] === "recados") {
+      // recado do comércio/central para o entregador que está com o pedido
+      destinos = [String(d.para ?? "")].filter(Boolean);
+      titulo = "📣 Recado de " + String(d.de ?? "comércio");
+      corpo = String(d.texto ?? "") + (d.numero || d.cliente ? " · " + [d.numero ? "#" + d.numero : "", d.cliente ?? ""].filter(Boolean).join(" ") : "");
     } else return resp({ ok: true, ignorado: "colecao" });
     if (!destinos.length) return resp({ ok: true, ignorado: "sem_destino" });
 
