@@ -1287,6 +1287,63 @@ function saudacaoDoDia(){
   ok.addEventListener("click",()=>{ caixa.remove(); try{ if(window.movviSupabase && "Notification" in window && Notification.permission==="default") ativarAvisos(); }catch(e){} });
   document.body.append(caixa); setTimeout(()=>{ try{ ok.focus(); }catch(e){} },50);
 }
+/* entregador: metas do dia (10, 20 e 30 entregas concluídas hoje) → aviso na tela; na de 30, confete */
+const METAS=[
+  {n:10,ic:"🏅",tit:"Objetivo alcançado!",txt:"Você conquistou suas 10 primeiras entregas. Vamos continuar?"},
+  {n:20,ic:"🏆",tit:"Objetivo alcançado!",txt:"Você já concluiu suas 20 entregas. Vamos continuar?"},
+  {n:30,ic:"🎉",tit:"Meta batida!",txt:"Alcançamos 30 entregas. Vamos continuar?",confete:true}];
+function entreguesHoje(){
+  if(S.modo!=="entregador" || S.dia!==hoje()) return -1;
+  return (S.pedidosDia||[]).filter(p=>p.status==="entregue" && (!p.entregadorId || p.entregadorId===S.eu) && (!p.data || p.data===hoje())).length;
+}
+function verificarMetas(){
+  if(S.modo!=="entregador" || !S.uid || !$("#trava").hidden || document.visibilityState!=="visible") return;
+  if(document.getElementById("saudacao") || document.getElementById("metaDia")) return;
+  const n=entreguesHoje(); if(n<10) return;
+  const k="movvi.metas."+S.uid, d=hoje();
+  let feito={}; try{ feito=JSON.parse(ls.get(k)||"{}"); }catch(e){}
+  if(feito.d!==d) feito={d,n:0};
+  const m=METAS.filter(x=>n>=x.n && x.n>num(feito.n)).pop(); if(!m) return;   // mostra só a maior meta ainda não comemorada
+  feito.n=m.n; ls.set(k,JSON.stringify(feito));
+  mostrarMeta(m);
+}
+function mostrarMeta(m){
+  const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"OK");
+  const caixa=h("div",{id:"metaDia",role:"dialog","aria-modal":"true","aria-label":m.tit,style:"position:fixed;inset:0;z-index:9999;background:rgba(10,20,60,.55);display:grid;place-items:center;padding:16px"},
+    h("div",{style:"position:relative;z-index:2;background:var(--card,#fff);border-radius:24px;padding:28px 22px;max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
+      h("div",{style:"font-size:58px;line-height:1",text:m.ic}),
+      h("h2",{style:"margin:0;font-family:var(--f-display);font-size:28px;color:var(--royal)",text:m.tit}),
+      h("p",{style:"margin:0;font-size:18px;font-weight:700",text:m.txt}),ok));
+  let parar=()=>{};
+  ok.addEventListener("click",()=>{ parar(); caixa.remove(); });
+  document.body.append(caixa); setTimeout(()=>{ try{ ok.focus(); }catch(e){} },50);
+  try{ if(audioCtx && audioCtx.state==="running") bip(); }catch(e){}
+  if(m.confete) parar=confete(caixa);
+}
+/* confete voando pela tela (desenhado no próprio app, sem internet) */
+function confete(alvo){
+  const cv=h("canvas",{style:"position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:3"}); alvo.append(cv);
+  const ctx=cv.getContext("2d"), dpr=Math.min(2,window.devicePixelRatio||1);
+  const tam=()=>{ cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; }; tam(); addEventListener("resize",tam);
+  const cores=["#004AAD","#F28A1E","#FFD23F","#2BB673","#E63946","#7B61FF","#FFFFFF"];
+  const W=()=>cv.width, H=()=>cv.height, ps=[];
+  const solta=(qtd,x0)=>{ for(let i=0;i<qtd;i++) ps.push({x:x0==null?Math.random()*W():x0,y:x0==null?-20*dpr-Math.random()*H()*0.5:H()*0.85,
+    vx:(x0==null?(Math.random()-0.5)*2:(x0<W()/2?1:-1)*(3+Math.random()*6))*dpr, vy:(x0==null?2+Math.random()*3:-(9+Math.random()*7))*dpr,
+    w:(6+Math.random()*6)*dpr, h:(10+Math.random()*8)*dpr, r:Math.random()*6.28, vr:(Math.random()-0.5)*0.3, c:cores[i%cores.length], f:Math.random()*6.28}); };
+  solta(140); solta(60,0); solta(60,W());
+  let vivo=true, t0=performance.now(), extra=0;
+  const passo=t=>{ if(!vivo) return;
+    ctx.clearRect(0,0,W(),H());
+    if(t-t0<4000 && t-t0>extra*700){ extra++; solta(25); }
+    for(const p of ps){ p.vy+=0.12*dpr; p.vy=Math.min(p.vy,6*dpr); p.vx*=0.99; p.f+=0.1; p.x+=p.vx+Math.sin(p.f)*0.8*dpr; p.y+=p.vy; p.r+=p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2*Math.abs(Math.cos(p.f)),p.w,p.h*Math.abs(Math.cos(p.f))+1); ctx.restore(); }
+    for(let i=ps.length-1;i>=0;i--) if(ps[i].y>H()+40*dpr) ps.splice(i,1);
+    if(ps.length || t-t0<4000) requestAnimationFrame(passo); else cv.remove();
+  };
+  requestAnimationFrame(passo);
+  return ()=>{ vivo=false; removeEventListener("resize",tam); cv.remove(); };
+}
+setInterval(verificarMetas,4000);
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") setTimeout(saudacaoDoDia,800); });
 setInterval(()=>saudacaoDoDia(),60*1000);   // app aberto passando da meia-noite
 async function exigirSenha(tipo){
