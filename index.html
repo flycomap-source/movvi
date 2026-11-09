@@ -1598,6 +1598,11 @@ $("#diaProx").addEventListener("click",()=>mudarDia(somaDias(S.dia,1)));
 $("#diaPicker").addEventListener("click",()=>{ const i=$("#diaInput"); try{ i.showPicker(); }catch(e){ i.focus(); i.click(); } });
 $("#diaInput").addEventListener("change",e=>{ if(e.target.value) mudarDia(e.target.value); });
 function mudarDia(d){ S.dia=d; renderDia(); assinarDia(); }
+/* virou o dia com o app aberto: quem estava vendo "hoje" passa para o dia novo sozinho */
+let ultimoHoje=null;
+function conferirViradaDia(){ const h=hoje(); if(ultimoHoje && h!==ultimoHoje && S.dia===ultimoHoje) mudarDia(h); ultimoHoje=h; }
+setInterval(conferirViradaDia,60000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") conferirViradaDia(); });
 /* Central: Últimas 3 horas (sempre ao abrir) · Hoje · Ontem */
 function marcarPeriodo(){ document.querySelectorAll("#periodoCentral button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.p===S.periodo)));
   const t=$("#perCalTxt"); if(t) t.textContent=S.periodo==="dia"?diaCurto(S.dia):""; const i=$("#perData"); if(i) i.value=S.dia; }
@@ -4181,7 +4186,7 @@ function montarRotaPorFotos(restaurar){
           else c=cliPorTel(x.tel)||null; }
         const endC=c?enderecosDe(c).find(y=>semAcento(y.endereco)===semAcento(x.end)||mesmoEndereco(y.endereco,x.end)):null;
         const emp=S.empresas.find(e=>e.id===slug(x.empresa));
-        const dados={numero:String(n0+i).padStart(6,"0"),data:S.dia,coletaEmpresa:x.empresa||"",coletaEndereco:(emp&&emp.endereco)||"",
+        const dados={numero:String(n0+i).padStart(6,"0"),data:hoje(),coletaEmpresa:x.empresa||"",coletaEndereco:(emp&&emp.endereco)||"",
           cliente:String(x.nome||(c&&c.nome)||"").trim(),clienteCodigo:(c&&c.codigo)||"",pedidoComercio:x.pedidoComercio||"",codigoComercio:x.codigoComercio||"",
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
@@ -4393,7 +4398,8 @@ function abrirPedido(p,arquivoComanda,pre){
   // pedido finalizado não se edita: mostra só os detalhes
   if(p && p.status==="entregue"){ abrirDetalhes(p); return; }
   if(p && !central()){ toast("Só a central pode alterar pedidos."); return; }
-  const novo=!p; p=p||{pagamento:"dinheiro",entregadorId:central()?(S.filtro!=="todos"?S.filtro:""):S.eu,data:S.dia,...(pre||{})};
+  // entrega nova entra sempre no dia de hoje (só a central pode lançar num dia que escolheu na tela)
+  const novo=!p; p=p||{pagamento:"dinheiro",entregadorId:central()?(S.filtro!=="todos"?S.filtro:""):S.eu,data:central()?S.dia:hoje(),...(pre||{})};
   let pag=p.pagamento||"dinheiro";
   const fNum=h("input",{class:"inp num",id:"pNum",readonly:true,tabindex:"-1",style:"background:var(--bg);color:var(--muted)",value:novo?"Automático":(p.numero?"#"+p.numero:"—")});
   const fData=h("input",{class:"inp",type:"date",id:"pData",value:p.data||S.dia});
