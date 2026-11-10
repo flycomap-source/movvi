@@ -98,7 +98,7 @@ h3{font-family:var(--f-display);font-weight:800;font-size:16px;margin:0}
 .ped-st{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .ped .coleta .de.com-st{position:relative;padding-right:150px!important;min-height:80px}
 .coleta .de.com-st .ped-st{position:absolute;right:8px;top:8px}
-body .ped .coleta .de.com-st-ent{flex-direction:row;align-items:flex-start;gap:8px;padding-right:8px!important;padding-bottom:10px!important}
+body .coleta .de.com-st-ent{flex-direction:row;align-items:flex-start;gap:8px;padding-right:8px!important;padding-bottom:10px!important}
 .ped-badge{border:0;border-radius:8px;padding:5px 10px;color:#fff;font-weight:800;font-size:13px;font-family:var(--f-body);white-space:nowrap}
 .ped-ent{align-self:flex-start;background:var(--royal);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-weight:800;font-size:13px;font-family:var(--f-body)}
 .ped-ent.sem{background:#8A8FA8}
@@ -731,6 +731,13 @@ function linhasGanhoEnt(p,grande){
   const lin=(rot,v,cor)=>h("span",{class:"num",style:"font-size:13px;font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)"),text:rot+" "+fmt(v)});
   return [lin("🔥 Taxa",g.base), g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--laranja-ink)"):null, g.adic>0?lin("➕ Adicional",g.adic,"var(--royal)"):null,
     h("span",{class:"num",style:"font-size:"+(grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
+}
+/* põe a coluna de valores ao lado do "Coletar em" (o bloco cresce e a Entrega fica embaixo) */
+function colunaAoLado(bloco,col){
+  const de=bloco.querySelector(".de");
+  if(!de) return h("div",{style:"display:flex;flex-direction:column;gap:8px"},h("div",{style:"display:flex;justify-content:flex-end"},col),bloco);
+  const esq=h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},...[...de.childNodes]);
+  de.classList.add("com-st-ent"); de.append(esq,col); return bloco;
 }
 function colunaEnt(...itens){ return h("div",{style:"flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;text-align:right"},...itens); }
 /* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
@@ -2438,9 +2445,8 @@ function cartaoOferta(o){
       catch(e){ toast("Não foi possível aceitar ("+(e&&e.code||"erro")+")."); return false; }
     });
     return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-      h("div",{style:"display:flex;justify-content:flex-end"},colunaEnt(h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),
+      colunaAoLado(blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Rota · "+N+" entregas"}),
         ...linhasGanhoEnt({taxaFixaCentral:true,_rotaBase:N*(num(S.euTaxa)||TAXA_MINIMA),_rotaTot:tot,bonusPct:o.bonusPct}))),
-      blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),
       listaParadas(o.paradas), b);
   }
   const b=deslizar("Aceitar esta entrega",async()=>{
@@ -2449,8 +2455,7 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    h("div",{style:"display:flex;justify-content:flex-end"},colunaEnt(h("span",{class:"pill pend",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),...linhasGanhoEnt(o))),
-    blocoRota(o),
+    colunaAoLado(blocoRota(o),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),...linhasGanhoEnt(o))),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
     o.obs?h("div",{class:"obs",text:o.obs}):null,
     b);
