@@ -706,8 +706,9 @@ const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="con
 function ganhoUnit(p){
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
   if(p && p.taxaFixaCentral) return min;
-  if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));
-  return Math.round(Math.max(min, num(p.taxaCobrada)*PCT_ENTREGADOR)*100)/100;
+  if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));   // valorEntrega já vem com o bônus
+  // bônus da central para o entregador (ex.: entrega longe): +X% em cima do valor dele
+  return Math.round(Math.max(min, num(p.taxaCobrada)*PCT_ENTREGADOR)*(1+Math.max(0,num(p.bonusPct))/100)*100)/100;
 }
 let VALOR_ADICIONAL = 6;
 const ganhoPedido = p => ganhoUnit(p) + (unidades(p)-1)*VALOR_ADICIONAL;
@@ -2409,7 +2410,7 @@ function cartaoOferta(o){
       catch(e){ toast("Não foi possível aceitar ("+(e&&e.code||"erro")+")."); return false; }
     });
     return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-      h("div",{class:"topo"},h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(tot)})),
+      h("div",{class:"topo"},h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"%"}):null,h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(tot)})),
       blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),
       listaParadas(o.paradas), b);
   }
@@ -2419,7 +2420,7 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(ganhoPedido(o))})),
+    h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"% bônus"}):null,h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(ganhoPedido(o))})),
     num(o.adicionais)>0?h("span",{class:"pill",style:"align-self:flex-start;background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(o.adicionais)+" add incluído"}):null,
     blocoRota(o),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
@@ -2429,7 +2430,7 @@ function cartaoOferta(o){
 function dadosOferta(d,lojaUid,pedidoId,origemPath){
   return {lojaUid,pedidoId,origemPath:origemPath||("lojas/"+lojaUid+"/pedidos/"+pedidoId),numero:d.numero||"",data:d.data||hoje(),coletaEmpresa:d.coletaEmpresa||"",coletaEndereco:d.coletaEndereco||"",
     cliente:d.cliente||"",telefone:d.telefone||"",endereco:d.endereco||"",localizacao:d.localizacao||"",pagamento:d.pagamento||"dinheiro",valorDinheiro:num(d.valorDinheiro),valorNota:num(d.valorNota),pegarReceita:!!d.pegarReceita,produtosReceita:Array.isArray(d.produtosReceita)?d.produtosReceita:[],trocoPara:num(d.trocoPara),obs:d.obs||"",adicionais:Math.max(0,Math.round(num(d.adicionais))),criadoEm:d.criadoEm||new Date().toISOString(),
-    valorCartao:num(d.valorCartao),...(d.tipoServico?{tipoServico:d.tipoServico}:{}),...(Array.isArray(d.registros)?{registros:d.registros}:{}),...(d.adicionaisPelaCentral?{adicionaisPelaCentral:true}:{}),...(d.adicionalMotivo?{adicionalMotivo:d.adicionalMotivo}:{})};
+    valorCartao:num(d.valorCartao),...(d.tipoServico?{tipoServico:d.tipoServico}:{}),...(Array.isArray(d.registros)?{registros:d.registros}:{}),...(d.adicionaisPelaCentral?{adicionaisPelaCentral:true}:{}),...(d.adicionalMotivo?{adicionalMotivo:d.adicionalMotivo}:{}),...(num(d.bonusPct)>0?{bonusPct:num(d.bonusPct)}:{})};
 }
 function copiaDaOferta(d){
   const {lojaUid,pedidoId,origemPath,...resto}=d;
@@ -2513,7 +2514,8 @@ async function publicarOferta(p){
   const of = p.tipo==="rota"
     ? {tipo:"rota",origemPath:p._path,pedidoId:p.id,lojaUid:"",data:p.data||hoje(),coletaEmpresa:p.coletaEmpresa||"",coletaEndereco:p.coletaEndereco||"",paradas:paradasPublicas(p),criadoEm:p.criadoEm||new Date().toISOString()}
     : dadosOferta(d,lojaUid,p.id,p._path);
-  of.valorEntrega=Math.round(Math.max(TAXA_MINIMA,num(p.taxaCobrada)*PCT_ENTREGADOR)*100)/100; // o que o entregador recebe, sem expor a taxa do comércio
+  of.valorEntrega=Math.round(Math.max(TAXA_MINIMA,num(p.taxaCobrada)*PCT_ENTREGADOR)*(1+Math.max(0,num(p.bonusPct))/100)*100)/100; // o que o entregador recebe (com bônus), sem expor a taxa do comércio
+  if(num(p.bonusPct)>0) of.bonusPct=num(p.bonusPct);
   for(const m of ativos().filter(m=>m.uid && S.disp[m.uid]!==false && podeVerOferta(m,p))){ await comRetry(()=>S.db.doc("entregas/"+m.uid+"/ofertas/"+p.id).set(of)); }
   if(!p.publicado) await comRetry(()=>S.db.doc(p._path).update({publicado:true}));
 }
@@ -4498,8 +4500,18 @@ function abrirPedido(p,arquivoComanda,pre){
   datalistBairros();
   const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||bairroNoEndereco(p.endereco)||""});
   fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBairro.value=b; fBairro.dispatchEvent(new Event("change")); } } });
-  const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value) && fBairro.value.trim()) fTaxa.value=fmtInput(taxaBairroDelivery(fBairro.value)); }catch(e){} };
+  const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value) && fBairro.value.trim()) fTaxa.value=fmtInput(taxaBairroDelivery(fBairro.value)); try{ atuBonus(); }catch(e){} }catch(e){} };
   fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
+  // bônus para o entregador (central): entregador (75% da taxa) | bônus % | total
+  const fBonus=h("input",{class:"inp num",id:"pBonus",type:"number",min:"0",max:"200",step:"5",inputmode:"numeric",placeholder:"0",style:"max-width:90px",value:num(p.bonusPct)?String(num(p.bonusPct)):""});
+  const vBase=h("b",{class:"num"}), vTot=h("b",{class:"num",style:"color:var(--ok);font-size:17px"});
+  const atuBonus=()=>{ const base=Math.round(Math.max(TAXA_MINIMA,num(fTaxa.value)*PCT_ENTREGADOR)*100)/100, b=Math.max(0,num(fBonus.value));
+    vBase.textContent=fmt(base); vTot.textContent=fmt(Math.round(base*(1+b/100)*100)/100); };
+  fBonus.addEventListener("input",atuBonus); fTaxa.addEventListener("input",atuBonus);
+  const linhaBonus=h("div",{class:"campo"},h("label",{for:"pBonus",text:"Valor do entregador · bônus (opcional)"}),
+    h("div",{style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap"},
+      h("span",{class:"muted",text:"Entregador"}),vBase,h("span",{class:"muted",text:"+ bônus"}),fBonus,h("span",{text:"%"}),h("span",{class:"muted",text:"= total"}),vTot));
+  setTimeout(atuBonus,0);
   // comércio de delivery: na frente do bairro aparece a taxa cheia que o comércio paga (tabela de bairros)
   const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px"});
   const atuTaxaBairro=()=>{ const emp=comercio()?S.euNome:fEmp.value; const mostra=(comercio()||central()) && ehDelivery(emp);
@@ -4839,6 +4851,7 @@ function abrirPedido(p,arquivoComanda,pre){
       campoEmpresa("pEmp",fEmp,fColEnd,dl),
       h("div",{class:"campo"},h("label",{for:"pColEnd",text:"Endereço de coleta"}),fColEnd),
       central()?h("div",{class:"campo"},h("label",{for:"pTaxa",text:"Taxa da entrega cobrada da empresa (R$)"}),fTaxa):null,
+      central()?linhaBonus:null,
       central()?h("div",{class:"campo"},h("label",{for:"pAdic",text:"Adicionais para o entregador ("+fmt(VALOR_ADICIONAL)+" cada)"}),fAdic):null),
     h("div",{class:"painel"},
       tituloDestino,
@@ -4874,6 +4887,7 @@ function abrirPedido(p,arquivoComanda,pre){
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     const soMovvi = central() && fEnt.value==="__movvi";
+    const bonusPct = central() ? Math.max(0,Math.min(200,num(fBonus.value))) : num(p.bonusPct);
     const entId = central() ? (soMovvi?"":fEnt.value) : comercio() ? "" : S.eu;
     // empresa de coleta é opcional (não precisa estar cadastrada)
     if(endPendente){ msg.hidden=false; msg.textContent="Escolha qual é o endereço desta entrega (cadastro ou comanda)."; return; }
@@ -4893,6 +4907,7 @@ function abrirPedido(p,arquivoComanda,pre){
       coletaEmpresa:comercio()?S.euNome:fEmp.value.trim(), coletaEndereco:comercio()?S.euEndereco:fColEnd.value.trim(),
       cliente:fCli.value.trim(), clienteCodigo:fCli.dataset.cliente||p.clienteCodigo||"", pedidoComercio:fPedCom.value.trim(),
       bairro: servico==="transferencia" ? (p.bairro||"") : fBairro.value.trim(),
+      bonusPct,
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
       entregadorId:entId, pagamento:pag, tipoServico:servico, ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
       ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:TAXA_FIXA_CENTRAL}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
