@@ -2380,7 +2380,7 @@ function cartaoSolicitacaoLoja(p){
     p.tipo==="rota"?h("span",{class:"pill",style:"align-self:flex-start;background:var(--royal);color:#fff",text:"Rota · "+(p.paradas||[]).length+" entregas"}):null,
     p.tipo==="rota"?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
     p.tipo==="rota"?listaParadas(p.paradas):null,
-    h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
+    h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),...pillsValor(p),h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),
       p.tipo==="rota"?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
@@ -2401,6 +2401,13 @@ function docsDaRota(r, extra){
     rotaId:r.rotaId,rotaQtd:N,rotaOrdem:i+1,...extra,
     ...(x.tipoServico==="transferencia"?{tipoServico:"transferencia",transfDe:x.transfDe||r.coletaEmpresa||"",transfPara:x.transfPara||x.cliente||x.endereco||""}:{}),
     ...(servicoTaxaFixa(x.tipoServico,x.pagamento)?{taxaCobrada:TAXA_FIXA_CENTRAL,taxaFixaCentral:true}:{})}}));
+}
+/* valor no cartão da entrega: entregador vê o que ele recebe (com bônus e adicionais); central vê a taxa; comércio só no delivery */
+function pillsValor(p){
+  const bonus=num(p.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(p.bonusPct)+"% bônus"}):null;
+  if(S.modo==="entregador") return [h("span",{class:"pill num",style:"font-weight:800",text:"Você recebe "+fmt(ganhoPedido(p))}),bonus];
+  if(comercio()) return (num(p.taxaCobrada) && ehDelivery(p.coletaEmpresa||S.euNome)) ? [h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)})] : [];
+  return [num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,bonus];
 }
 function cartaoOferta(o){
   if(o.tipo==="rota"){
