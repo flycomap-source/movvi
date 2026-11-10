@@ -719,6 +719,21 @@ function taxaVisivel(p){
   if(S.modo==="entregador") return ganhoPedido(p);
   return num(p.taxaCobrada);
 }
+/* entregador: taxa dele (R$ 6), bônus (o que passa da taxa: % da central / 75% da taxa), adicionais e o total em verde */
+function partesGanho(p){
+  const unit=ganhoUnit(p), base=Math.min(unit,(central()?taxaEnt(p.entregadorId):num(S.euTaxa))||TAXA_MINIMA);
+  return {base, bonus:Math.max(0,Math.round((unit-base)*100)/100), adic:Math.max(0,Math.round((ganhoPedido(p)-unit)*100)/100), total:ganhoPedido(p)};
+}
+function linhasGanhoEnt(p,grande){
+  const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
+  const lin=(rot,v)=>h("span",{class:"num",style:"font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap",text:rot+" "+fmt(v)});
+  return [lin("Taxa",g.base), g.bonus>0?lin("Bônus"+pct,g.bonus):null, g.adic>0?lin("Adicional",g.adic):null,
+    h("span",{class:"num",style:"font-size:"+(grande?"18px":"15px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:8px;padding:2px 9px;white-space:nowrap",text:"Total "+fmt(g.total)})];
+}
+/* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
+const dinNaFatura = p => p.dinheiroCom==="fatura" ? dinheiroDoPedido(p) : 0;
+const dinResolvidoFora = p => p.dinheiroCom==="central" || p.dinheiroCom==="fatura";
+const valorFatEnt = lst => Math.round((somaGanho(lst)-lst.reduce((s,p)=>s+dinNaFatura(p),0))*100)/100;
 const TAXA_PADRAO = 8;
 const taxaComercioPorNome = nome => { const c=S.comercios.find(x=>slug(x.nome)===slug(nome)); return c ? num(c.taxa||TAXA_PADRAO) : null; };
 /* forma de pagamento: em dinheiro mostra só o valor a receber */
@@ -2248,7 +2263,7 @@ function cartaoPedidoBase(p){
   const stCol=h("div",{class:"ped-st"},
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
     h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
-    taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
+    ...(S.modo==="entregador" ? linhasGanhoEnt(p) : [taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null]));
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
       ? h("button",{type:"button",class:"ped-ent"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},
@@ -2405,7 +2420,7 @@ function docsDaRota(r, extra){
 /* valor no cartão da entrega: entregador vê o que ele recebe (com bônus e adicionais); central vê a taxa; comércio só no delivery */
 function pillsValor(p){
   const bonus=num(p.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(p.bonusPct)+"% bônus"}):null;
-  if(S.modo==="entregador") return [h("span",{class:"pill num",style:"font-weight:800",text:"Você recebe "+fmt(ganhoPedido(p))}),bonus];
+  if(S.modo==="entregador") return linhasGanhoEnt(p);
   if(comercio()) return (num(p.taxaCobrada) && ehDelivery(p.coletaEmpresa||S.euNome)) ? [h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)})] : [];
   return [num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,bonus];
 }
@@ -2417,7 +2432,7 @@ function cartaoOferta(o){
       catch(e){ toast("Não foi possível aceitar ("+(e&&e.code||"erro")+")."); return false; }
     });
     return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-      h("div",{class:"topo"},h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"%"}):null,h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(tot)})),
+      h("div",{class:"topo"},h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"%"}):null,h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px;background:var(--ok);color:#fff;border-radius:8px;padding:2px 9px",text:"Total "+fmt(tot)})),
       blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),
       listaParadas(o.paradas), b);
   }
@@ -2427,7 +2442,8 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"% bônus"}):null,h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""}),h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px",text:fmt(ganhoPedido(o))})),
+    h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"% bônus"}):null,h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""})),
+    h("div",{style:"display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:flex-end"},...linhasGanhoEnt(o,true)),
     num(o.adicionais)>0?h("span",{class:"pill",style:"align-self:flex-start;background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(o.adicionais)+" add incluído"}):null,
     blocoRota(o),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
@@ -5140,14 +5156,28 @@ function abrirConfirmacao(p){
   // "Pagou em dinheiro": cliente mudou para dinheiro na hora; pede o valor recebido
   const btDin=h("button",{class:"btn sec",type:"button",style:"border-color:var(--ok);color:var(--ok)"},"Pagou em dinheiro");
   const linhaOk=h("div",{style:"display:grid;grid-template-columns:"+(anunc==="dinheiro"?"1fr":"1fr 1fr")+";gap:8px"},ok,anunc==="dinheiro"?null:btDin);
-  // pago em dinheiro: botão grande (70%) = o dinheiro volta para a loja; botão menor = dinheiro fica com a central
-  let dinCentral=false;
-  const btCentral=h("button",{class:"btn sec",type:"button",style:"border-color:var(--royal);color:var(--royal);font-size:13px;padding:10px 8px;line-height:1.2"},"Dinheiro com a central");
-  btCentral.addEventListener("click",()=>{ dinCentral=true; ok.click(); setTimeout(()=>{ if(!ok.disabled) dinCentral=false; },50); });
+  // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
+  let escolhaDin=null;
+  const pedeEscolhaDin=()=>formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p);
   function atuBotoesDin(){
-    const din=formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p);
-    if(din){ ok.textContent="Finalizar · dinheiro volta para a loja"; if(btDin.isConnected) btDin.remove(); if(!btCentral.isConnected) linhaOk.append(btCentral); linhaOk.style.gridTemplateColumns="7fr 3fr"; }
-    else { ok.textContent=ehTransf(p)?"Finalizar transferência":"Finalizar entrega"; if(btCentral.isConnected) btCentral.remove(); linhaOk.style.gridTemplateColumns=btDin.isConnected?"1fr 1fr":"1fr"; }
+    escolhaDin=null;
+    if(pedeEscolhaDin()){ ok.textContent="Finalizar entrega"; if(btDin.isConnected) btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
+    else { ok.textContent=ehTransf(p)?"Finalizar transferência":"Finalizar entrega"; linhaOk.style.gridTemplateColumns=btDin.isConnected?"1fr 1fr":"1fr"; }
+  }
+  function abrirEscolhaDin(){
+    const vr=num(fValRec.value), emp=p.coletaEmpresa||"o comércio";
+    const v=(!trocoBox.hidden && trocoEscolha==="dei") || (trocoBox.hidden && vr>valPedido+0.009 && num(p.trocoPara)>0 && vr<=num(p.trocoPara)+0.009) ? valPedido : vr;
+    const fecharCx=()=>cx.remove();
+    const bt=(txt,sub,cor,fn)=>h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:12px;line-height:1.2;background:"+cor+";border-color:"+cor,onclick:()=>{ fecharCx(); fn(); }},
+      h("b",{style:"font-size:16px",text:txt}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:sub}));
+    const cx=h("div",{role:"alertdialog","aria-modal":"true","aria-label":"Dinheiro do pedido",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
+      h("div",{style:"background:var(--card,#fff);border-radius:20px;padding:20px 18px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
+        h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)",text:"💵 Pedido em dinheiro"}),
+        h("div",{style:"font-size:20px;font-weight:800;line-height:1.25",text:"O que fazer com "+fmt(v)+"?"}),
+        bt("Ficar com o dinheiro","Desconta "+fmt(v)+" na sua fatura · a central manda o Pix para "+emp,"var(--ok)",()=>{ escolhaDin="fatura"; ok.click(); }),
+        bt("Devolver no comércio","Você leva o dinheiro em "+emp,"var(--royal)",()=>{ escolhaDin="loja"; ok.click(); }),
+        h("button",{class:"btn sec full",type:"button",onclick:fecharCx},"Voltar")));
+    document.body.append(cx);
   }
   btDin.addEventListener("click",()=>{ pagouDin=true; formaRec="dinheiro"; fValRec.value=""; btDin.remove(); linhaOk.style.gridTemplateColumns="1fr";
     campoVal.querySelector("label").textContent="Quanto o cliente pagou em dinheiro? (R$)"; atPag();
@@ -5188,6 +5218,7 @@ function abrirConfirmacao(p){
     if(p.pegarReceita && pegouReceita==="pend" && motivoRec==="buscar" && !recObs.value.trim()){ msg.hidden=false; msg.textContent="Digite o endereço onde vai buscar a receita."; recObs.focus(); return; }
     if(!trocoBox.hidden && !trocoEscolha){ msg.hidden=false; msg.textContent="Responda se você deu o troco ao cliente."; return; }
     if(formaRec==="convenio" && !chkNota.checked){ msg.hidden=false; msg.textContent="Confirme que o cliente assinou a nota."; return; }
+    if(pedeEscolhaDin() && !escolhaDin){ abrirEscolhaDin(); return; }
     ok.disabled=true;
     let fotoId=null, falhaFoto=null;
     if(arquivo){
@@ -5207,7 +5238,7 @@ function abrirConfirmacao(p){
     const valRec = formaRec==="dinheiro" ? num(fValRec.value) : 0;
     const alterado = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(valRec-valAnunc)>0.009);
     Object.assign(upd,{pagamentoConfirmado:true,pagamentoAnunciado:anunc,valorAnunciado:valAnunc,pagamento:formaRec,valorDinheiro:valRec,pagamentoAlterado:alterado});
-    if(formaRec==="dinheiro") upd.dinheiroCom = dinheiroFicaNaLoja(p) ? "loja" : dinCentral ? "central" : "loja";
+    if(formaRec==="dinheiro") upd.dinheiroCom = dinheiroFicaNaLoja(p) ? "loja" : escolhaDin==="fatura" ? "fatura" : "loja";
     if(fotoId) upd.fotoId=fotoId;
     if(fObsFin.value.trim()) upd.obsFinalizacao=fObsFin.value.trim();
     if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
@@ -5221,9 +5252,11 @@ function abrirConfirmacao(p){
     if(formaRec==="convenio") Object.assign(upd,{notaAssinada:true,notaDevolvida:false});
     if(p.pegarReceita){ if(pegouReceita===true) Object.assign(upd,{receitaRecolhida:true,receitaPendente:false});
       else Object.assign(upd,{receitaRecolhida:false,receitaPendente:true,receitaResolvida:false,receitaMotivo:motivoRec,receitaObs:motivoRec==="buscar"?recObs.value.trim():"",receitaBuscarEm:motivoRec==="buscar"?recObs.value.trim():""}); }
+    if(upd.dinheiroCom==="fatura") Object.assign(upd,{pixComercioPendente:true,pixComercioValor:num(upd.valorDinheiro)});
     try{
       await comRetry(()=>S.db.doc(p._path).update(upd));
       if(p.viaOferta) S.db.doc("aceites/"+p.id).update({status:"entregue",entregueEm:upd.entregueEm}).catch(()=>{});
+      if(upd.dinheiroCom==="fatura") avisarCentralPix({...p,...upd}).catch(e=>console.warn("aviso pix",e));
       fechar();
       toast(falhaFoto ? "Entrega finalizada, mas a foto não foi enviada ("+falhaFoto+")" : "Entrega finalizada");
     }catch(e){
@@ -5256,7 +5289,7 @@ function abrirDetalhes(p){
   if(p.pegarReceita) add("Receita",p.status==="entregue"?(p.receitaRecolhida?"Recolhida pelo entregador":p.receitaResolvida?"Pendência resolvida":"Pendente · "+(MOTIVO_RECEITA[p.receitaMotivo]||"")+(p.receitaObs?" · "+p.receitaObs:"")):"Pegar a receita com o cliente",true);
   if(p.pagamento==="convenio" && p.status==="entregue") add("Nota",p.notaDevolvida?"Devolvida ao comércio"+(p.notaDevolvidaEm?" em "+new Date(p.notaDevolvidaEm).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):""):"Assinada · falta devolver ao comércio",true);
   if(ehTransf(p)){ add("Serviço","Transferência / busca de receita"); add("Coletado em",p.transfDe); add("Entregue no",p.transfPara); }
-  if(p.dinheiroCom) add("Dinheiro ficou com",p.dinheiroCom==="central"?"A central":"O entregador (devolve à loja)");
+  if(p.dinheiroCom) add("Dinheiro ficou com",p.dinheiroCom==="central"?"A central":p.dinheiroCom==="fatura"?"O entregador (descontado na fatura dele; a central manda Pix ao comércio)"+(p.pixComercioEnviadoEm?" · Pix enviado":" · Pix pendente"):"O entregador (devolve à loja)");
   add("Obs. do entregador",p.obsFinalizacao,true);
   if(num(p.trocoDevido)) add("Troco ao cliente",fmt(p.trocoDevido)+(p.trocoPendente?" · falta enviar":p.trocoResolvido==="pix"?" · enviado por Pix":" · enviado"),true);
   if(p.pagamentoAlterado) add("Anunciado",p.pagamentoAnunciado==="dinheiro"?fmt(p.valorAnunciado)+" (dinheiro)":(PAG[p.pagamentoAnunciado]||""));
@@ -5375,6 +5408,7 @@ function abrirSemanaFatura(w,n,com,nome){
     lt("Entregas",String(itens.length),"var(--ok)"),
     com?null:lt("Adicionais pagos pela central",String(nAd),"var(--royal)"),
     com?null:lt("Total (entregas + adicionais)",String(itens.length+nAd)),
+    (!com&&itens.some(p=>dinNaFatura(p)>0))?lt("Dinheiro que ficou com o entregador","− "+fmt(itens.reduce((s,p)=>s+dinNaFatura(p),0)),"var(--bad)"):null,
     lt(com?"Taxas":"Valor",fmt(w.valor)));
   const porDia={}; itens.forEach(p=>{ (porDia[p.data]=porDia[p.data]||[]).push(p); });
   // os 7 dias da semana, com setinhas para passar de um dia para o outro
@@ -5395,7 +5429,7 @@ function abrirSemanaFatura(w,n,com,nome){
           h("div",{style:"display:flex;justify-content:space-between;gap:8px"},
             h("b",{style:"min-width:0;overflow-wrap:anywhere",text:(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.telefone||"Cliente")}),
             h("span",{class:"num",style:"flex:none;font-weight:700",text:fmt(com?num(p.taxaCobrada):ganhoPedido(p))})),
-          h("span",{class:"muted",style:"font-size:12px",text:(com?"":(p.coletaEmpresa||"")+" · ")+(p.entregueEm?new Date(p.entregueEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"")+(!com&&a?" · +"+a+(a>1?" adicionais":" adicional"):"")}));
+          h("span",{class:"muted",style:"font-size:12px",text:(com?"":(p.coletaEmpresa||"")+" · ")+(p.entregueEm?new Date(p.entregueEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"")+(!com&&a?" · +"+a+(a>1?" adicionais":" adicional"):"")+(!com&&dinNaFatura(p)>0?" · − "+fmt(dinNaFatura(p))+" dinheiro (desconta)":"")}));
         b.addEventListener("click",()=>abrirDetalhes(p)); return b; })
       :[h("p",{class:"muted",style:"margin:8px 0;text-align:center",text:"Nenhuma entrega neste dia."})]));
   };
@@ -5476,7 +5510,7 @@ async function calcularFatura(){
   try{ ps=await buscarPeriodo(de,ate,com?undefined:quem); }catch(e){ out.replaceChildren(h("div",{class:"aviso",text:"Não foi possível buscar os pedidos ("+(e&&e.code||"erro")+")."})); return; }
   ps=ps.filter(p=>p.status==="entregue" && (!com || slug(p.coletaEmpresa||"")===quem));
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
-  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):somaGanho(itens);
+  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):valorFatEnt(itens);
   const t=hoje();
   const linhas=semanas.filter(([a])=>a<=t).map(([a,f,rot])=>{
     const itens=ps.filter(p=>p.data>=a&&p.data<=f);
@@ -5563,7 +5597,7 @@ async function calcularFaturaGeral(out,com,mes){
   if(fatTipo!==(com?"comercio":"entregador")||$("#fatQuem").value) return;
   ps=ps.filter(p=>p.status==="entregue");
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
-  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):somaGanho(itens);
+  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):valorFatEnt(itens);
   const fechado=p=>!porSemana||somaDias(inicioSemana(p.data),6)<t;
   const m=new Map(); ps.forEach(p=>{ const k=com?slug(p.coletaEmpresa||""):(p.entregadorId||""); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
   const sel=$("#fatQuem");
@@ -5617,7 +5651,7 @@ async function faturasDaSemana(a,f){
     m.forEach((itens,quem)=>{ const abertos=itens.filter(p=>!p[campo]);
       out.push({tipo,quem,f,itens,valor:valor(itens),aberto:valor(abertos),pago:!abertos.length,
         nome:tipo==="comercio"?nomeComercioId(quem):nomeEnt(quem)}); }); };
-  agrupa("entregador",p=>p.entregadorId,"pagoEntregadorEm",somaGanho);
+  agrupa("entregador",p=>p.entregadorId,"pagoEntregadorEm",valorFatEnt);
   agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",it=>it.reduce((s,p)=>s+num(p.taxaCobrada),0));
   return out.sort((x,y)=>x.nome.localeCompare(y.nome));
 }
@@ -5695,7 +5729,7 @@ async function calcularAcerto(){
   todos.sort((a,b)=>(a.data+(a.criadoEm||"")).localeCompare(b.data+(b.criadoEm||"")));
   const entregues=todos.filter(p=>p.status==="entregue");
   const comDinheiro=entregues.filter(p=>dinheiroRetivel(p));
-  const pendente=p=>!p.dinheiroDevolvido && !p.acertado && p.dinheiroCom!=="central";
+  const pendente=p=>!p.dinheiroDevolvido && !p.acertado && !dinResolvidoFora(p);
   // agrupa por empresa
   const grupos={};
   comDinheiro.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa informada"; (grupos[k]=grupos[k]||[]).push(p); });
@@ -5976,10 +6010,11 @@ function renderRelTipo(ps,ent,de,ate){
   const grupo=(lst,chave)=>{ const m=new Map(); lst.forEach(p=>{ const k=chave(p); if(!m.has(k)) m.set(k,[]); m.get(k).push(p); }); return [...m.entries()]; };
   if(relTipo==="entregadores"){
     const e2=ent.filter(p=>!q||semAcento(nomeEnt(p.entregadorId)).includes(q));
-    const comEles=e2.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&p.dinheiroCom!=="central");
+    const comEles=e2.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&!dinResolvidoFora(p));
     const nAd=somaUn(e2)-e2.length;
     cards.replaceChildren(
-      kpi("Total a pagar aos entregadores",fmt(somaGanho(e2)),"destaque"),
+      kpi("Total a pagar aos entregadores",fmt(valorFatEnt(e2)),"destaque"),
+      e2.some(p=>dinNaFatura(p)>0)?kpi("Descontado (dinheiro que ficou com eles)",fmt(e2.reduce((s,p)=>s+dinNaFatura(p),0))):"",
       kpi("Entregas",String(e2.length)),
       kpi("Valor das entregas",fmt(somaGanhoEntregas(e2))),
       kpi("Adicionais",String(nAd)),
@@ -5990,7 +6025,7 @@ function renderRelTipo(ps,ent,de,ate){
       kpi("Tempo médio",fmtMin(tempoMedio(e2))));
     const g=grupo(e2,p=>p.entregadorId||"-").map(([id,l])=>[nomeEnt(id),l]).sort((a,b)=>a[0].localeCompare(b[0]));
     out.replaceChildren(...lin([resumoFiltros(), g.length?tabela(["Entregador","Entregas","Adicionais","Valor entregas","Valor adicionais","Total a pagar","Dinheiro","Com ele"],
-      g.map(([n,l])=>[n,String(l.length),String(somaUn(l)-l.length),fmt(somaGanhoEntregas(l)),fmt(somaGanho(l)-somaGanhoEntregas(l)),fmt(somaGanho(l)),fmt(din(l)),fmt(din(l.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&p.dinheiroCom!=="central")))])):semNada]));
+      g.map(([n,l])=>[n,String(l.length),String(somaUn(l)-l.length),fmt(somaGanhoEntregas(l)),fmt(somaGanho(l)-somaGanhoEntregas(l)),fmt(valorFatEnt(l)),fmt(din(l)),fmt(din(l.filter(p=>dinheiroRetivel(p)&&!p.dinheiroDevolvido&&!p.acertado&&!dinResolvidoFora(p))))])):semNada]));
     return;
   }
   if(relTipo==="comercios"){
@@ -6062,7 +6097,7 @@ function renderRelTipo(ps,ent,de,ate){
   out.replaceChildren(...lin([resumoFiltros(), ...(porEC||[]), h("h3",{text:"Pedidos"}), wrap]));
 }
 /* Central: dinheiro retido com os entregadores, por empresa; a central resolve (devolvido à empresa ou acertado com a central) até zerar */
-const retido = p => p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado;
+const retido = p => p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && p.dinheiroCom!=="fatura";
 function kpiDinheiro(rot,ps){
   const v=ps.filter(retido).reduce((s,p)=>s+dinheiroDoPedido(p),0);
   const b=h("button",{type:"button",class:"kpi",style:"text-align:left;cursor:pointer;font:inherit;color:inherit;"+(v>0?"border-color:var(--laranja);background:var(--warn-bg)":""),title:"Toque para ver por empresa"},
@@ -6162,7 +6197,7 @@ function renderRelatorio(ps,de,ate){
   if(!central()){
     const ganhos=somaGanho(ent), nAd=somaUn(ent)-ent.length, vEnt=somaGanhoEntregas(ent);
     const porEmp=agrupa(p=>p.coletaEmpresa||"Sem empresa informada");
-    const comVoce=ent.filter(p=>dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && p.dinheiroCom!=="central").reduce((s,p)=>s+dinheiroDoPedido(p),0);
+    const comVoce=ent.filter(p=>dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && !dinResolvidoFora(p)).reduce((s,p)=>s+dinheiroDoPedido(p),0);
     const mes=ehMesInteiro(de,ate), semana=(de===inicioSemana(de) && somaDias(de,6)>=ate);
     const rotulo = mes ? "Fechamento do mês: a receber" : semana ? "Seus ganhos na semana" : "Seus ganhos no período";
     const semanas=semanasDoPeriodo(de,ate,ent,itens=>[String(itens.length),String(somaUn(itens)-itens.length),fmt(somaGanho(itens)),fmt(itens.reduce((s,p)=>s+dinheiroDoPedido(p),0))]);
@@ -6249,10 +6284,60 @@ function abrirRecado(p,dest){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedido "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||"")+". O entregador recebe um aviso no celular e o recado aparece na tela dele."}),
     chips,txt,msg,ok]);
 }
+/* ---------- PIX PARA O COMÉRCIO ----------
+   Entregador ficou com o dinheiro (desconta na fatura dele): vai um aviso para cada pessoa da central
+   (recados/<id> com tipo "pix") dizendo que tem que mandar o valor da venda por Pix ao comércio. */
+async function avisarCentralPix(p){
+  const uids=(S.uidsCentral||[]).filter(Boolean); if(!uids.length) return;
+  const quem=S.modo==="entregador"?(S.euNome||"Entregador"):nomeEnt(p.entregadorId), v=num(p.pixComercioValor||p.valorDinheiro), emp=p.coletaEmpresa||"comércio";
+  const agora=new Date().toISOString();
+  for(const uid of uids){
+    const id="pix"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"pix",para:uid,de:quem,deUid:S.uid||"",pedidoId:p.id||"",pedidoPath:p._path||"",
+      numero:p.numero||"",cliente:p.cliente||"",empresa:emp,valor:v,
+      texto:"💸 Enviar Pix de "+fmt(v)+" para "+emp+" — "+quem+" ficou com o dinheiro (descontado na fatura dele)",criadoEm:agora}));
+  }
+}
+function ouvirPixCentral(){
+  S.pixAdiados=S.pixAdiados||new Set();
+  S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
+    S.pixPend=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.tipo==="pix"&&!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+    const r=S.pixPend.find(x=>!S.pixAdiados.has(x.id)); if(r) mostrarPixCentral(r);
+  },()=>{});
+}
+function mostrarPixCentral(r){
+  if(document.getElementById("pixTela")) return;
+  const feito=h("button",{class:"btn full",type:"button",style:"font-size:17px;padding:13px;background:var(--ok);border-color:var(--ok)"},"✓ Pix enviado");
+  const depois=h("button",{class:"btn sec full",type:"button"},"Depois");
+  const caixa=h("div",{id:"pixTela",role:"alertdialog","aria-modal":"true","aria-label":"Enviar Pix ao comércio",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
+    h("div",{style:"background:var(--card,#fff);border-radius:22px;padding:22px 20px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;border:3px solid var(--ok);box-shadow:0 20px 60px rgba(0,0,0,.25)"},
+      h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)",text:"💸 Enviar Pix ao comércio"}),
+      h("div",{style:"font-size:22px;font-weight:900;line-height:1.25"},"Mandar ",h("span",{class:"num",style:"color:var(--ok)",text:fmt(num(r.valor))})," para ",h("span",{text:r.empresa||"o comércio"})),
+      h("div",{style:"font-size:15px",text:(r.de||"O entregador")+" ficou com o dinheiro da venda e o valor foi descontado na fatura dele."}),
+      h("div",{class:"muted",style:"font-size:13px",text:[r.numero?"Pedido #"+r.numero:"",r.cliente,r.criadoEm?new Date(r.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""].filter(Boolean).join(" · ")}),
+      feito,depois));
+  const prox=()=>{ caixa.remove(); const n=(S.pixPend||[]).find(x=>x.id!==r.id&&!S.pixAdiados.has(x.id)); if(n) mostrarPixCentral(n); };
+  feito.addEventListener("click",async()=>{ feito.disabled=true; const agora=new Date().toISOString();
+    try{ await comRetry(()=>S.db.doc("recados/"+r.id).update({lidoEm:agora}));
+      if(r.pedidoPath) await comRetry(()=>S.db.doc(r.pedidoPath).update({pixComercioPendente:false,pixComercioEnviadoEm:agora,pixComercioPor:S.uid||""})).catch(()=>{});
+      toast("Pix para "+(r.empresa||"o comércio")+" marcado como enviado"); S.pixAdiados.add(r.id); prox(); }
+    catch(e){ feito.disabled=false; toast("Não foi possível marcar ("+(e&&e.code||"erro")+")."); } });
+  depois.addEventListener("click",()=>{ S.pixAdiados.add(r.id); prox(); });
+  document.body.append(caixa);
+  try{ if(audioCtx && audioCtx.state==="running") bip(); }catch(e){}
+}
 /* entregador: recados novos aparecem na tela até ele tocar em "Entendi" */
 function ouvirRecados(){
   if(S.subRecados){ S.subRecados(); S.subRecados=null; }
-  if(!S.db || S.modo!=="entregador" || !S.uid) return;
+  if(S.subAvisoCentral){ S.subAvisoCentral(); S.subAvisoCentral=null; }
+  if(!S.db || !S.uid) return;
+  // quem é da central (para o aviso de Pix ao comércio chegar no celular dela)
+  S.subAvisoCentral=S.db.doc("config/avisoCentral").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{};
+    S.uidsCentral=Array.isArray(d.uids)?d.uids.filter(Boolean):[];
+    if(central() && !S.uidsCentral.includes(S.uid)) S.db.doc("config/avisoCentral").set({uids:[...S.uidsCentral,S.uid],atualizadoEm:new Date().toISOString()}).catch(()=>{});
+  },()=>{});
+  if(central()){ ouvirPixCentral(); return; }
+  if(S.modo!=="entregador") return;
   S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
     const novos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
     if(novos.length) mostrarRecado(novos[0]);
