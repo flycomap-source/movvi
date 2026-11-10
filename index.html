@@ -1828,7 +1828,7 @@ function renderPedidos(){
     const g=h("section",{class:"grupo"+(fechado?" fechado":"")},cab,corpo);
     const alterna=()=>{ fechado=!fechado; g.classList.toggle("fechado",fechado); const r=fechado?"Expandir":"Recolher"; bt.setAttribute("aria-label",r); bt.title=r; bt.setAttribute("aria-expanded",String(!fechado)); try{ localStorage.setItem("movvi.recolhido."+chave,fechado?"1":"0"); }catch(e){} };
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
-    if(central() && telaLarga() && chave!=="disponiveis") corpo.append(cabecalhoLinhas());
+    if(central() && telaLarga()) corpo.append(cabecalhoLinhas());
     preencher(corpo);
     if(!qtd) corpo.append(h("p",{class:"muted",style:"margin:0 2px 4px;font-size:14px",text:chave==="disponiveis"?"Nenhuma entrega disponível agora. Quando chegar, o alerta toca.":"Você não tem entregas reservadas."}));
     box.append(g);
@@ -2404,6 +2404,31 @@ function cartaoSolicitacaoLoja(p){
   });
   const hora=p.criadoEm?new Date(p.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
   const espera=p.criadoEm?Math.max(0,Math.round((Date.now()-new Date(p.criadoEm))/60000)):null;
+  // central no computador: aguardando aceite também numa linha só (igual às outras)
+  if(central() && telaLarga()){
+    const cel=(txt,cls)=>h("span",{class:"c "+(cls||""),title:txt||"",text:txt||"—"});
+    const rota=p.tipo==="rota", par=rota?(p.paradas||[]):[];
+    const pag=rota?"":(PAG[p.pagamento]||"—")+(valorACobrar(p)?" "+fmt(valorACobrar(p)):"");
+    const det=[espera!==null?"há "+fmtMin(espera):"", rota?"Rota · "+par.length+" entregas":"", p.tipoServico==="transferencia"?"🔁 Transf.":"",
+      num(p.bonusPct)>0?"🎁 +"+num(p.bonusPct)+"% bônus":"", num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":"", p.obs?"📝 "+p.obs:""].filter(Boolean).join(" · ");
+    sel.style.cssText="padding:2px 6px;font-size:12px;height:auto;min-height:0;width:100%";
+    const pq="padding:2px 5px;font-size:11px";
+    rec.className="mini-bt"; rec.style.cssText=pq;
+    const acoes=h("span",{class:"c acoes-l",style:"display:flex;gap:3px;overflow:visible"},rota?null:h("button",{class:"mini-bt",type:"button",style:pq,onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec);
+    return h("div",{class:"linha-ped"},
+      h("span",{class:"c"},h("span",{class:"badge-l",style:"background:var(--laranja);display:inline-block",text:p.publicado?"Aguardando":"Enviando…"})),
+      cel((p.data!==hoje()?diaCurto(p.data)+" ":"")+hora,"num"),
+      cel(p.numero?"#"+p.numero:"","num forte"),
+      cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
+      cel(rota?par.map(x=>x.cliente).filter(Boolean).join(", "):p.cliente),
+      cel(rota?par.map(x=>x.endereco).filter(Boolean).join(" · "):p.endereco),
+      cel(p.telefone,"num"),
+      cel(pag,p.pagamento==="dinheiro"?"din":""),
+      cel(det,"muted"),
+      h("span",{class:"c"},sel),
+      cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"),
+      acoes);
+  }
   return h("div",{class:"solic-loja"},
     h("div",{class:"topo"},h("span",{class:"pill pend",text:p.publicado?"Enviado aos entregadores":"Enviando aos entregadores…"}),h("span",{class:"quem-ped num",text:espera!==null?"há "+fmtMin(espera):""})),
     p.tipo==="rota"?h("span",{class:"pill",style:"align-self:flex-start;background:var(--royal);color:#fff",text:"Rota · "+(p.paradas||[]).length+" entregas"}):null,
