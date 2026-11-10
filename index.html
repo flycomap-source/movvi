@@ -1866,7 +1866,7 @@ function renderPedidos(){
     const g=h("section",{class:"grupo"+(fechado?" fechado":"")},cab,corpo);
     const alterna=()=>{ fechado=!fechado; g.classList.toggle("fechado",fechado); const r=fechado?"Expandir":"Recolher"; bt.setAttribute("aria-label",r); bt.title=r; bt.setAttribute("aria-expanded",String(!fechado)); try{ localStorage.setItem("movvi.recolhido."+chave,fechado?"1":"0"); }catch(e){} };
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
-    if(central() && telaLarga()) corpo.append(cabecalhoLinhas());
+    if(emLinhas()) corpo.append(cabecalhoLinhas());
     preencher(corpo);
     if(!qtd) corpo.append(h("p",{class:"muted",style:"margin:0 2px 4px;font-size:14px",text:chave==="disponiveis"?"Nenhuma entrega disponível agora. Quando chegar, o alerta toca.":"Você não tem entregas reservadas."}));
     box.append(g);
@@ -2352,14 +2352,16 @@ function rodapePag(p){
       tr?h("span",{class:"pill alerta num",text:"Troco para "+fmt(num(p.trocoPara))}):null));
 }
 function cartaoPedido(p){
-  if(central() && telaLarga()) return linhaPedido(p);
+  if(emLinhas()) return linhaPedido(p);
   const c=cartaoPedidoBase(p);
   return c;
 }
 /* Central no computador: cada pedido numa linha só, uma informação na frente da outra */
 const MQ_LARGA = window.matchMedia ? window.matchMedia("(min-width: 900px)") : null;
 function telaLarga(){ return !!(MQ_LARGA && MQ_LARGA.matches); }
-function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", central() && telaLarga()); }
+/* central e comércio no computador: pedidos em linha (cabem mais na tela) */
+const emLinhas = () => (central()||comercio()) && telaLarga();
+function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", emLinhas()); }
 if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
 const COLS_LINHA=["Situação","Hora","Pedido","Coleta","Cliente","Endereço","Telefone","Pagamento","Detalhes","Entregador","Taxa",""];
 function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"},...COLS_LINHA.map(c=>h("span",{text:c}))); }
@@ -2376,6 +2378,24 @@ function linhaPedido(p){
     p.pagamentoAlterado?"pag. alterado":"",
     p.obs?"📝 "+p.obs:"", (entregue&&p.obsFinalizacao)?"📝 "+p.obsFinalizacao:""].filter(Boolean).join(" · ");
   const acoes=h("span",{class:"c acoes-l"});
+  if(comercio()){
+    if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
+    const dest=destinoRecado(p);
+    if(dest) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Mandar recado para o entregador",onclick:e=>{ e.stopPropagation(); abrirRecado(p,dest); }},"📣 Recado"));
+    return h("div",{class:"linha-ped"+(entregue?" fim":"")},
+      h("span",{class:"c"},h("span",{class:"badge-l",style:"background:"+st.c+";display:inline-block",text:st.t})),
+      cel(dataHoraCard(p),"num"),
+      cel(p.numero?"#"+p.numero:"","num forte"),
+      cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
+      cel(p.cliente),
+      cel(p.endereco),
+      cel(p.telefone,"num"),
+      cel(pag,p.pagamento==="dinheiro"?"din":""),
+      cel(det,"muted"),
+      cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""),
+      cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"),
+      acoes);
+  }
   if(!entregue && !pedidoMorto(p)){
     const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
     if(emRota) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:e=>{ e.stopPropagation(); acrescentarPedidosNaRota(p); }},"+ Rota"));
