@@ -719,6 +719,7 @@ const somaGanho = lst => lst.reduce((s,p)=>s+ganhoPedido(p),0);
 const somaGanhoEntregas = lst => lst.reduce((s,p)=>s+ganhoUnit(p),0);
 /* Valor de taxa que cada perfil enxerga num pedido */
 function taxaVisivel(p){
+  if(comercio()) return 0;   // o comércio não vê taxa nem valores de entrega (esse controle é feito fora do app)
   if(S.modo==="entregador") return ganhoPedido(p);
   return num(p.taxaCobrada);
 }
@@ -2364,7 +2365,7 @@ const emLinhas = () => (central()||comercio()) && telaLarga();
 function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", emLinhas()); }
 if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
 const COLS_LINHA=["Situação","Hora","Pedido","Coleta","Cliente","Endereço","Telefone","Pagamento","Detalhes","Entregador","Taxa",""];
-function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"},...COLS_LINHA.map(c=>h("span",{text:c}))); }
+function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"},...COLS_LINHA.map(c=>h("span",{text:comercio()&&c==="Taxa"?"":c}))); }
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
   const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
@@ -2393,7 +2394,7 @@ function linhaPedido(p){
       cel(pag,p.pagamento==="dinheiro"?"din":""),
       cel(det,"muted"),
       cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""),
-      cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"),
+      h("span",{class:"c"}),
       acoes);
   }
   if(!entregue && !pedidoMorto(p)){
@@ -2617,7 +2618,7 @@ function docsDaRota(r, extra){
 function pillsValor(p){
   const bonus=num(p.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(p.bonusPct)+"% bônus"}):null;
   if(S.modo==="entregador") return [h("div",{style:"flex-basis:100%;display:flex;justify-content:flex-end"},colunaEnt(...linhasGanhoEnt(p)))];
-  if(comercio()) return (num(p.taxaCobrada) && ehDelivery(p.coletaEmpresa||S.euNome)) ? [h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)})] : [];
+  if(comercio()) return [];
   return [num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,bonus];
 }
 function cartaoOferta(o){
@@ -4761,7 +4762,7 @@ function abrirPedido(p,arquivoComanda,pre){
       h("span",{class:"muted",text:"Entregador"}),vBase,h("span",{class:"muted",text:"+ bônus"}),fBonus,h("span",{text:"%"}),h("span",{class:"muted",text:"= total"}),vTot));
   setTimeout(atuBonus,0);
   // comércio de delivery: na frente do bairro aparece a taxa cheia que o comércio paga (tabela de bairros)
-  const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px"});
+  const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px",hidden:comercio()});
   const atuTaxaBairro=()=>{ const emp=comercio()?S.euNome:fEmp.value; const mostra=(comercio()||central()) && ehDelivery(emp);
     taxaBairroTxt.hidden=!mostra; if(!mostra) return;
     const t=taxaPorBairro(fBairro.value);
