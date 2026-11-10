@@ -2957,8 +2957,8 @@ function abrirMeuMenu(){
     item("⎋","Sair","Volta para a tela de login",sair)].filter(Boolean));
 }
 /* som só quando chega pedido; mudanças de status só mostram o aviso */
-/* Ao abrir o app (ou voltar para ele), o entregador com entregas esperando ouve o alerta uma vez.
-   O celular só libera som depois de um toque: se ainda não liberou, toca no primeiro toque na tela. */
+/* Regra: ao abrir o app (ou voltar para ele) NÃO toca nada pelo que chegou enquanto estava fechado
+   (só um aviso na tela). O som toca só para o que chegar com o app aberto. */
 let somAbrirPend=false, saiuEm=0;
 function esperandoEntregador(){
   if(S.modo!=="entregador") return 0;
@@ -2972,7 +2972,6 @@ function avisarAoAbrir(tent){
   const n=esperandoEntregador(); if(!n) return;
   const msg=n===1?"Você tem 1 entrega esperando":"Você tem "+n+" entregas esperando";
   toast(msg);
-  if(audioCtx && audioCtx.state==="running"){ bip(); somAbrirPend=false; } else somAbrirPend=true;
 }
 document.addEventListener("pointerdown",()=>{ if(!somAbrirPend) return; somAbrirPend=false; setTimeout(()=>{ if(esperandoEntregador()) bip(); },120); },{passive:true});
 setTimeout(avisarAoAbrir,4500);
@@ -6432,12 +6431,14 @@ function ouvirRecados(){
   },()=>{});
   if(central()){ ouvirPixCentral(); return; }
   if(S.modo!=="entregador") return;
+  S.recadoPrimeira=true;
   S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
     const novos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
-    if(novos.length) mostrarRecado(novos[0]);
+    if(novos.length) mostrarRecado(novos[0],S.recadoPrimeira);
+    S.recadoPrimeira=false;
   },()=>{});
 }
-function mostrarRecado(r){
+function mostrarRecado(r,semSom){
   if(document.getElementById("recadoTela")) return;
   const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"Entendi");
   const caixa=h("div",{id:"recadoTela",role:"alertdialog","aria-modal":"true","aria-label":"Recado",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
@@ -6448,6 +6449,7 @@ function mostrarRecado(r){
       h("div",{class:"muted",style:"font-size:12px",text:r.criadoEm?"Enviado às "+new Date(r.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""}),ok));
   ok.addEventListener("click",async()=>{ ok.disabled=true; try{ await S.db.doc("recados/"+r.id).update({lidoEm:new Date().toISOString()}); }catch(e){} caixa.remove(); });
   document.body.append(caixa);
+  if(semSom) return;   // recado que chegou com o app fechado: só aparece, sem tocar
   try{ if(audioCtx && audioCtx.state==="running") bip(); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate([300,100,300]); }catch(e){}
 }
