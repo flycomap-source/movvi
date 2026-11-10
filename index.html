@@ -912,7 +912,7 @@ function comoPedidoDaLoja(p){
   return {...p,status:st,statusOriginal:p.status,entregadorNome:p.entregadorNome||(m&&m.nome)||"",lancadoPelaCentral:true};
 }
 function fontes(entId){
-  if(comercio()){ const set=new Set(["lojas/"+S.uid+"/pedidos","pedidos"]); (S.equipe||[]).forEach(m=>{ if(m.uid) set.add("entregas/"+m.uid+"/pedidos"); }); return [...set]; }
+  if(comercio()){ const set=new Set(["lojas/"+S.uid+"/pedidos","pedidos","abertos"]); (S.equipe||[]).forEach(m=>{ if(m.uid) set.add("entregas/"+m.uid+"/pedidos"); }); return [...set]; }
   if(!central()) return ["entregas/"+S.uid+"/pedidos"];
   if(entId) return [colDe(entId)];
   const set=new Set(["pedidos"]);
@@ -1669,6 +1669,9 @@ const LIM_3H=()=>new Date(Date.now()-3*3600000).toISOString();
 let chaveDia="";
 function filtrarFonte(col,ps){
   if(!comercio() || col.startsWith("lojas/")) return ps;
+  // rota ainda sem entregador: cada parada aparece para o comércio como um pedido aguardando
+  if(col==="abertos") ps=ps.flatMap(p=>p.tipo==="rota"?(p.paradas||[]).map((x,i)=>({...x,id:p.id+"-"+(i+1),_path:p._path,data:p.data,coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco,
+    taxaCobrada:p.taxaCobrada,status:"solicitado",criadoEm:p.criadoEm,rotaId:p.id,rotaOrdem:i+1,rotaQtd:(p.paradas||[]).length})):[p]).filter(p=>p.status==="solicitado");
   return ps.filter(ehDoMeuComercio).map(comoPedidoDaLoja);
 }
 function assinarDia(forcar){
@@ -2574,7 +2577,7 @@ function docsDaRota(r, extra){
   return (r.paradas||[]).map((x,i)=>({id:r.rotaId+"-"+(i+1),dados:{
     numero:x.numero||"",data:r.data||hoje(),coletaEmpresa:r.coletaEmpresa||"",coletaEndereco:r.coletaEndereco||"",
     cliente:x.cliente||"",telefone:x.telefone||"",endereco:x.endereco||"",pagamento:x.pagamento||"dinheiro",valorDinheiro:num(x.valorDinheiro),valorNota:num(x.valorNota),pegarReceita:!!x.pegarReceita,produtosReceita:Array.isArray(x.produtosReceita)?x.produtosReceita:[],trocoPara:num(x.trocoPara),obs:x.obs||"",
-    adicionais:0,criadoEm:r.criadoEm||new Date().toISOString(),status:"pendente",acertado:false,
+    adicionais:0,criadoEm:r.criadoEm||new Date().toISOString(),status:"pendente",acertado:false,...(x.bairro?{bairro:x.bairro}:{}),
     rotaId:r.rotaId,rotaQtd:N,rotaOrdem:i+1,...extra,
     ...(x.tipoServico==="transferencia"?{tipoServico:"transferencia",transfDe:x.transfDe||r.coletaEmpresa||"",transfPara:x.transfPara||x.cliente||x.endereco||""}:{}),
     ...(servicoTaxaFixa(x.tipoServico,x.pagamento)?{taxaCobrada:TAXA_FIXA_CENTRAL,taxaFixaCentral:true}:{})}}));
@@ -3915,6 +3918,8 @@ function abrirRota(op){
     const st={pag:"dinheiro"};
     st.cli=h("input",{class:"inp",placeholder:"Nome do cliente"});
     st.end=h("input",{class:"inp",placeholder:"Endereço de entrega"});
+    st.bai=h("input",{class:"inp",placeholder:"Bairro (obrigatório)"}); st.baiW=comListaBairros(st.bai);
+    st.end.addEventListener("change",()=>{ if(!st.bai.value.trim()){ const b=bairroNoEndereco(st.end.value); if(b) st.bai.value=b; } });
     st.tel=h("input",{class:"inp",type:"tel",inputmode:"tel",placeholder:"Telefone / WhatsApp (opcional)"});
     st.num=h("input",{class:"inp num",inputmode:"numeric",placeholder:"Nº do pedido (opcional)"});
     st.din=h("input",{class:"inp num",inputmode:"decimal",placeholder:"Valor a receber em dinheiro"});
@@ -3929,7 +3934,7 @@ function abrirRota(op){
       h("div",{class:"parada-cab"},h("span",{class:"parada-n num",text:String(i+1)}),h("b",{style:"flex:1",text:"Parada "+(i+1)}),
         h("button",{class:"mini",type:"button","aria-label":"Remover parada",onclick:()=>{ paradas.splice(i,1); desenhar(); }},"✕")),
       paradas.length>1?chipsPosicao(1,paradas.length,i+1,null,k=>{ const [x]=paradas.splice(i,1); paradas.splice(k-1,0,x); desenhar(); }):null,
-      campoCliente(st.cli,st.end,null,st.tel), st.end, st.tel, h("div",{class:"linha"},st.sel,st.din),
+      campoCliente(st.cli,st.end,null,st.tel), st.end, st.baiW, st.tel, h("div",{class:"linha"},st.sel,st.din),
       h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700"},st.rec,"Pegar receita"), st.obs)));
   }
   novaParada(); novaParada();
@@ -3957,6 +3962,7 @@ function abrirRota(op){
       st.tel.value=tel; 
       const x=c&&end?enderecosDe(c).find(y=>semAcento(y.endereco)===semAcento(end)||mesmoEndereco(y.endereco,end)):null;
       st.end.value=x?x.endereco:end;
+      if(!st.bai.value.trim()) st.bai.value=String(r.bairro||"").trim()||bairroNoEndereco(st.end.value)||"";
       const forma={dinheiro:"dinheiro",cartao:"cartao",pago:"pix",pix:"pix",convenio:"convenio"}[r.pagamento]||"dinheiro";
       st.pag=forma; st.sel.value=forma; st.din.hidden=forma!=="dinheiro";
       if(forma==="dinheiro" && num(r.valor)) st.din.value=fmtInput(num(r.valor));
@@ -3971,7 +3977,7 @@ function abrirRota(op){
   // rascunho: as paradas lidas ficam salvas para não perder se o celular fechar o app
   const chaveRC="movvi.rotaCentral", docRC=()=>S.db&&S.uid?S.db.doc("data/users/"+S.uid+"/rotaCentral"):null;
   function salvarRascCentral(){
-    const lista=paradas.filter(st=>!vazia(st)).map(st=>({cli:st.cli.value,tel:st.tel.value,end:st.end.value,pag:st.pag,din:st.din.value,obs:st.obs.value,rec:st.rec.checked,produtos:st.produtos||[]}));
+    const lista=paradas.filter(st=>!vazia(st)).map(st=>({cli:st.cli.value,tel:st.tel.value,end:st.end.value,bai:st.bai.value,pag:st.pag,din:st.din.value,obs:st.obs.value,rec:st.rec.checked,produtos:st.produtos||[]}));
     if(!lista.length) return;
     const d={paradas:lista,emp:fEmp.value,col:fCol.value,em:new Date().toISOString()};
     try{ ls.set(chaveRC,JSON.stringify(d)); }catch(e){}
@@ -3982,7 +3988,7 @@ function abrirRota(op){
     if(d.emp && !fEmp.value){ fEmp.value=d.emp; fEmp.dispatchEvent(new Event("change")); }
     if(d.col && !fCol.value) fCol.value=d.col;
     d.paradas.forEach(o=>{ let st=paradas.find(vazia); if(!st){ novaParada(); st=paradas[paradas.length-1]; }
-      st.cli.value=o.cli||""; st.tel.value=o.tel||""; st.end.value=o.end||""; st.pag=o.pag||"dinheiro"; st.sel.value=st.pag; st.din.hidden=st.pag!=="dinheiro";
+      st.cli.value=o.cli||""; st.tel.value=o.tel||""; st.end.value=o.end||""; st.bai.value=o.bai||""; st.pag=o.pag||"dinheiro"; st.sel.value=st.pag; st.din.hidden=st.pag!=="dinheiro";
       st.din.value=o.din||""; st.obs.value=o.obs||""; st.rec.checked=!!o.rec; st.produtos=o.produtos||[]; });
     desenhar(); toast("Rota recuperada: "+d.paradas.length+(d.paradas.length>1?" paradas":" parada"));
   }
@@ -4014,10 +4020,12 @@ function abrirRota(op){
   if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
-    const lista=paradas.map(st=>({cliente:st.cli.value.trim(),telefone:st.tel.value.trim(),endereco:st.end.value.trim(),numero:"",pagamento:st.pag,valorDinheiro:st.pag==="dinheiro"?num(st.din.value):0,obs:st.obs.value.trim(),pegarReceita:st.rec.checked,produtosReceita:st.rec.checked?(st.produtos||[]):[]}));
+    const lista=paradas.map(st=>({cliente:st.cli.value.trim(),telefone:st.tel.value.trim(),endereco:st.end.value.trim(),bairro:st.bai.value.trim(),numero:"",pagamento:st.pag,valorDinheiro:st.pag==="dinheiro"?num(st.din.value):0,obs:st.obs.value.trim(),pegarReceita:st.rec.checked,produtosReceita:st.rec.checked?(st.produtos||[]):[]}));
     // empresa de coleta é opcional (não precisa estar cadastrada)
     if(lista.length<2){ msg.hidden=false; msg.textContent="Uma rota precisa de pelo menos 2 paradas."; return; }
     const falta=lista.findIndex(x=>!x.endereco && !x.cliente); if(falta>=0){ msg.hidden=false; msg.textContent="Parada "+(falta+1)+": informe o nome do cliente ou o endereço."; return; }
+    const semBairro=lista.findIndex(x=>!x.bairro); if(semBairro>=0){ msg.hidden=false; msg.textContent="Parada "+(semBairro+1)+": informe o bairro."; try{ paradas[semBairro].bai.focus(); }catch(e){} return; }
+    lista.forEach(x=>registrarBairroNovo&&registrarBairroNovo(x.bairro));
     const telRuim=lista.findIndex(x=>x.telefone && !telValido(x.telefone)); if(telRuim>=0){ msg.hidden=false; msg.textContent="Parada "+(telRuim+1)+": o telefone está incompleto. Corrija ou deixe em branco."; return; }
     lista.forEach(x=>{ x.telefone=telComDDD(x.telefone); });
     const semValor=lista.findIndex(x=>x.pagamento==="dinheiro"&&!x.valorDinheiro); if(semValor>=0){ msg.hidden=false; msg.textContent="Informe o valor em dinheiro da parada "+(semValor+1)+"."; return; }
@@ -4028,7 +4036,7 @@ function abrirRota(op){
     const r={rotaId,data:fData.value||S.dia,coletaEmpresa:fEmp.value.trim(),coletaEndereco:fCol.value.trim(),taxaCobrada:num(fTaxa.value),paradas:lista,criadoEm:new Date().toISOString()};
     try{
       if(fEnt.value && fEnt.value!=="__movvi"){
-        for(const d of docsDaRota(r,{entregadorId:fEnt.value,taxaCobrada:r.taxaCobrada,designadoEm:r.criadoEm,criadoPor:S.uid||""}))
+        for(const d of docsDaRota(r,{entregadorId:fEnt.value,taxaCobrada:r.taxaCobrada,designadoEm:r.criadoEm,criadoPor:S.uid||"",...(aceiteAuto(fEnt.value)?{aceitoEm:aceiteAuto(fEnt.value)}:{})}))
           await comRetry(()=>S.db.doc(colDe(fEnt.value)+"/"+d.id).set(d.dados));
         toast("Rota criada para "+nomeEnt(fEnt.value));
       }else{
