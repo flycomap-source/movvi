@@ -2070,6 +2070,14 @@ function abrirTrocaEntregador(p){
   busca.addEventListener("input",desenhar); desenhar();
   { const veu=$("#camadas").lastElementChild, sh=veu&&veu.querySelector(".sheet"); if(sh){ sh.style.height="75%"; [...sh.children].forEach(c=>c.style.flexShrink="0"); } }
 }
+/* reabrir um pedido finalizado: volta o pagamento anunciado e limpa o que a finalização gravou (dinheiro, Pix, troco),
+   para poder finalizar de novo do zero (ex.: teste da caixinha do dinheiro) */
+function desfazFinalizacao(x){
+  const u={pagamentoConfirmado:false,pagamentoAlterado:false,dinheiroCom:"",dinheiroDevolvido:false,devolvidoEm:"",devolvidoPor:"",
+    pixComercioPendente:false,pixComercioEnviadoEm:"",pixComercioValor:0,dinheiroCentralEm:"",trocoDevido:0,trocoPendente:false,trocoResolvido:false};
+  if(x.pagamentoAnunciado){ u.pagamento=x.pagamentoAnunciado; u.valorDinheiro=x.pagamentoAnunciado==="dinheiro"?num(x.valorAnunciado):0; }
+  return u;
+}
 function abrirStatus(p){
   const agora=()=>new Date().toISOString();
   const atual=nomeStatus(p);
@@ -2124,7 +2132,8 @@ function abrirStatus(p){
             u=comRegistro(x,"Entrega finalizada",u);
             await comRetry(()=>S.db.doc(x._path).update(u)); sync(x,{status:"entregue",entregueEm:t}); continue;
           }
-          if(rot!=="Cancelar pedido"){ u={...upd}; if(upd.aceitoEm) u.aceitoEm=x.aceitoEm||upd.aceitoEm; if(upd.emRotaEm) u.emRotaEm=x.emRotaEm||upd.emRotaEm; }
+          if(rot!=="Cancelar pedido"){ u={...upd}; if(upd.aceitoEm) u.aceitoEm=x.aceitoEm||upd.aceitoEm; if(upd.emRotaEm) u.emRotaEm=x.emRotaEm||upd.emRotaEm;
+            if(x.status==="entregue") Object.assign(u,desfazFinalizacao(x)); }
           u=comRegistro(x,x.status==="entregue"&&rot!=="Cancelar pedido"?"Pedido reaberto: Entregue → "+rot:rot==="Cancelar pedido"?"Pedido cancelado":rot==="Em rota"?"Saiu para entrega (em rota)":rot==="Indo coletar"?"Status: indo coletar":"Status: "+rot,u);
           await comRetry(()=>S.db.doc(x._path).update(u)); if(ac) sync(x,ac);
         }
