@@ -5664,7 +5664,11 @@ async function calcularFatura(){
   if(!S.db){ out.append(h("div",{class:"aviso",text:"Sem conexão com os dados."})); return; }
   if(central()&&!quem&&mes){ calcularFaturaGeral(out,com,mes); return; }
   if(!quem||!mes){ out.append(h("p",{class:"muted",style:"margin:0",text:com?"Escolha o comércio.":"Escolha o entregador."})); return; }
-  const semanas=intervalosFatura(mes); if(!semanas.length) return;
+  // entregador com fechamento mensal: a fatura é o mês inteiro e fecha no último dia do mês
+  const mensal=!com && fechamentoDe(quem)==="mensal" && fatModo==="semana";
+  let semanas=intervalosFatura(mes);
+  if(mensal&&mes){ const [y,m]=mes.split("-").map(Number); semanas=[[mes+"-01",isoDia(new Date(y,m,0)),"Mês · "+new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})+" · fechamento mensal"]]; }
+  if(!semanas.length) return;
   const porSemana=fatModo==="semana";
   const de=semanas.reduce((x,w)=>w[0]<x?w[0]:x,semanas[0][0]), ate=semanas.reduce((x,w)=>w[1]>x?w[1]:x,semanas[0][1]);
   out.append(h("p",{class:"muted",text:"Calculando…"}));
@@ -5781,7 +5785,7 @@ async function calcularFaturaGeral(out,com,mes){
   ps=ps.filter(p=>p.status==="entregue");
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
   const valorDe=itens=>com?valorFatCom(itens):valorFatEnt(itens);
-  const fechado=p=>!porSemana||somaDias(inicioSemana(p.data),6)<t;
+  const fechado=p=>!porSemana||(!com&&fechamentoDe(p.entregadorId)==="mensal" ? String(p.data).slice(0,7)<t.slice(0,7) : somaDias(inicioSemana(p.data),6)<t);
   const m=new Map(); ps.forEach(p=>{ const k=com?slug(p.coletaEmpresa||""):(p.entregadorId||""); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
   const sel=$("#fatQuem");
   const nomeDe=k=>{ if(!com) return nomeEnt(k); const o=[...sel.options].find(o=>o.value===k||slug(o.text)===k); return o?o.text:k; };
@@ -5812,6 +5816,9 @@ async function calcularFaturaGeral(out,com,mes){
 }
 /* ---------- FATURAS FECHADAS: aviso e "foi pago?" (entregador e comércio) ---------- */
 function ultimaSemanaFechada(){ const t=hoje(), d=deIso(t).getDay(); const f=somaDias(t,-(d===0?7:d)); return [somaDias(f,-6),f]; }
+/* fechamento da fatura de cada entregador: semanal (padrão, fecha no domingo) ou mensal (fecha no último dia do mês) */
+function fechamentoDe(entId){ const m=(S.equipe||[]).find(x=>x.id===entId); if(m) return m.fechamento==="mensal"?"mensal":"semanal"; return (!central()&&entId===S.eu)?(S.euFechamento||"semanal"):"semanal"; }
+function ultimoMesFechado(){ const ini=hoje().slice(0,7)+"-01", f=somaDias(ini,-1); return [f.slice(0,7)+"-01",f]; }
 function chaveFat(tipo,quem,f){ return tipo+"_"+String(quem).replace(/[\/.#$\[\]]/g,"-")+"_"+f; }
 function nomeComercioId(id){ const c=S.comercios.find(c=>slug(c.nome)===id)||S.empresas.find(e=>e.id===id||slug(e.nome)===id); return c?c.nome:id; }
 function gravarDecisaoFat(tipo,quem,f,status){
@@ -5826,16 +5833,18 @@ async function marcarFatura(tipo,quem,f,itens,pago){
   if(fatCache.f===f){ const g=fatCache.grupos.find(g=>g.tipo===tipo&&g.quem===quem); if(g){ g.pago=pago; g.aberto=pago?0:g.valor; } }
   verificarFaturasFechadas(true);
 }
-async function faturasDaSemana(a,f){
-  const ps=(await buscarPeriodo(a,f)).filter(p=>p.status==="entregue");
+async function faturasDaSemana(a,f,soMensais){
+  let ps=(await buscarPeriodo(a,f)).filter(p=>p.status==="entregue");
   const out=[];
   const agrupa=(tipo,chave,campo,valor)=>{ const m=new Map();
     ps.forEach(p=>{ const k=chave(p); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
     m.forEach((itens,quem)=>{ const abertos=itens.filter(p=>!p[campo]);
       out.push({tipo,quem,f,itens,valor:valor(itens),aberto:valor(abertos),pago:!abertos.length,
         nome:tipo==="comercio"?nomeComercioId(quem):nomeEnt(quem)}); }); };
-  agrupa("entregador",p=>p.entregadorId,"pagoEntregadorEm",valorFatEnt);
-  agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",valorFatCom);
+  // semana: só os entregadores de fechamento semanal · mês: só os de fechamento mensal (e nenhum comércio)
+  agrupa("entregador",p=>p.entregadorId&&((fechamentoDe(p.entregadorId)==="mensal")===!!soMensais)?p.entregadorId:"","pagoEntregadorEm",valorFatEnt);
+  if(!soMensais) agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",valorFatCom);
+  out.forEach(g=>{ g.mensal=!!soMensais; });
   return out.sort((x,y)=>x.nome.localeCompare(y.nome));
 }
 const decisaoFat=g=>((S.fatDecis||{})[chaveFat(g.tipo,g.quem,g.f)]||{}).status||"";
@@ -5847,15 +5856,23 @@ async function verificarFaturasFechadas(soRedesenhar){
   const [a,f]=ultimaSemanaFechada();
   const velho = fatCache.f!==f || fatCache.n!==S.equipe.length || (!soRedesenhar && Date.now()-fatCache.em>10*60*1000);
   if(velho){ if(fatBuscando) return; fatBuscando=true;
-    try{ fatCache={f,n:S.equipe.length,em:Date.now(),grupos:await faturasDaSemana(a,f)}; }catch(e){ return; } finally{ fatBuscando=false; } }
+    try{ fatCache={f,n:S.equipe.length,em:Date.now(),grupos:await gruposFechados()}; }catch(e){ return; } finally{ fatBuscando=false; } }
   const pend=fatCache.grupos.filter(semResposta);
   const ne=pend.filter(g=>g.tipo==="entregador").length, nc=pend.length-ne;
   av.hidden=!pend.length;
-  av.textContent="Faturas da semana "+diaCurto(a)+" a "+diaCurto(f)+" fecharam · informar pagamento: "+[ne?ne+(ne>1?" entregadores":" entregador"):"",nc?nc+(nc>1?" comércios":" comércio"):""].filter(Boolean).join(" e ")+" ›";
+  av.textContent=(pend.some(g=>g.mensal)&&!pend.some(g=>!g.mensal)?"Faturas do mês fecharam":"Faturas da semana "+diaCurto(a)+" a "+diaCurto(f)+(pend.some(g=>g.mensal)?" e do mês":"")+" fecharam")+" · informar pagamento: "+[ne?ne+(ne>1?" entregadores":" entregador"):"",nc?nc+(nc>1?" comércios":" comércio"):""].filter(Boolean).join(" e ")+" ›";
 }
 $("#avisoFatura").addEventListener("click",()=>abrirFaturasFechadas());
 setInterval(()=>verificarFaturasFechadas(),15*60*1000);
 setTimeout(()=>verificarFaturasFechadas(),4000);
+/* semana fechada (entregadores semanais e comércios) + mês fechado (entregadores de fechamento mensal) */
+async function gruposFechados(){
+  const [a,f]=ultimaSemanaFechada(), [ma,mf]=ultimoMesFechado();
+  const sem=await faturasDaSemana(a,f,false);
+  const temMensal=(S.equipe||[]).some(e=>e.fechamento==="mensal");
+  const mes=temMensal?await faturasDaSemana(ma,mf,true):[];
+  return [...sem,...mes];
+}
 async function abrirFaturasFechadas(){
   const [a,f]=ultimaSemanaFechada();
   let aba="entregador", grupos=null;
@@ -5882,11 +5899,11 @@ async function abrirFaturasFechadas(){
       btS.addEventListener("click",()=>acao(true,btS)); btN.addEventListener("click",()=>acao(false,btN));
       return h("div",{class:"painel"},
         h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("b",{text:g.nome}),h("b",{class:"num",text:fmt(g.valor)})),
-        h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,h("span",{class:"quem-ped",text:g.itens.length+(g.itens.length===1?" entrega":" entregas")})),
+        h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,h("span",{class:"quem-ped",text:g.itens.length+(g.itens.length===1?" entrega":" entregas")+(g.mensal?" · mês "+new Date(g.f+"T12:00").toLocaleDateString("pt-BR",{month:"long"})+" (mensal)":"")})),
         h("div",{style:"display:flex;gap:8px"},btS,btN));
     }):[h("p",{class:"muted",style:"margin:0",text:"Nenhuma entrega nessa semana."})]));
   };
-  try{ grupos=await faturasDaSemana(a,f); fatCache={f,n:S.equipe.length,em:Date.now(),grupos}; desenhar(); }
+  try{ grupos=await gruposFechados(); fatCache={f,n:S.equipe.length,em:Date.now(),grupos}; desenhar(); }
   catch(e){ lista.replaceChildren(h("p",{class:"aviso",text:"Não foi possível carregar ("+(e&&e.code||"erro")+")."})); }
 }
 /* ---------- ACERTO ---------- */
@@ -6702,7 +6719,7 @@ async function aprovar(sol, alvoId, taxaNova){
 async function sincronizarVinculo(m, mud){
   if(!m.uid) return;
   const n={...m,...mud};
-  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional,grupo:grupoDe(n)}));
+  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional,grupo:grupoDe(n),fechamento:n.fechamento==="mensal"?"mensal":"semanal"}));
 }
 /* ---------- CADASTROS: clientes · entregadores · comércios ---------- */
 /* número de ordem de cadastro (000001, 000002…), pela data em que foi cadastrado */
@@ -7057,6 +7074,8 @@ function editarEntregador(e){
   const fG=h("select",{class:"inp",id:"eeG"},h("option",{value:"movvi",text:"Movvi+ (vê todos os pedidos)"}),h("option",{value:"outros",text:"Outros (só pedidos pagos e em dinheiro)"}));
   fG.value=grupoDe(e);
   const fSA=h("input",{type:"checkbox",id:"eeSA"}); fSA.checked=!!e.semAdicional;
+  const fF=h("select",{class:"inp",id:"eeF"},h("option",{value:"semanal",text:"Fechamento semanal (fecha todo domingo)"}),h("option",{value:"mensal",text:"Fechamento mensal (fecha no último dia do mês)"}));
+  fF.value=e.fechamento==="mensal"?"mensal":"semanal";
   const fP=h("input",{class:"inp",id:"eeP",value:e.pix||"",placeholder:"CPF, telefone, e-mail ou chave aleatória",autocomplete:"off"});
   const fTel=h("input",{class:"inp",id:"eeTel",type:"tel",inputmode:"tel",value:e.telefone||"",placeholder:"(38) 99999-9999"});
   const msg=h("div",{class:"aviso",hidden:true});
@@ -7066,6 +7085,7 @@ function editarEntregador(e){
     h("div",{class:"campo"},h("label",{for:"eeN",text:"Nome"}),fN),
     h("div",{class:"campo"},h("label",{for:"eeT",text:"Mínimo por entrega (R$)"}),fT),
     h("div",{class:"campo"},h("label",{for:"eeG",text:"Grupo"}),fG),
+    h("div",{class:"campo"},h("label",{for:"eeF",text:"Fatura"}),fF),
     h("label",{class:"manter",style:"justify-content:flex-start"},fSA," Faz parte da central (não recebe adicionais)"),
     h("div",{class:"campo"},h("label",{for:"eeP",text:"Chave Pix (para pagamento)"}),fP),
     h("div",{class:"campo"},h("label",{for:"eeTel",text:"Telefone / WhatsApp"}),fTel),
@@ -7087,13 +7107,13 @@ function editarEntregador(e){
   }
   const fechar=abrirSheet(novo?"Cadastrar entregador":"Editar "+e.nome,corpo);
   ok.addEventListener("click",async()=>{
-    const nome=fN.value.trim(), taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(); msg.hidden=true;
+    const nome=fN.value.trim(), taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(), fechamento=fF.value==="mensal"?"mensal":"semanal"; msg.hidden=true;
     if(!nome){ msg.hidden=false; msg.textContent="Informe o nome."; return; }
     ok.disabled=true;
     try{
-      const d={nome,taxa,grupo,semAdicional,pix,telefone};
+      const d={nome,taxa,grupo,semAdicional,pix,telefone,fechamento};
       if(novo) await comRetry(()=>S.db.collection("equipe").add({...d,ativo:true,criadoEm:new Date().toISOString()}));
-      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional}); }
+      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional,fechamento}); }
       fechar(); toast(novo?"Entregador cadastrado":"Entregador atualizado");
     }catch(err){ ok.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(err&&err.code||"erro")+")."; }
   });
@@ -7198,7 +7218,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       const antes=S.modo;
       if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); S.euCategoria=v.categoria||"farmacia";
         if(!S.subEquipeCom) S.subEquipeCom=db.collection("equipe").onSnapshot(snap=>{ S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); assinarDia(); },()=>{}); }
-      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; }
+      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; S.euFechamento=v.fechamento==="mensal"?"mensal":"semanal"; }
       else if(v){ S.modo="desativado"; }
       else { S.modo="semacesso"; }
       if(antes!==S.modo){ aplicarModo(); assinarOfertas(); if(S.modo==="entregador"||S.modo==="comercio") exigirSenha(S.modo).then(()=>setTimeout(saudacaoDoDia,600)); } else renderQuem();
