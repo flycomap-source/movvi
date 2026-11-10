@@ -3427,11 +3427,12 @@ function comListaBairros(inp){
   const mostrar=()=>{ const q=normBairro(inp.value||"").trim(), todos=bairrosConhecidos();
     const l=(q?todos.filter(b=>normBairro(b).includes(q)):todos).slice(0,60);
     lista.replaceChildren(...(l.length?l.map(b=>{ const it=h("button",{type:"button",role:"option",style:"display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px 14px;font:inherit;font-size:15px;color:var(--ink);border-bottom:1px solid var(--line);cursor:pointer"},b);
-        it.addEventListener("pointerdown",e=>{ e.preventDefault(); inp.value=b; lista.hidden=true; inp.dispatchEvent(new Event("input")); inp.dispatchEvent(new Event("change")); });
+        it.addEventListener("pointerdown",e=>{ e.preventDefault(); escolhido=true; inp.value=b; lista.hidden=true; inp.dispatchEvent(new Event("input")); inp.dispatchEvent(new Event("change")); escolhido=false; try{ inp.blur(); }catch(_){} });
         return it; })
       :[h("div",{class:"muted",style:"padding:10px 14px;font-size:13px",text:todos.length?"Nenhum bairro com esse nome. Pode digitar um novo.":"Nenhum bairro cadastrado ainda. Digite o bairro."})]));
     lista.hidden=false; };
-  inp.addEventListener("focus",mostrar); inp.addEventListener("click",mostrar); inp.addEventListener("input",()=>{ if(document.activeElement===inp) mostrar(); });
+  let escolhido=false;   // tocou num bairro: confirma e fecha a lista (não reabre)
+  inp.addEventListener("focus",mostrar); inp.addEventListener("click",mostrar); inp.addEventListener("input",()=>{ if(!escolhido && document.activeElement===inp) mostrar(); });
   inp.addEventListener("blur",()=>setTimeout(()=>{ lista.hidden=true; },150));
   inp.addEventListener("keydown",e=>{ if(e.key==="Escape") lista.hidden=true; });
   return wrap;
