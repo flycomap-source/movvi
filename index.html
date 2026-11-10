@@ -731,7 +731,10 @@ function partesGanho(p){
 function linhasGanhoEnt(p,grande){
   const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
   const lin=(rot,v,cor)=>h("span",{class:"num",style:"font-size:"+(grande==="mini"?"12px":"13px")+";font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)"),text:rot+" "+fmt(v)});
-  return [lin("🔥 Taxa",g.base), g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--laranja-ink)"):null, g.adic>0?lin("➕ Adicional",g.adic,"var(--royal)"):null,
+  // só a taxa normal: aparece simples, sem destaque
+  if(!(g.bonus>0) && !(g.adic>0)) return [h("span",{class:"num",style:"font-size:"+(grande==="mini"?"13px":"14px")+";font-weight:700;white-space:nowrap;color:var(--ink)",text:"Taxa de entrega "+fmt(g.base)})];
+  // com adicional (🔥) e/ou bônus (🤩): destaque com o total em verde
+  return [lin("Taxa de entrega",g.base), g.adic>0?lin("🔥 Adicional",g.adic,"var(--laranja-ink)"):null, g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--ok)"):null,
     h("span",{class:"num",style:"font-size:"+(grande==="mini"?"15px":grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
 }
 /* põe a coluna de valores ao lado do "Coletar em" (o bloco cresce e a Entrega fica embaixo) */
@@ -742,7 +745,7 @@ function colunaAoLado(bloco,col){
   de.classList.add("com-st-ent"); de.append(esq,col); return bloco;
 }
 /* entrega disponível: valores num quadradinho compacto */
-function caixaGanho(linhas){ return h("div",{style:"display:flex;flex-direction:column;gap:2px;align-items:flex-end;border:1.5px solid var(--ok);background:var(--ok-bg);border-radius:12px;padding:6px 8px;font-size:12px"},...linhas); }
+function caixaGanho(linhas){ if(linhas.filter(Boolean).length<=1) return h("div",{style:"display:flex;justify-content:flex-end"},...linhas); return h("div",{style:"display:flex;flex-direction:column;gap:2px;align-items:flex-end;border:1.5px solid var(--ok);background:var(--ok-bg);border-radius:12px;padding:6px 8px;font-size:12px"},...linhas); }
 function colunaEnt(...itens){ return h("div",{style:"flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;text-align:right"},...itens); }
 /* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
 const dinNaFatura = p => p.dinheiroCom==="fatura" ? dinheiroDoPedido(p) : 0;
