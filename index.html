@@ -1691,7 +1691,7 @@ function assinarDia(forcar){
     // central em "Últimas 3 horas" logo depois da meia-noite: inclui as finalizadas de ontem dentro da janela
     if(S.periodo==="3h" && S.dia===hoje() && new Date(Date.now()-3*3600000).toDateString()!==new Date().toDateString()){
       S.subsDia.push(S.db.collection(col).where("data","==",somaDias(hoje(),-1)).onSnapshot(snap=>{
-        S.fontesDia[col+"#ontem3h"]=filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}))).filter(p=>p.status==="entregue"||p.status==="cancelado");
+        S.fontesDia[col+"#ontem3h"]=filtrarFonte(col,snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}))).filter(p=>p.status==="entregue"||p.status==="cancelado"||p.status==="excluido");
         S.pedidosDia=[].concat(...Object.values(S.fontesDia));
         renderPedidos();
       },err=>console.warn(col+" (ontem)",err)));
@@ -1767,7 +1767,7 @@ function renderPedidos(){
   if(central() && buscaTxt) ps=ps.filter(p=>p.data===S.dia);
   {
     if(central() && buscaTxt){}
-    else if(S.periodo==="3h"){ const lim=LIM_3H(); ps=ps.filter(p=>(p.status!=="entregue"&&p.status!=="cancelado") ? p.data===S.dia||!p.data||p.data<S.dia : String(p.entregueEm||p.canceladoEm||p.criadoEm||"")>=lim); }
+    else if(S.periodo==="3h"){ const lim=LIM_3H(); ps=ps.filter(p=>(p.status!=="entregue"&&p.status!=="cancelado"&&p.status!=="excluido") ? p.data===S.dia||!p.data||p.data<S.dia : String(p.entregueEm||p.canceladoEm||p.excluidoEm||p.criadoEm||"")>=lim); }
   }
   // central pesquisando um entregador: só a quantidade de entregas que ele fez no dia
   { const box=$("#resumoEntregador"); box.hidden=true; box.replaceChildren();
@@ -1788,7 +1788,10 @@ function renderPedidos(){
   // central, comércio e entregador: finalizadas do período escolhido em caixas separadas (o entregador não vê nas Últimas 3h)
   let finalizadas=[];
   if(central()||comercio()||S.modo==="entregador"){ finalizadas=ps.filter(p=>p.status==="entregue").sort((a,b)=>String(b.entregueEm||"").localeCompare(String(a.entregueEm||""))); }
-  ps=ps.filter(p=>p.status!=="entregue" && p.status!=="recusado" && p.status!=="cancelado");
+  const porHora=k=>(a,b)=>String(b[k]||b.criadoEm||"").localeCompare(String(a[k]||a.criadoEm||""));
+  const canceladas=central()?ps.filter(p=>p.status==="cancelado"||p.status==="recusado").sort(porHora("canceladoEm")):[];
+  const excluidas=central()?ps.filter(p=>p.status==="excluido").sort(porHora("excluidoEm")):[];
+  ps=ps.filter(p=>p.status!=="entregue" && p.status!=="recusado" && p.status!=="cancelado" && p.status!=="excluido");
   if(central() && S.filtro!=="todos") ps=ps.filter(p=>p.entregadorId===S.filtro);
   ps.sort((a,b)=> (a.status==="entregue")-(b.status==="entregue") || String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")) || String(a.rotaId||"").localeCompare(String(b.rotaId||"")) || (num(a.rotaOrdem)-num(b.rotaOrdem)));
   // entregador (e a central filtrando um entregador): na ordem em que cada entrega vai ser feita
@@ -1903,7 +1906,10 @@ function renderPedidos(){
   caixa("rota","Em rota",grupos.rota.length,"var(--royal)",corpo=>grupos.rota.forEach(p=>poe(corpo,p)));
   { const fimEnt=grupos.fim.filter(p=>!ehTransf(p)), fimTr=grupos.fim.filter(ehTransf);
     caixa("fim","Entregas finalizadas",fimEnt.length,"var(--ok)",corpo=>fimEnt.forEach(p=>poe(corpo,p)));
-    caixa("fimTransf","Transferências finalizadas",fimTr.length,"var(--royal)",corpo=>fimTr.forEach(p=>poe(corpo,p))); }
+    caixa("fimTransf","Transferências finalizadas",fimTr.length,"var(--royal)",corpo=>fimTr.forEach(p=>poe(corpo,p)));
+    // canceladas e excluídas ficam embaixo das finalizadas, no mesmo período (Últimas 3h, Hoje, Ontem, dia escolhido)
+    if(canceladas.length) caixa("cancel","Entregas canceladas",canceladas.length,"var(--bad)",corpo=>canceladas.forEach(p=>poe(corpo,p)));
+    if(excluidas.length) caixa("excl","Entregas excluídas",excluidas.length,"#5F6285",corpo=>excluidas.forEach(p=>poe(corpo,p))); }
 }
 /* Rotas existentes (abertas aguardando entregador ou já com entregador) */
 function rotasDisponiveis(){
@@ -2039,8 +2045,11 @@ async function trocarEntregador(lista, entId){
   }
 }
 /* Central: status do pedido */
+const pedidoMorto = p => ["cancelado","recusado","excluido"].includes(p&&p.status);
 function nomeStatus(p){
   if(p.status==="entregue") return "Entregue";
+  if(p.status==="excluido") return "Excluído";
+  if(p.status==="cancelado"||p.status==="recusado") return "Cancelado";
   if(p.emRotaEm) return "Em rota";
   if(p.aceitoEm) return "Indo coletar";
   return p._path&&p._path.startsWith("pedidos/") ? "Pendente" : "Aguardando aceite";
@@ -2081,6 +2090,18 @@ function desfazFinalizacao(x){
   if(x.pagamentoAnunciado){ u.pagamento=x.pagamentoAnunciado; u.valorDinheiro=x.pagamentoAnunciado==="dinheiro"?num(x.valorAnunciado):0; }
   return u;
 }
+/* nada é apagado de verdade: excluído/cancelado fica guardado com a situação e aparece na lista e no relatório */
+async function guardarAberto(p,st){
+  // pedido em "abertos" (ainda sem entregador) vai para pedidos/ com a situação, e sai dos abertos
+  const {id,_path,...resto}=p;
+  await comRetry(()=>S.db.doc("pedidos/"+p.id).set({...resto,data:p.data||hoje(),...st}));
+  await comRetry(()=>S.db.doc(p._path).delete());
+}
+async function excluirPedido(p){
+  const st={status:"excluido",excluidoEm:new Date().toISOString(),excluidoPor:S.uid||"",statusAntes:p.status||""};
+  if((p._path||"").startsWith("abertos/")){ await guardarAberto(p,st); await recolherOfertas(p.id).catch(()=>{}); return; }
+  await comRetry(()=>S.db.doc(p._path).update(comRegistro(p,"Pedido excluído",st)));
+}
 function abrirStatus(p){
   const agora=()=>new Date().toISOString();
   const atual=nomeStatus(p);
@@ -2093,7 +2114,7 @@ function abrirStatus(p){
     ["Indo coletar","Aceita, a caminho do comércio",{status:"pendente",aceitoEm:p.aceitoEm||agora(),emRotaEm:null,entregueEm:null},{status:"aceita"}],
     ["Em rota","Coletou e saiu para entregar",{status:"pendente",aceitoEm:p.aceitoEm||agora(),emRotaEm:p.emRotaEm||agora(),entregueEm:null},{status:"em_rota"}],
     ["Entregue","Finaliza com o pagamento anunciado",null],
-    ["Cancelar pedido","Some da tela e não entra nos relatórios",{status:"cancelado",canceladoEm:agora()}]
+    ["Cancelar pedido","Vai para Entregas canceladas e aparece no relatório",{status:"cancelado",canceladoEm:agora(),canceladoPor:S.uid||""}]
   ];
   const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
   // trocar o entregador
@@ -2209,6 +2230,7 @@ function dataHoraCard(p){ const iso=p.status==="entregue"?(p.entregueEm||p.criad
   const d=new Date(iso); return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}); }
 function statusCard(p){
   if(p.status==="entregue") return {t:"Finalizado",c:"var(--ok)"};
+  if(p.status==="excluido") return {t:"Excluído",c:"#5F6285"};
   if(p.status==="cancelado"||p.status==="recusado") return {t:p.status==="recusado"?"Recusado":"Cancelado",c:"var(--bad)"};
   if(comercio()) return {t:(STATUS_LOJA[p.status]||["Aguardando"])[0],c:(p.status==="aceita"||p.status==="a_caminho")?"var(--royal)":"var(--laranja)"};
   if(p.emRotaEm) return {t:"Em rota",c:"var(--royal)"};
@@ -2322,12 +2344,12 @@ function linhaPedido(p){
     p.pagamentoAlterado?"pag. alterado":"",
     p.obs?"📝 "+p.obs:"", (entregue&&p.obsFinalizacao)?"📝 "+p.obsFinalizacao:""].filter(Boolean).join(" · ");
   const acoes=h("span",{class:"c acoes-l"});
-  if(!entregue){
+  if(!entregue && !pedidoMorto(p)){
     const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
     if(emRota) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:e=>{ e.stopPropagation(); acrescentarPedidosNaRota(p); }},"+ Rota"));
     else if(!p.rotaId) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Adicionar a uma rota",onclick:e=>{ e.stopPropagation(); escolherRota(p); }},"+ Rota"));
   }
-  if(!p.acertado && !entregue) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
+  if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
   if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
   return h("div",{class:"linha-ped"+(entregue?" fim":"")},
     h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")),
@@ -2403,12 +2425,12 @@ function cartaoPedidoBase(p){
       acoes.append(h("button",{type:"button",style:"border:0;background:none;padding:0",onclick:()=>verFoto(p),"aria-label":"Ver foto da entrega"},img));
     }
     acoes.append(h("div",{style:"flex:1"}));
-    if(!entregue){
+    if(!entregue && !pedidoMorto(p)){
       const emRota = !!(p.entregadorId && (p.emRotaEm || p.rotaId));
       if(emRota) acoes.append(h("button",{class:"btn sec",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:()=>acrescentarPedidosNaRota(p)},"+ Rota"));
       else if(!p.rotaId) acoes.append(h("button",{class:"btn sec",type:"button",title:"Adicionar a uma rota",onclick:()=>escolherRota(p)},"+ Rota"));
     }
-    if(!p.acertado && !entregue) acoes.append(h("button",{class:"btn sec",type:"button",onclick:()=>abrirPedido(p),"aria-label":"Editar pedido"},"Editar"));
+    if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"btn sec",type:"button",onclick:()=>abrirPedido(p),"aria-label":"Editar pedido"},"Editar"));
     card.append(acoes);
     return card;
   }
@@ -2452,7 +2474,7 @@ function cartaoPedidoBase(p){
       }
     }
   }
-  if(!p.acertado && central() && !entregue) acoes.append(h("button",{class:"btn sec",type:"button",onclick:()=>abrirPedido(p),"aria-label":"Editar pedido"},"Editar"));
+  if(!p.acertado && central() && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"btn sec",type:"button",onclick:()=>abrirPedido(p),"aria-label":"Editar pedido"},"Editar"));
   card.append(acoes);
   return card;
 }
@@ -2478,8 +2500,11 @@ function cartaoSolicitacaoLoja(p){
   rec.addEventListener("click",async()=>{
     if(!armado){ armado=true; rec.textContent="Toque de novo"; setTimeout(()=>{armado=false;rec.textContent=rotRec;},3000); return; }
     try{
-      if(p._path.startsWith("abertos/")){ await comRetry(()=>S.db.doc(p._path).delete()); await recolherOfertas(p.id); toast("Pedido cancelado"); }
-      else { await comRetry(()=>S.db.doc(p._path).update({status:"recusado"})); await recolherOfertas(p.id); toast("Pedido recusado"); }
+      if(p._path.startsWith("abertos/")){ await guardarAberto(p,{status:"cancelado",canceladoEm:new Date().toISOString(),canceladoPor:S.uid||""}); await recolherOfertas(p.id); toast("Pedido cancelado · fica em Entregas canceladas"); }
+      else { await comRetry(()=>S.db.doc(p._path).update({status:"recusado"}));
+        // guarda uma cópia como cancelada, para aparecer em Entregas canceladas e no relatório
+        { const {id,_path,...resto}=p; await S.db.doc("pedidos/"+p.id).set({...resto,data:p.data||hoje(),status:"cancelado",canceladoEm:new Date().toISOString(),canceladoPor:S.uid||"",motivoCancel:"Recusado pela central"}).catch(()=>{}); }
+        await recolherOfertas(p.id); toast("Pedido recusado · fica em Entregas canceladas"); }
     }catch(e){ toast("Não foi possível concluir."); }
   });
   const hora=p.criadoEm?new Date(p.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"";
@@ -5011,12 +5036,12 @@ function abrirPedido(p,arquivoComanda,pre){
     h("div",{class:"nota"},h("label",{for:"pObs",class:"lbl",text:"Observações para o entregador"}),fObs),
     msg, salvar
   ];
-  if(!novo && !p.acertado && (central() || (comercio() && p.status==="solicitado"))){
-    const del=h("button",{class:"btn perigo full",type:"button"},comercio()?"Cancelar pedido":"Excluir pedido");
+  if(!novo && !p.acertado && central() && p.status!=="excluido"){
+    const del=h("button",{class:"btn perigo full",type:"button"},"Excluir pedido");
     let armado=false;
     del.addEventListener("click",async()=>{
       if(!armado){ armado=true; del.textContent="Toque de novo para excluir"; setTimeout(()=>{armado=false;del.textContent="Excluir pedido";},3000); return; }
-      try{ await comRetry(()=>S.db.doc(p._path).delete()); fechar(); toast(comercio()?"Pedido cancelado":"Pedido excluído"); }catch(e){ msg.hidden=false; msg.textContent="Não foi possível excluir ("+(e&&e.code||"erro")+")."; }
+      try{ await excluirPedido(p); fechar(); toast("Pedido excluído · fica em Entregas excluídas"); }catch(e){ msg.hidden=false; msg.textContent="Não foi possível excluir ("+(e&&e.code||"erro")+")."; }
     });
     corpo.push(del);
   }
@@ -6196,8 +6221,9 @@ function renderRelTipo(ps,ent,de,ate){
       kpi("Repasse para os entregadores"+(vTot?" ("+Math.round(vRep/vTot*100)+"%)":""),fmt(vRep))),
     kpi("Pedidos",String(l.length)),
     kpi("Entregues",conta(p=>p.status==="entregue")),
-    kpi("Em andamento",conta(p=>!["entregue","recusado","cancelado"].includes(p.status))),
+    kpi("Em andamento",conta(p=>!["entregue","recusado","cancelado","excluido"].includes(p.status))),
     kpi("Cancelados",conta(p=>p.status==="recusado"||p.status==="cancelado")),
+    kpi("Excluídos",conta(p=>p.status==="excluido")),
     kpiDinheiro("Dinheiro a devolver às lojas",ent),
     kpi("Com troco",conta(p=>trocoDe(p)>0||num(p.trocoPara)>0)),
     kpi("Cartão",conta(p=>p.pagamento==="cartao")),
