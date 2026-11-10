@@ -2275,7 +2275,9 @@ function cartaoPedidoBase(p){
   const stCol=h("div",{class:"ped-st"},
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
     h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
-    ...(S.modo==="entregador" ? linhasGanhoEnt(p) : [taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null]));
+    // entregador (depois de aceitar): só a taxa total dele, em verde
+    S.modo==="entregador" ? h("span",{class:"num",style:"font-size:15px;font-weight:900;color:var(--ok)",text:"Taxa "+fmt(ganhoPedido(p))})
+      : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
       ? h("button",{type:"button",class:"ped-ent"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},
@@ -2299,10 +2301,7 @@ function cartaoPedidoBase(p){
     rodapePag(p)
   );
   { const de=card.querySelector(".coleta .de");
-    if(de && S.modo==="entregador"){   // entregador: valores ao lado, e o bloco cresce para a Entrega ficar embaixo
-      const esq=h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},...[...de.childNodes]);
-      de.classList.add("com-st-ent"); de.append(esq,stCol); }
-    else if(de){ de.classList.add("com-st"); de.prepend(stCol); }
+    if(de){ de.classList.add("com-st"); de.prepend(stCol); }
     else card.prepend(h("div",{style:"display:flex;justify-content:flex-end"},stCol)); }
   const acoes=h("div",{class:"acoes"});
   if(comercio()){
