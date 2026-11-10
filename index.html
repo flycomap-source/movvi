@@ -3140,6 +3140,15 @@ function bairroComAdicional(...textos){
     if(n.trim() && n.length>tam && casa){ melhor=b; tam=n.length; } });
   return melhor;
 }
+/* Bairro (obrigatório em toda entrega, menos transferência): lista com os bairros já usados + os da tabela de adicional */
+function bairrosConhecidos(){
+  const set=new Map(); const add=b=>{ b=String(b||"").trim(); if(b && !set.has(normBairro(b))) set.set(normBairro(b),b); };
+  (S.bairrosAdic||[]).forEach(b=>add(b.nome)); (S.bairrosTaxa||[]).forEach(b=>add(b.nome));
+  (S.pedidosDia||[]).forEach(p=>add(p.bairro)); (S.clientes||[]).forEach(c=>add(c.bairro));
+  return [...set.values()].sort((a,b)=>a.localeCompare(b));
+}
+function bairroNoEndereco(end){ const alvo=normBairro(end||""); let melhor="",tam=0; bairrosConhecidos().forEach(b=>{ const n=normBairro(b); if(n.trim() && alvo.includes(n) && n.length>tam){ melhor=b; tam=n.length; } }); return melhor; }
+function datalistBairros(){ let dl=document.getElementById("dlBairros"); if(!dl){ dl=h("datalist",{id:"dlBairros"}); document.body.append(dl); } dl.replaceChildren(...bairrosConhecidos().map(b=>h("option",{value:b}))); return dl; }
 function calcularAdicionaisRota(conf){
   conf=conf.map(x=>({...x,k:normBairro(x.b.nome)}));
   const presentes=new Map(); conf.forEach(x=>{ if(!presentes.has(x.k)) presentes.set(x.k,x); });
@@ -3983,7 +3992,7 @@ function abrirEscanearOpcoes(){
 }
 /* Rascunho da rota por fotos: cada comanda lida fica salva (no aparelho e na conta),
    para não perder o que já foi lido se o celular fechar o app por falta de memória. */
-const RASC_CAMPOS=["servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
+const RASC_CAMPOS=["bairro","servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
 let tRasc=null;
 function rascunhoRotaSalvar(paradas){
   clearTimeout(tRasc);
@@ -4098,7 +4107,9 @@ function montarRotaPorFotos(restaurar){
       const posChips=(!st.lendo && paradas.length>1)?chipsPosicao(1,paradas.length,i+1,null,k=>{ const [x]=paradas.splice(i,1); paradas.splice(k-1,0,x); ordenada=true; infoOrdem.hidden=true; desenhar(); }):null;
       if(st.lendo) return h("div",{class:"parada"},cab,h("span",{class:"muted",style:"font-size:13px",text:"Lendo o papel…"}));
       const inp=(k,ph,extra)=>{ const e=h("input",{class:"inp",placeholder:ph,value:st[k]||"",...(extra||{})}); e.addEventListener("input",()=>{ st[k]=e.value; rascunhoRotaSalvar(paradas); if(k==="tel"||k==="end"){ st.cliente=null; if(k==="end") st.loc=""; } }); return e; };
-      const fTel=inp("tel","Telefone do cliente (obrigatório)",{type:"tel",inputmode:"tel"}), fEnd=inp("end","Endereço (obrigatório)"), fNome=inp("nome","Nome (opcional)");
+      const fTel=inp("tel","Telefone do cliente (opcional)",{type:"tel",inputmode:"tel"}), fEnd=inp("end","Endereço"), fNome=inp("nome","Nome do cliente");
+      if(st.bairro==null) st.bairro=st.bairroLido||bairroNoEndereco(st.end)||"";
+      datalistBairros(); const fBai=inp("bairro","Bairro (obrigatório)",{list:"dlBairros",autocomplete:"off"}); fBai.hidden=st.servico==="transferencia";
       fEnd.addEventListener("change",()=>{ if(st.adicOk===null||!st.adicB) desenhar(); });
       const sel=h("select",{class:"inp","aria-label":"Pagamento"},...Object.keys(PAG).map(k=>h("option",{value:k,text:PAG[k]})));
       sel.value=st.pag;
@@ -4141,7 +4152,7 @@ function montarRotaPorFotos(restaurar){
       return h("div",{class:"parada"},cab,posChips,
         st.erro?h("div",{class:"aviso",text:st.erro}):null, blocoConf, blocoSemBase, blocoNovo, blocoAd,
         st.cliente?h("div",{style:"font-size:13px;font-weight:700;color:var(--ok)",text:"Cliente da base"+(st.loc?" · com localização":"")}):null,
-        cruz, fNome, fEnd, fTel, h("div",{class:"linha"},sel,fVal), fTr,
+        cruz, fNome, fEnd, fBai, fTel, h("div",{class:"linha"},sel,fVal), fTr,
         (()=>{ const c=h("input",{type:"checkbox",checked:st.servico==="transferencia"}); c.addEventListener("change",()=>{ st.servico=c.checked?"transferencia":"entrega"; lbl.style.color=c.checked?"var(--royal)":""; });
           const lbl=h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700;"+(st.servico==="transferencia"?"color:var(--royal)":"")},c,"🔁 Transferência / busca de receita / cobrança"); return lbl; })(),
         (()=>{ const c=h("input",{type:"checkbox",checked:!!st.receita}); c.addEventListener("change",()=>{ st.receita=c.checked; lbl.style.color=c.checked?"var(--bad)":""; });
@@ -4185,6 +4196,7 @@ function montarRotaPorFotos(restaurar){
       if(x.conflito){ msg.hidden=false; msg.textContent="Parada "+(i+1)+": escolha qual é o endereço da entrega (cadastro ou comanda)."; return; }
       if(String(x.tel||"").trim() && !telValido(x.tel)){ msg.hidden=false; msg.textContent="Parada "+(i+1)+": o telefone está incompleto. Corrija ou deixe em branco."; return; }
       x.tel=telComDDD(x.tel);
+      if(x.servico!=="transferencia" && !String(x.bairro||"").trim()){ msg.hidden=false; msg.textContent="Parada "+(i+1)+": informe o bairro."; return; }
       if(!String(x.end||"").trim() && !String(x.nome||"").trim()){ msg.hidden=false; msg.textContent="Parada "+(i+1)+": informe o nome do cliente ou o endereço."; return; }
       if(x.pag==="dinheiro" && !num(x.valor)){ msg.hidden=false; msg.textContent="Parada "+(i+1)+": informe o valor a receber em dinheiro."; return; }
     }
@@ -4204,7 +4216,7 @@ function montarRotaPorFotos(restaurar){
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
-          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:TAXA_PADRAO,
+          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:TAXA_PADRAO, bairro:String(x.bairro||"").trim(),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
           // lançada pelo entregador no ponto de coleta: fica "aceita, falta coletar"; só sai em rota quando ele tocar em Coletei
@@ -4444,6 +4456,10 @@ function abrirPedido(p,arquivoComanda,pre){
   fEmp.addEventListener("change",()=>atuCodCom());
   fCli.addEventListener("input",()=>{ campoCodCom.hidden=true; });
   const fEnd=h("input",{class:"inp",id:"pEnd",placeholder:"Rua, número, bairro",value:p.endereco||""});
+  datalistBairros();
+  const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||bairroNoEndereco(p.endereco)||""});
+  fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b) fBairro.value=b; } });
+  const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),fBairro);
   // endereço pode mudar só neste pedido; opcionalmente atualiza o cadastro do cliente
   const cadEnd=h("input",{type:"checkbox",id:"pAtuEnd",checked:true});
   const avisoEnd=h("div",{class:"muted",style:"font-size:13px;display:flex;flex-direction:column;gap:4px",hidden:true},
@@ -4486,6 +4502,7 @@ function abrirPedido(p,arquivoComanda,pre){
   const campoCartao=h("div",{class:"campo"},h("label",{for:"pCartao",text:"Cobrar no cartão (R$)"}),fCartao);
   function atualiza(){
     campoDin.hidden = pag!=="dinheiro"; campoNota.hidden = pag!=="convenio"; campoCartao.hidden = pag!=="cartao";
+    try{ campoBairro.hidden = servico==="transferencia"; }catch(e){}
     // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
     try{ const fixa=servicoTaxaFixa(servico,pag);
       if(fixa && !fTaxa.disabled){ fTaxa._antes=fTaxa.value; fTaxa.value=fmtInput(TAXA_FIXA_CENTRAL); fTaxa.disabled=true; fTaxa.title="Convênio, transferência e busca de receita: taxa fixa de "+fmt(TAXA_FIXA_CENTRAL)+" para a central"; }
@@ -4551,6 +4568,7 @@ function abrirPedido(p,arquivoComanda,pre){
     const emprestado = trocado || !!(telEnd && telCad && digTel(telEnd)!==digTel(telCad)); emprestadoAtual=!trocado && emprestado;
     semCadastro=false; endPendente=false; clienteNovo=false; cadastradoTxt="";
     bairroLido=String(r.bairro||""); adicOk=null; adicEscolhido=null;
+    if(!fBairro.value.trim()) fBairro.value = bairroLido || bairroNoEndereco(r.endereco) || "";
     produtosLidos=Array.isArray(r.produtosControlados)?r.produtosControlados.map(x=>String(x).trim()).filter(Boolean):[];
     if(r.pegarReceita===true||r.pegarReceita==="true"||produtosLidos.length){ receita=true; atuRec(); }
     // cadastro emprestado / outro endereço: o nome do cabeçalho é de outra pessoa; nome de quem recebe não vira cliente
@@ -4779,6 +4797,7 @@ function abrirPedido(p,arquivoComanda,pre){
 
       h("div",{class:"campo"},lblEnd,
         h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fEnd),maisEnd),avisoEnd),
+      campoBairro,
       h("div",{class:"campo"},lblTel,fTel)),
     central()?h("div",{class:"campo"},h("label",{for:"pEnt",text:novo?"Entregador (opcional)":"Entregador"}),fEnt):null,
     novo&&central()&&fRota.options.length>1?h("div",{class:"campo"},h("label",{for:"pRota",text:"Adicionar a uma rota (opcional)"}),fRota):null,
@@ -4811,6 +4830,7 @@ function abrirPedido(p,arquivoComanda,pre){
     // telefone é opcional (a comanda pode não ter); se digitar, precisa estar completo (o DDD é opcional)
     if(fTel.value.trim() && !telValido(fTel.value)){ msg.hidden=false; msg.textContent="O telefone está incompleto. Corrija ou deixe em branco."; return; }
     fTel.value=telComDDD(fTel.value);
+    if(servico!=="transferencia" && !fBairro.value.trim()){ msg.hidden=false; msg.textContent="Informe o bairro da entrega."; try{ fBairro.focus(); }catch(e){} return; }
     // endereço é opcional quando tem o nome do cliente
     if(!fEnd.value.trim() && !fCli.value.trim()){ msg.hidden=false; msg.textContent="Informe o nome do cliente ou o endereço de entrega."; return; }
     if(comercio() && !servicoTaxaFixa(servico,pag) && num(fTaxa.value)<TAXA_MIN_COMERCIO) fTaxa.value=fmtInput(Math.max(num(S.euTaxa),TAXA_MIN_COMERCIO));
@@ -4822,6 +4842,7 @@ function abrirPedido(p,arquivoComanda,pre){
       numero:novo?"":(p.numero||""), data:fData.value||S.dia,
       coletaEmpresa:comercio()?S.euNome:fEmp.value.trim(), coletaEndereco:comercio()?S.euEndereco:fColEnd.value.trim(),
       cliente:fCli.value.trim(), clienteCodigo:fCli.dataset.cliente||p.clienteCodigo||"", pedidoComercio:fPedCom.value.trim(),
+      bairro: servico==="transferencia" ? (p.bairro||"") : fBairro.value.trim(),
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
       entregadorId:entId, pagamento:pag, tipoServico:servico, ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
       ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:TAXA_FIXA_CENTRAL}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
