@@ -318,6 +318,8 @@ body.tela-larga #v-entregas .grupo-corpo:has(> .linha-ped){gap:0;border:1px soli
 .fab{width:58px;height:58px;padding:0;border-radius:50%;justify-content:center}
 .fab svg{width:26px;height:26px}
 #fabTxt{display:none}
+.fab.fab-chamar{width:auto;padding:0 20px;gap:8px;border-radius:999px}
+.fab.fab-chamar #fabTxt{display:inline;font-weight:900;font-size:16px;white-space:nowrap}
 .fab-rota{right:calc(16px + 58px + 12px + env(safe-area-inset-right,0px));background:var(--royal);color:#fff}
 .parada{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--card)}
 .parada-cab{display:flex;align-items:center;gap:8px}
@@ -1005,7 +1007,9 @@ function aplicarModo(){
   $("#acHistTit").hidden=!central(); $("#acHistorico").hidden=!central();
   $("#acTit").textContent = central() ? "Faturas" : "Minha fatura e dinheiro";
   $("#relTit").textContent = central() ? "Relatório do período" : "Minhas entregas no período";
-  $("#fabTxt").textContent = comercio() ? "Pedir entrega" : "Pedido";
+  $("#fabTxt").textContent = comercio() ? (S.euCategoria==="delivery"?"Chamar entregador":"Pedir entrega") : "Pedido";
+  $("#fab").classList.toggle("fab-chamar", comercio() && S.euCategoria==="delivery");
+  $("#fab").setAttribute("aria-label", comercio() && S.euCategoria==="delivery" ? "Chamar entregador" : "Novo pedido");
   $("#rDinLbl").textContent = "Em dinheiro";
   renderQuem(); renderAcesso();
   irPara(comAbas ? (viewAtual==="acesso"?"entregas":viewAtual) : "acesso");
@@ -4543,6 +4547,7 @@ $("#fab").addEventListener("click",()=>abrirMenuMais());
 /* "+": escanear (lança a entrega direto), criar rota (vai direto para escanear as comandas) ou lançar sem foto */
 function abrirMenuMais(){
   garantirClientes();
+  if(comercio() && S.euCategoria==="delivery"){ abrirChamarEntregador(); return; }
   const item=(icone,titulo,desc,acao,principal)=>{ const b=h("button",{class:principal?"btn full":"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
       h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),desc?h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc}):null));
@@ -4554,6 +4559,48 @@ function abrirMenuMais(){
     podeRota?item("🗺","Criar rota","Fotografa as comandas e monta a ordem das entregas",()=>{ if(central()) abrirRota({escanear:true}); else abrirRotaPorFotos(); },!S.sample):null,
     item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null)),
     item("🔁","Transferência / busca de receita","Levar mercadoria entre lojas ou buscar receita",()=>abrirPedido(null,null,{tipoServico:"transferencia",pagamento:"pix"}))]);
+}
+/* comércio de delivery (lanche, marmita…): "Chamar entregador" = foto da comanda ou só endereço e bairro */
+function abrirChamarEntregador(){
+  const item=(icone,titulo,desc,acao,principal)=>{ const b=h("button",{class:principal?"btn full":"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:16px"},
+      h("span",{style:"font-size:26px;width:32px;text-align:center;flex:none",text:icone}),
+      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{style:"font-size:17px",text:titulo}),h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc})));
+    b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
+  const fechar=abrirSheet("Chamar entregador",[
+    S.sample?item("📷","Tirar foto da comanda","O app lê a comanda e registra o pedido",()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),true):null,
+    item("📍","Digitar endereço e bairro","Só o endereço de entrega e o bairro",()=>abrirEntregaRapida(),!S.sample)]);
+}
+function abrirEntregaRapida(){
+  const fEnd=h("input",{class:"inp",id:"erEnd",placeholder:"Rua, número, complemento",autocomplete:"off"});
+  const fBai=h("input",{class:"inp",id:"erBai",placeholder:"Bairro"});
+  const txTaxa=h("b",{class:"num",style:"color:var(--royal);font-size:18px"});
+  const atu=()=>{ const b=fBai.value.trim(); txTaxa.textContent=b?"Taxa: "+fmt(taxaBairroDelivery(b)):""; };
+  fBai.addEventListener("input",atu); fBai.addEventListener("change",atu);
+  fEnd.addEventListener("change",()=>{ if(!fBai.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBai.value=b; atu(); } } });
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"🛵 Chamar entregador");
+  ok.addEventListener("click",async()=>{
+    const endereco=fEnd.value.trim(), bairro=fBai.value.trim(); msg.hidden=true;
+    if(!endereco){ msg.hidden=false; msg.textContent="Informe o endereço de entrega."; fEnd.focus(); return; }
+    if(!bairro){ msg.hidden=false; msg.textContent="Informe o bairro."; fBai.focus(); return; }
+    ok.disabled=true; ok.textContent="Chamando…";
+    try{
+      const numero=String(await proximoNumero(1)).padStart(6,"0"), agora=new Date().toISOString();
+      registrarBairroNovo(bairro);
+      const d={numero,data:hoje(),coletaEmpresa:S.euNome,coletaEndereco:S.euEndereco||"",cliente:"",telefone:"",endereco,bairro,
+        pagamento:"pix",valorDinheiro:0,valorNota:0,valorCartao:0,trocoPara:0,pegarReceita:false,produtosReceita:[],obs:"",
+        tipoServico:"entrega",taxaCobrada:taxaBairroDelivery(bairro),taxaBairro:true,adicionais:0,
+        status:"solicitado",acertado:false,criadoEm:agora,criadoPor:S.uid||"",
+        registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Chamou entregador (só endereço)",em:agora}]};
+      await comRetry(()=>S.db.collection(colDe("")).add(d));
+      fechar(); toast("Entregador chamado · pedido #"+numero);
+    }catch(e){ ok.disabled=false; ok.textContent="🛵 Chamar entregador"; msg.hidden=false; msg.textContent="Não foi possível chamar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Chamar entregador",[
+    h("div",{class:"campo"},h("label",{for:"erEnd",text:"Endereço de entrega"}),fEnd),
+    h("div",{class:"campo"},h("label",{for:"erBai",text:"Bairro"}),comListaBairros(fBai)),
+    txTaxa,msg,ok]);
+  setTimeout(()=>{ try{ fEnd.focus(); }catch(e){} },150);
 }
 $("#fabRota").addEventListener("click",()=>abrirRota());
 $("#fabCli").addEventListener("click",()=>{
@@ -4762,7 +4809,7 @@ function abrirPedido(p,arquivoComanda,pre){
       h("span",{class:"muted",text:"Entregador"}),vBase,h("span",{class:"muted",text:"+ bônus"}),fBonus,h("span",{text:"%"}),h("span",{class:"muted",text:"= total"}),vTot));
   setTimeout(atuBonus,0);
   // comércio de delivery: na frente do bairro aparece a taxa cheia que o comércio paga (tabela de bairros)
-  const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px",hidden:comercio()});
+  const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px"});   // taxa que o comércio paga por esse bairro
   const atuTaxaBairro=()=>{ const emp=comercio()?S.euNome:fEmp.value; const mostra=(comercio()||central()) && ehDelivery(emp);
     taxaBairroTxt.hidden=!mostra; if(!mostra) return;
     const t=taxaPorBairro(fBairro.value);
