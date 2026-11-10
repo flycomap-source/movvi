@@ -51,7 +51,10 @@ Deno.serve(async (req) => {
       if (doc.updated_by === p[1]) return resp({ ok: true, ignorado: "lancada_por_ele" });
       if (d.status && d.status !== "pendente") return resp({ ok: true, ignorado: "status" });
       destinos = [p[1]]; titulo = "📦 Nova entrega para você";
-    } else if (p[0] === "abertos" || (p[0] === "lojas" && p[2] === "pedidos")) {
+    } else if (p[0] === "abertos") {
+      // pedido que a própria central lançou para os entregadores: não toca na central (só pedido de comércio toca)
+      return resp({ ok: true, ignorado: "lancado_pela_central" });
+    } else if (p[0] === "lojas" && p[2] === "pedidos") {
       if (d.status && d.status !== "solicitado") return resp({ ok: true, ignorado: "status" });
       const c = await rest("perfis?select=id&papel=eq.central");
       destinos = ((await c.json()) ?? []).map((x: { id: string }) => x.id);
