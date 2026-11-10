@@ -2944,37 +2944,41 @@ function reassinarExtras(){ clearTimeout(tReassinar); tReassinar=setTimeout(()=>
 /* Alerta dentro do app: som + aviso (o som só toca depois do primeiro toque na tela) */
 let audioCtx=null;
 document.addEventListener("pointerdown",()=>{ try{ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){} },{passive:true});
-/* Som de caixa registradora ("tchá-tching" + moedas), alto e repetido duas vezes */
+/* Som de caixa registradora bem estridente e alto: gaveta batendo + sino agudo "tchá-TCHING" + moedas.
+   Passa por uma leve saturação e um compressor para soar o mais alto possível sem estourar. */
 function chaChing(t0){
   const ctx=audioCtx;
-  const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-10; comp.knee.value=6; comp.ratio.value=8;
-  const master=ctx.createGain(); master.gain.value=0.9;
-  master.connect(comp); comp.connect(ctx.destination);
-  // gaveta abrindo: estalo curto de ruído
-  const len=Math.floor(ctx.sampleRate*0.09), buf=ctx.createBuffer(1,len,ctx.sampleRate), d=buf.getChannelData(0);
-  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,3);
+  const comp=ctx.createDynamicsCompressor(); comp.threshold.value=-18; comp.knee.value=2; comp.ratio.value=14; comp.attack.value=0.001; comp.release.value=0.12;
+  const sat=ctx.createWaveShaper(); { const n=2048, c=new Float32Array(n); for(let i=0;i<n;i++){ const x=i/(n-1)*2-1; c[i]=Math.tanh(2.6*x); } sat.curve=c; }
+  const master=ctx.createGain(); master.gain.value=1.0;
+  const fim=ctx.createGain(); fim.gain.value=1.8;   // volume final quase no máximo
+  master.connect(sat); sat.connect(comp); comp.connect(fim); fim.connect(ctx.destination);
+  // gaveta abrindo: estalo seco e forte
+  const len=Math.floor(ctx.sampleRate*0.11), buf=ctx.createBuffer(1,len,ctx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);
   const ru=ctx.createBufferSource(); ru.buffer=buf;
-  const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1800; bp.Q.value=0.8;
-  const gr=ctx.createGain(); gr.gain.value=1.2;
+  const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=2400; bp.Q.value=0.9;
+  const gr=ctx.createGain(); gr.gain.value=2.2;
   ru.connect(bp); bp.connect(gr); gr.connect(master); ru.start(t0);
-  // sino metálico: duas batidas ("tchá" e "tching")
+  // sino metálico agudo: parciais desafinadas + onda quadrada para ficar estridente
   const sino=(t,base,vol,dur)=>{
-    [1,1.5,2.0,2.76,3.4].forEach((m,k)=>{
+    [[1,"square"],[1.003,"triangle"],[2.0,"sine"],[2.76,"sine"],[3.42,"sine"],[5.4,"sine"]].forEach(([m,tipo],k)=>{
       const o=ctx.createOscillator(), g=ctx.createGain();
-      o.type=k?"sine":"triangle"; o.frequency.value=base*m;
-      const v=vol/(k+1);
-      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+dur/(1+k*0.35));
+      o.type=tipo; o.frequency.value=base*m;
+      const v=vol/(1+k*0.6)*(tipo==="square"?0.55:1);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v,t+0.003); g.gain.exponentialRampToValueAtTime(0.0001,t+dur/(1+k*0.3));
       o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.05);
     });
   };
-  sino(t0+0.06,1568,0.55,0.35);
-  sino(t0+0.20,2093,0.75,1.1);
-  // moedas caindo
-  for(let n=0;n<7;n++){
-    const t=t0+0.28+n*0.055+Math.random()*0.03, o=ctx.createOscillator(), g=ctx.createGain();
-    o.type="sine"; o.frequency.value=3800+Math.random()*2600;
-    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.28,t+0.003); g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.12);
+  sino(t0+0.05,2093,0.9,0.30);   // "tchá"
+  sino(t0+0.17,2637,1.0,1.25);   // "TCHING" (mais agudo e longo)
+  sino(t0+0.19,3136,0.55,0.9);
+  // moedas caindo na gaveta
+  for(let n=0;n<10;n++){
+    const t=t0+0.26+n*0.045+Math.random()*0.025, o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=n%2?"triangle":"sine"; o.frequency.value=4200+Math.random()*3000;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.002); g.gain.exponentialRampToValueAtTime(0.0001,t+0.08);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+0.11);
   }
 }
 /* toque da Movvi+: assobio + plim plim com moedas (arquivo pequeno dentro do app, não gasta internet) */
@@ -2988,8 +2992,8 @@ function carregarToque(){
 function bip(){
   if(!audioCtx) return;
   try{ if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){}
-  // som de caixa registradora ("tchá-tching" + moedas), duas vezes
-  try{ const t=audioCtx.currentTime+0.02; chaChing(t); chaChing(t+1.3); }catch(e){}
+  // caixa registradora estridente, três vezes seguidas
+  try{ const t=audioCtx.currentTime+0.02; chaChing(t); chaChing(t+1.15); chaChing(t+2.3); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate([200,80,200,80,300]); }catch(e){}
 }
 function testarSom(){ try{ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){} bip(); }
