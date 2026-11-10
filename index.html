@@ -438,6 +438,7 @@ body .solic-loja .loja{color:var(--ink)}
     </div>
     <div id="resumoEntregador" hidden></div>
     <button class="aviso" id="avisoFatura" type="button" hidden style="border:0;text-align:left;font:inherit;font-weight:700;cursor:pointer;width:100%"></button>
+    <button class="aviso" id="avisoDinCom" type="button" hidden style="border:2px solid var(--bad);background:#FDE3E1;color:var(--bad);text-align:left;font:inherit;font-weight:800;cursor:pointer;width:100%"></button>
     <div class="resumo">
       <div class="res"><b class="num" id="rTotal">0</b><span>Pedidos</span></div>
       <div class="res"><b class="num" id="rEntregues">0</b><span>Entregues</span></div>
@@ -2259,7 +2260,7 @@ function dinPendCentral(p){
   if(p.status!=="entregue" || p.pagamento!=="dinheiro" || !(dinheiroDoPedido(p)>0) || dinheiroFicaNaLoja(p) || ehTransf(p)) return null;
   // só fica verde quando o dinheiro chegou no comércio (devolvido em espécie ou Pix enviado);
   // com o entregador ou com a central continua vermelho: ainda tem que chegar ao comércio
-  if(p.dinheiroDevolvido || p.acertado || p.pixComercioEnviadoEm || p.dinheiroAbatidoFatura) return false;
+  if(p.dinheiroDevolvido || p.acertado || p.pixComercioEnviadoEm || p.dinheiroAbatidoFatura || p.comercioConfirmouEm) return false;
   return true;
 }
 function botaoDinCentral(p,mini){
@@ -3374,6 +3375,23 @@ function bairrosConhecidos(){
   return [...set.values()].sort((a,b)=>a.localeCompare(b));
 }
 function bairroNoEndereco(end){ const alvo=normBairro(end||""); let melhor="",tam=0; bairrosConhecidos().forEach(b=>{ const n=normBairro(b); if(n.trim() && alvo.includes(n) && n.length>tam){ melhor=b; tam=n.length; } }); return melhor; }
+/* campo de bairro com lista para escolher: ao tocar mostra os bairros cadastrados; digitando, filtra */
+function comListaBairros(inp){
+  inp.removeAttribute("list"); inp.setAttribute("autocomplete","off");
+  const lista=h("div",{role:"listbox",style:"position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:50;background:var(--card,#fff);border:1.5px solid var(--royal);border-radius:12px;max-height:240px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.18)",hidden:true});
+  const wrap=h("div",{style:"position:relative"},inp,lista);
+  const mostrar=()=>{ const q=normBairro(inp.value||"").trim(), todos=bairrosConhecidos();
+    const l=(q?todos.filter(b=>normBairro(b).includes(q)):todos).slice(0,60);
+    lista.replaceChildren(...(l.length?l.map(b=>{ const it=h("button",{type:"button",role:"option",style:"display:block;width:100%;text-align:left;border:0;background:transparent;padding:11px 14px;font:inherit;font-size:15px;color:var(--ink);border-bottom:1px solid var(--line);cursor:pointer"},b);
+        it.addEventListener("pointerdown",e=>{ e.preventDefault(); inp.value=b; lista.hidden=true; inp.dispatchEvent(new Event("input")); inp.dispatchEvent(new Event("change")); });
+        return it; })
+      :[h("div",{class:"muted",style:"padding:10px 14px;font-size:13px",text:todos.length?"Nenhum bairro com esse nome. Pode digitar um novo.":"Nenhum bairro cadastrado ainda. Digite o bairro."})]));
+    lista.hidden=false; };
+  inp.addEventListener("focus",mostrar); inp.addEventListener("click",mostrar); inp.addEventListener("input",()=>{ if(document.activeElement===inp) mostrar(); });
+  inp.addEventListener("blur",()=>setTimeout(()=>{ lista.hidden=true; },150));
+  inp.addEventListener("keydown",e=>{ if(e.key==="Escape") lista.hidden=true; });
+  return wrap;
+}
 function datalistBairros(){ let dl=document.getElementById("dlBairros"); if(!dl){ dl=h("datalist",{id:"dlBairros"}); document.body.append(dl); } dl.replaceChildren(...bairrosConhecidos().map(b=>h("option",{value:b}))); return dl; }
 function calcularAdicionaisRota(conf){
   conf=conf.map(x=>({...x,k:normBairro(x.b.nome)}));
@@ -4335,7 +4353,7 @@ function montarRotaPorFotos(restaurar){
       const inp=(k,ph,extra)=>{ const e=h("input",{class:"inp",placeholder:ph,value:st[k]||"",...(extra||{})}); e.addEventListener("input",()=>{ st[k]=e.value; rascunhoRotaSalvar(paradas); if(k==="tel"||k==="end"){ st.cliente=null; if(k==="end") st.loc=""; } }); return e; };
       const fTel=inp("tel","Telefone do cliente (opcional)",{type:"tel",inputmode:"tel"}), fEnd=inp("end","Endereço"), fNome=inp("nome","Nome do cliente");
       if(st.bairro==null) st.bairro=st.bairroLido||bairroNoEndereco(st.end)||"";
-      datalistBairros(); const fBai=inp("bairro","Bairro (obrigatório)",{list:"dlBairros",autocomplete:"off"}); fBai.hidden=st.servico==="transferencia";
+      datalistBairros(); const fBai=inp("bairro","Bairro (obrigatório)",{autocomplete:"off"}); const fBaiW=comListaBairros(fBai); fBaiW.hidden=st.servico==="transferencia";
       fEnd.addEventListener("change",()=>{ if(st.adicOk===null||!st.adicB) desenhar(); });
       const sel=h("select",{class:"inp","aria-label":"Pagamento"},...Object.keys(PAG).map(k=>h("option",{value:k,text:PAG[k]})));
       sel.value=st.pag;
@@ -4378,7 +4396,7 @@ function montarRotaPorFotos(restaurar){
       return h("div",{class:"parada"},cab,posChips,
         st.erro?h("div",{class:"aviso",text:st.erro}):null, blocoConf, blocoSemBase, blocoNovo, blocoAd,
         st.cliente?h("div",{style:"font-size:13px;font-weight:700;color:var(--ok)",text:"Cliente da base"+(st.loc?" · com localização":"")}):null,
-        cruz, fNome, fEnd, fBai, fTel, h("div",{class:"linha"},sel,fVal), fTr,
+        cruz, fNome, fEnd, fBaiW, fTel, h("div",{class:"linha"},sel,fVal), fTr,
         (()=>{ const c=h("input",{type:"checkbox",checked:st.servico==="transferencia"}); c.addEventListener("change",()=>{ st.servico=c.checked?"transferencia":"entrega"; lbl.style.color=c.checked?"var(--royal)":""; });
           const lbl=h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700;"+(st.servico==="transferencia"?"color:var(--royal)":"")},c,"🔁 Transferência / busca de receita / cobrança"); return lbl; })(),
         (()=>{ const c=h("input",{type:"checkbox",checked:!!st.receita}); c.addEventListener("change",()=>{ st.receita=c.checked; lbl.style.color=c.checked?"var(--bad)":""; });
@@ -4706,7 +4724,7 @@ function abrirPedido(p,arquivoComanda,pre){
     taxaBairroTxt.textContent = fBairro.value.trim() ? "Taxa: "+fmt(t!=null?t:TAXA_BAIRRO_NOVO) : "Escolha o bairro"; };
   fBairro.addEventListener("input",atuTaxaBairro); fBairro.addEventListener("change",atuTaxaBairro); fEmp.addEventListener("input",atuTaxaBairro); fEmp.addEventListener("change",atuTaxaBairro);
   const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),
-    h("div",{style:"display:flex;gap:10px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fBairro),taxaBairroTxt));
+    h("div",{style:"display:flex;gap:10px;align-items:center"},h("div",{style:"flex:1;min-width:0"},comListaBairros(fBairro)),taxaBairroTxt));
   setTimeout(atuTaxaBairro,0);
   // endereço pode mudar só neste pedido; opcionalmente atualiza o cadastro do cliente
   const cadEnd=h("input",{type:"checkbox",id:"pAtuEnd",checked:true});
@@ -5323,7 +5341,9 @@ function abrirConfirmacao(p){
   const linhaOk=h("div",{style:"display:grid;grid-template-columns:1fr;gap:8px"},ok);
   // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
   let escolhaDin=null;
-  const pedeEscolhaDin=()=>formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p);
+  // só o grupo "Outros" escolhe o que fazer com o dinheiro; o grupo Movvi+ finaliza como antes (dinheiro volta para a loja)
+  const grupoFin = S.modo==="entregador" ? (S.euGrupo||grupoDe(membro(p.entregadorId))) : grupoDe(membro(p.entregadorId));
+  const pedeEscolhaDin=()=>formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p) && grupoFin==="outros";
   function atuBotoesDin(){
     escolhaDin=null;
     if(pedeEscolhaDin()){ ok.textContent="Finalizar entrega"; if(btDin.isConnected) btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
@@ -6491,6 +6511,57 @@ function abrirRecado(p,dest){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedido "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||"")+". O entregador recebe um aviso no celular e o recado aparece na tela dele."}),
     chips,txt,msg,ok]);
 }
+/* ---------- COMÉRCIO: CONFIRMAR O ACERTO DO DINHEIRO ----------
+   Pedido em dinheiro finalizado aparece num aviso vermelho na tela do comércio até ele confirmar que recebeu o dinheiro
+   (das mãos do entregador, da central, por Pix ou abatido na fatura). Ao confirmar, o pedido fica verde na central. */
+let dinComBuscando=false;
+async function verificarDinComercio(){
+  const av=$("#avisoDinCom"); if(!av) return;
+  if(!comercio()||!S.db){ av.hidden=true; return; }
+  if(dinComBuscando) return; dinComBuscando=true;
+  try{
+    const ps=await buscarPeriodo(somaDias(hoje(),-30),hoje());
+    const m=new Map(); ps.forEach(p=>{ const o=m.get(p.id); if(!o || (String(o._path).startsWith("lojas/") && !String(p._path).startsWith("lojas/"))) m.set(p.id,p); });
+    S.dinComPend=[...m.values()].filter(p=>p.status==="entregue" && p.pagamento==="dinheiro" && dinheiroDoPedido(p)>0 && !p.comercioConfirmouEm && !String(p._path).startsWith("lojas/"))
+      .sort((a,b)=>String(a.entregueEm||a.data).localeCompare(String(b.entregueEm||b.data)));
+  }catch(e){ return; } finally{ dinComBuscando=false; }
+  const l=S.dinComPend||[], tot=l.reduce((x,p)=>x+dinheiroDoPedido(p),0);
+  av.hidden=!l.length;
+  av.textContent="💵 "+l.length+(l.length===1?" pedido em dinheiro":" pedidos em dinheiro")+" · confirme que recebeu o acerto ("+fmt(tot)+") ›";
+}
+$("#avisoDinCom").addEventListener("click",()=>abrirDinComercio());
+setInterval(()=>verificarDinComercio(),5*60*1000);
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") verificarDinComercio(); });
+function abrirDinComercio(){
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
+  const agora=()=>new Date().toISOString();
+  const confirmar=async(p)=>{ const u={comercioConfirmouEm:agora(),comercioConfirmouPor:S.uid||""};
+    if(!p.dinheiroDevolvido && !p.pixComercioEnviadoEm && !p.dinheiroAbatidoFatura) Object.assign(u,{dinheiroDevolvido:true,devolvidoEm:agora(),devolvidoPor:S.uid||"",devolvidoConfirmadoPeloComercio:true});
+    await comRetry(()=>S.db.doc(p._path).update(u)); };
+  const desenhar=()=>{
+    const l=S.dinComPend||[];
+    if(!l.length){ lista.replaceChildren(h("p",{class:"muted",style:"margin:0",text:"Tudo confirmado. 👍"})); return; }
+    const tot=l.reduce((x,p)=>x+dinheiroDoPedido(p),0);
+    const todos=h("button",{class:"btn full",type:"button",style:"background:var(--ok);border-color:var(--ok)"},"✓ Recebi todos ("+fmt(tot)+")");
+    todos.addEventListener("click",async()=>{ if(!todos.dataset.ok){ todos.dataset.ok="1"; todos.textContent="Toque de novo para confirmar "+fmt(tot); setTimeout(()=>{ delete todos.dataset.ok; todos.textContent="✓ Recebi todos ("+fmt(tot)+")"; },4000); return; }
+      todos.disabled=true; todos.textContent="Confirmando…";
+      try{ for(const p of l) await confirmar(p); S.dinComPend=[]; toast("Acerto confirmado"); desenhar(); verificarDinComercio(); }
+      catch(e){ todos.disabled=false; toast("Não foi possível confirmar ("+(e&&e.code||"erro")+")."); } });
+    lista.replaceChildren(todos,...l.map(p=>{
+      const bt=h("button",{class:"btn",type:"button",style:"flex:none;padding:8px 12px;background:var(--ok);border-color:var(--ok)"},"✓ Recebi");
+      bt.addEventListener("click",async()=>{ bt.disabled=true; try{ await confirmar(p); S.dinComPend=(S.dinComPend||[]).filter(x=>x!==p); toast("Recebimento confirmado"); desenhar(); verificarDinComercio(); }
+        catch(e){ bt.disabled=false; toast("Não foi possível confirmar ("+(e&&e.code||"erro")+")."); } });
+      const com = p.dinheiroCom==="fatura"||p.pixComercioPendente ? "a central vai mandar por Pix" : p.dinheiroCom==="central" ? "o dinheiro está com a central" : "o entregador vai devolver";
+      return h("div",{class:"painel",style:"flex-direction:row;align-items:center;gap:10px;padding:10px 12px"},
+        h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},
+          h("b",{class:"num",style:"color:var(--bad);font-size:17px",text:fmt(dinheiroDoPedido(p))}),
+          h("span",{style:"font-size:13px",text:[diaCurto(p.data),p.numero?"#"+p.numero:"",p.cliente].filter(Boolean).join(" · ")}),
+          h("span",{class:"muted",style:"font-size:12px",text:"Entregador: "+(p.entregadorNome||nomeEnt(p.entregadorId)||"—")+" · "+com})),
+        bt); }));
+  };
+  desenhar();
+  abrirSheet("Acerto do dinheiro",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedidos pagos em dinheiro. Toque em “Recebi” quando o dinheiro chegar até você (do entregador, da central, por Pix ou abatido na fatura)."}),lista]);
+}
 /* ---------- CAMPANHAS DE BÔNUS ----------
    A central cria campanhas (ex.: "Dia de chuva", +10%) que valem só hoje, esta semana, num período ou todo dia
    (ou em dias da semana escolhidos), com horário opcional. Enquanto a campanha vale, todo pedido enviado aos entregadores
@@ -7326,6 +7397,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
     try{ S.admin=!!(await user.isOwner()); }catch(e){}
   }
   db.doc("config/central").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.nomeCentral=d.nome||"Central"; if(num(d.valorAdicional)>0) VALOR_ADICIONAL=num(d.valorAdicional); if(typeof renderPedidos==="function") renderPedidos(); },()=>{});
+  setTimeout(()=>verificarDinComercio(),5000);
   db.doc("config/campanhas").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.campanhas=Array.isArray(d.lista)?d.lista:[]; if(S.redesenharCampanhas&&$("#v-pagina")&&!$("#v-pagina").hidden) S.redesenharCampanhas(); },()=>{});
   db.collection("faturasDecisoes").onSnapshot(snap=>{ const m={}; snap.docs.forEach(d=>m[d.id]=d.data()); S.fatDecis=m; verificarFaturasFechadas(true); },()=>{});
   db.doc("config/bairrosTaxa").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):null;
@@ -7368,7 +7440,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       const antes=S.modo;
       if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); S.euCategoria=v.categoria||"farmacia";
         if(!S.subEquipeCom) S.subEquipeCom=db.collection("equipe").onSnapshot(snap=>{ S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); assinarDia(); },()=>{}); }
-      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; S.euFechamento=v.fechamento==="mensal"?"mensal":"semanal"; }
+      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; S.euFechamento=v.fechamento==="mensal"?"mensal":"semanal"; S.euGrupo=v.grupo==="outros"?"outros":"movvi"; }
       else if(v){ S.modo="desativado"; }
       else { S.modo="semacesso"; }
       if(antes!==S.modo){ aplicarModo(); assinarOfertas(); if(S.modo==="entregador"||S.modo==="comercio") exigirSenha(S.modo).then(()=>setTimeout(saudacaoDoDia,600)); } else renderQuem();
