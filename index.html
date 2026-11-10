@@ -559,6 +559,7 @@ body .solic-loja .loja{color:var(--ink)}
       <div class="linha">
         <div class="campo"><label for="eqNome">Nome</label><input class="inp" id="eqNome" autocomplete="off" placeholder="Nome do entregador"></div>
         <label class="manter" style="justify-content:flex-start;grid-column:1/-1"><input type="checkbox" id="eqSemAd"> Faz parte da central (não recebe adicionais)</label>
+        <div class="campo" style="grid-column:1/-1"><label for="eqGrupo">Grupo</label><select class="inp" id="eqGrupo"><option value="movvi">Movvi+ (vê todos os pedidos)</option><option value="outros">Outros (só pedidos pagos e em dinheiro)</option></select></div>
         <div class="campo"><label for="eqTaxa">Mínimo por entrega (R$)</label><input class="inp num" id="eqTaxa" inputmode="decimal" placeholder="0,00"></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2493,6 +2494,18 @@ async function designar(p, entId){
     await comRetry(()=>S.db.doc(colDe(entId)+"/"+p.id).set(comRegistro(base,"Pedido enviado para "+(m.nome||nomeEnt(entId)),base))); }
   return true;
 }
+/* Grupos de entregadores: Movvi+ vê todos os pedidos; Outros só vê pedidos pagos (pix) e em dinheiro.
+   Pedido marcado soGrupo:"movvi" vai só para o grupo Movvi+. */
+const grupoDe = m => (m && m.grupo==="outros") ? "outros" : "movvi";
+const PAG_OUTROS = ["dinheiro","pix"];
+function podeVerOferta(m,p){
+  if(p.soGrupo==="movvi" && grupoDe(m)!=="movvi") return false;
+  if(grupoDe(m)==="outros"){
+    const pags = p.tipo==="rota" ? (p.paradas||[]).map(x=>x.pagamento) : [p.pagamento];
+    if(p.tipoServico==="transferencia" || !pags.length || !pags.every(x=>PAG_OUTROS.includes(x))) return false;
+  }
+  return true;
+}
 async function publicarOferta(p){
   const lojaUid=lojaUidDe(p);
   const {id,_path,...d}=p;
@@ -2500,7 +2513,7 @@ async function publicarOferta(p){
     ? {tipo:"rota",origemPath:p._path,pedidoId:p.id,lojaUid:"",data:p.data||hoje(),coletaEmpresa:p.coletaEmpresa||"",coletaEndereco:p.coletaEndereco||"",paradas:paradasPublicas(p),criadoEm:p.criadoEm||new Date().toISOString()}
     : dadosOferta(d,lojaUid,p.id,p._path);
   of.valorEntrega=Math.round(Math.max(TAXA_MINIMA,num(p.taxaCobrada)*PCT_ENTREGADOR)*100)/100; // o que o entregador recebe, sem expor a taxa do comércio
-  for(const m of ativos().filter(m=>m.uid && S.disp[m.uid]!==false)){ await comRetry(()=>S.db.doc("entregas/"+m.uid+"/ofertas/"+p.id).set(of)); }
+  for(const m of ativos().filter(m=>m.uid && S.disp[m.uid]!==false && podeVerOferta(m,p))){ await comRetry(()=>S.db.doc("entregas/"+m.uid+"/ofertas/"+p.id).set(of)); }
   if(!p.publicado) await comRetry(()=>S.db.doc(p._path).update({publicado:true}));
 }
 /* Central: tira da tela dos entregadores as ofertas cujo pedido já foi pego, finalizado, cancelado ou apagado */
@@ -3637,7 +3650,7 @@ function abrirRota(op){
   let taxaMexida=false; fTaxa.addEventListener("input",()=>{ taxaMexida=true; });
   fEmp.addEventListener("change",()=>{ const e=S.empresas.find(x=>x.id===slug(fEmp.value)); if(e&&e.endereco&&!fCol.value.trim()) fCol.value=e.endereco; const t=taxaComercioPorNome(fEmp.value); if(t!==null&&!taxaMexida) fTaxa.value=fmtInput(t); });
   const fData=h("input",{class:"inp",type:"date",id:"rData",value:S.dia});
-  const fEnt=h("select",{class:"inp",id:"rEnt"},h("option",{value:"",text:"Enviar para todos (quem aceitar primeiro)"}),...ativos().map(e=>h("option",{value:e.id,text:e.nome+(e.uid?"":" (sem acesso ao app)")})));
+  const fEnt=h("select",{class:"inp",id:"rEnt"},h("option",{value:"",text:"Enviar para todos (quem aceitar primeiro)"}),h("option",{value:"__movvi",text:"Enviar só para o grupo Movvi+"}),...ativos().map(e=>h("option",{value:e.id,text:e.nome+(e.uid?"":" (sem acesso ao app)")})));
   const caixaParadas=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
   const paradas=[];
   function novaParada(){
@@ -3756,13 +3769,13 @@ function abrirRota(op){
     const rotaId="rota"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     const r={rotaId,data:fData.value||S.dia,coletaEmpresa:fEmp.value.trim(),coletaEndereco:fCol.value.trim(),taxaCobrada:num(fTaxa.value),paradas:lista,criadoEm:new Date().toISOString()};
     try{
-      if(fEnt.value){
+      if(fEnt.value && fEnt.value!=="__movvi"){
         for(const d of docsDaRota(r,{entregadorId:fEnt.value,taxaCobrada:r.taxaCobrada,designadoEm:r.criadoEm,criadoPor:S.uid||""}))
           await comRetry(()=>S.db.doc(colDe(fEnt.value)+"/"+d.id).set(d.dados));
         toast("Rota criada para "+nomeEnt(fEnt.value));
       }else{
-        await comRetry(()=>S.db.doc("abertos/"+rotaId).set({tipo:"rota",status:"solicitado",data:r.data,coletaEmpresa:r.coletaEmpresa,coletaEndereco:r.coletaEndereco,taxaCobrada:r.taxaCobrada,paradas:lista,criadoEm:r.criadoEm,criadoPor:S.uid||""}));
-        toast("Rota enviada a todos os entregadores");
+        await comRetry(()=>S.db.doc("abertos/"+rotaId).set({tipo:"rota",...(fEnt.value==="__movvi"?{soGrupo:"movvi"}:{}),status:"solicitado",data:r.data,coletaEmpresa:r.coletaEmpresa,coletaEndereco:r.coletaEndereco,taxaCobrada:r.taxaCobrada,paradas:lista,criadoEm:r.criadoEm,criadoPor:S.uid||""}));
+        toast(fEnt.value==="__movvi"?"Rota enviada ao grupo Movvi+":"Rota enviada a todos os entregadores");
       }
       if(r.coletaEmpresa){ const id=slug(r.coletaEmpresa); if(id && !S.empresas.find(e=>e.id===id)) S.db.doc("empresas/"+id).set({nome:r.coletaEmpresa,endereco:r.coletaEndereco}).catch(()=>{}); }
       limparRascCentral();
@@ -4448,8 +4461,9 @@ function abrirPedido(p,arquivoComanda,pre){
   const fTel=h("input",{class:"inp",id:"pTel",type:"tel",inputmode:"tel",placeholder:"(38) 99999-9999",value:p.telefone||""});
   const fRota=h("select",{class:"inp",id:"pRota"},h("option",{value:"",text:"Pedido sozinho"}),...(novo&&central()?rotasDisponiveis():[]).map(r=>h("option",{value:r.id,text:r.rotulo})));
   const fEnt=h("select",{class:"inp",id:"pEnt"},h("option",{value:"",text:(novo||aguardandoEnt)?"Enviar para todos (quem aceitar primeiro)":"Escolher entregador"}),
+    ...((novo||aguardandoEnt)?[h("option",{value:"__movvi",text:"Enviar só para o grupo Movvi+"})]:[]),
     ...ativos().map(e=>h("option",{value:e.id,text:e.nome+(e.uid?"":" (sem acesso ao app)")})));
-  fEnt.value=p.entregadorId||"";
+  fEnt.value=p.entregadorId||(p.soGrupo==="movvi"?"__movvi":"");
   const fObs=h("textarea",{id:"pObs",placeholder:"Ex.: apartamento 202, ligar ao chegar"});
   fObs.value=p.obs||"";
   const segBtns={};
@@ -4790,7 +4804,8 @@ function abrirPedido(p,arquivoComanda,pre){
   const fechar=abrirSheet(novo?"Novo pedido":"Pedido "+(p.numero?"#"+p.numero:""),corpo);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
-    const entId = central() ? fEnt.value : comercio() ? "" : S.eu;
+    const soMovvi = central() && fEnt.value==="__movvi";
+    const entId = central() ? (soMovvi?"":fEnt.value) : comercio() ? "" : S.eu;
     // empresa de coleta é opcional (não precisa estar cadastrada)
     if(endPendente){ msg.hidden=false; msg.textContent="Escolha qual é o endereço desta entrega (cadastro ou comanda)."; return; }
     // telefone é opcional (a comanda pode não ter); se digitar, precisa estar completo (o DDD é opcional)
@@ -4865,8 +4880,8 @@ function abrirPedido(p,arquivoComanda,pre){
         await adicionarARota({id:"p"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),...dados,criadoEm:new Date().toISOString(),criadoPor:S.uid||""},r);
         toast("Pedido adicionado à rota");
       }else if(novo && central() && !entId){
-        await comRetry(()=>S.db.collection("abertos").add({...dados,status:"solicitado",acertado:false,criadoEm:new Date().toISOString(),criadoPor:S.uid||""}));
-        toast("Pedido enviado a todos os entregadores");
+        await comRetry(()=>S.db.collection("abertos").add({...dados,...(soMovvi?{soGrupo:"movvi"}:{}),status:"solicitado",acertado:false,criadoEm:new Date().toISOString(),criadoPor:S.uid||""}));
+        toast(soMovvi?"Pedido enviado ao grupo Movvi+":"Pedido enviado a todos os entregadores");
       }else if(novo){
         const agoraIso=new Date().toISOString();
         await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso}:{})}));   // entregador: aceita, falta coletar (sai em rota no "Coletei")
@@ -6313,7 +6328,7 @@ async function aprovar(sol, alvoId, taxaNova){
 async function sincronizarVinculo(m, mud){
   if(!m.uid) return;
   const n={...m,...mud};
-  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional}));
+  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional,grupo:grupoDe(n)}));
 }
 /* ---------- CADASTROS: clientes · entregadores · comércios ---------- */
 /* número de ordem de cadastro (000001, 000002…), pela data em que foi cadastrado */
@@ -6699,7 +6714,7 @@ function editarEntregador(e){
 function editarEq(e){
   S.editandoEq=e; $("#eqForm").hidden=false;
   $("#eqFormTit").textContent="Editar "+e.nome;
-  $("#eqNome").value=e.nome; $("#eqTaxa").value=fmtInput(e.taxa); $("#eqSemAd").checked=!!e.semAdicional;
+  $("#eqNome").value=e.nome; $("#eqTaxa").value=fmtInput(e.taxa); $("#eqSemAd").checked=!!e.semAdicional; $("#eqGrupo").value=grupoDe(e);
   $("#eqSalvar").textContent="Salvar"; $("#eqCancelar").hidden=false;
   const tog=$("#eqAtivo"); tog.hidden=false; tog.textContent = e.ativo===false ? "Reativar" : "Desativar";
   const ex=$("#eqExcluir"); ex.hidden=false; ex.textContent="Excluir"; delete ex.dataset.conf;
@@ -6730,11 +6745,11 @@ $("#eqAtivo").addEventListener("click",async()=>{
 });
 $("#contEnt").addEventListener("click",()=>abrirMeusPedidosMes(hoje().slice(0,7)));
 $("#eqSalvar").addEventListener("click",async()=>{
-  const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value), semAdicional=$("#eqSemAd").checked;
+  const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value), semAdicional=$("#eqSemAd").checked, grupo=$("#eqGrupo").value||"movvi";
   if(!nome){ toast("Informe o nome."); return; }
   try{
-    if(S.editandoEq){ await comRetry(()=>S.db.doc("equipe/"+S.editandoEq.id).update({nome,taxa,semAdicional})); await sincronizarVinculo(S.editandoEq,{nome,taxa,semAdicional}); }
-    else await comRetry(()=>S.db.collection("equipe").add({nome,taxa,semAdicional,ativo:true,criadoEm:new Date().toISOString()}));
+    if(S.editandoEq){ await comRetry(()=>S.db.doc("equipe/"+S.editandoEq.id).update({nome,taxa,semAdicional,grupo})); await sincronizarVinculo(S.editandoEq,{nome,taxa,semAdicional,grupo}); }
+    else await comRetry(()=>S.db.collection("equipe").add({nome,taxa,semAdicional,grupo,ativo:true,criadoEm:new Date().toISOString()}));
     toast(S.editandoEq?"Salvo":"Entregador adicionado"); limparEq();
   }catch(e){ toast("Não foi possível salvar ("+(e&&e.code||"erro")+")."); }
 });
