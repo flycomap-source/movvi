@@ -5192,7 +5192,8 @@ function abrirConfirmacao(p){
   if(S.modo==="entregador") resumo.append(h("div",{style:"border-top:1px solid var(--line);margin-top:6px;padding-top:8px"},totAd));
   // "Pagou em dinheiro": cliente mudou para dinheiro na hora; pede o valor recebido
   const btDin=h("button",{class:"btn sec",type:"button",style:"border-color:var(--ok);color:var(--ok)"},"Pagou em dinheiro");
-  const linhaOk=h("div",{style:"display:grid;grid-template-columns:"+(anunc==="dinheiro"?"1fr":"1fr 1fr")+";gap:8px"},ok,anunc==="dinheiro"?null:btDin);
+  // sem o botão "Pagou em dinheiro": a forma de pagamento muda lá em cima; se for dinheiro, a caixinha aparece ao finalizar
+  const linhaOk=h("div",{style:"display:grid;grid-template-columns:1fr;gap:8px"},ok);
   // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
   let escolhaDin=null;
   const pedeEscolhaDin=()=>formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p);
