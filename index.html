@@ -721,15 +721,17 @@ function taxaVisivel(p){
 }
 /* entregador: taxa dele (R$ 6), bônus (o que passa da taxa: % da central / 75% da taxa), adicionais e o total em verde */
 function partesGanho(p){
+  if(p._rotaTot!==undefined) return {base:p._rotaBase,bonus:Math.max(0,Math.round((p._rotaTot-p._rotaBase)*100)/100),adic:0,total:p._rotaTot};
   const unit=ganhoUnit(p), base=Math.min(unit,(central()?taxaEnt(p.entregadorId):num(S.euTaxa))||TAXA_MINIMA);
   return {base, bonus:Math.max(0,Math.round((unit-base)*100)/100), adic:Math.max(0,Math.round((ganhoPedido(p)-unit)*100)/100), total:ganhoPedido(p)};
 }
 function linhasGanhoEnt(p,grande){
   const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
   const lin=(rot,v,cor)=>h("span",{class:"num",style:"font-size:13px;font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)"),text:rot+" "+fmt(v)});
-  return [lin("Taxa",g.base), g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--laranja-ink)"):null, g.adic>0?lin("➕ Adicional",g.adic,"var(--royal)"):null,
+  return [lin("🔥 Taxa",g.base), g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--laranja-ink)"):null, g.adic>0?lin("➕ Adicional",g.adic,"var(--royal)"):null,
     h("span",{class:"num",style:"font-size:"+(grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
 }
+function colunaEnt(...itens){ return h("div",{style:"flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;text-align:right"},...itens); }
 /* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
 const dinNaFatura = p => p.dinheiroCom==="fatura" ? dinheiroDoPedido(p) : 0;
 const dinResolvidoFora = p => p.dinheiroCom==="central" || p.dinheiroCom==="fatura";
@@ -2420,7 +2422,7 @@ function docsDaRota(r, extra){
 /* valor no cartão da entrega: entregador vê o que ele recebe (com bônus e adicionais); central vê a taxa; comércio só no delivery */
 function pillsValor(p){
   const bonus=num(p.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(p.bonusPct)+"% bônus"}):null;
-  if(S.modo==="entregador") return linhasGanhoEnt(p);
+  if(S.modo==="entregador") return [h("div",{style:"flex-basis:100%;display:flex;justify-content:flex-end"},colunaEnt(...linhasGanhoEnt(p)))];
   if(comercio()) return (num(p.taxaCobrada) && ehDelivery(p.coletaEmpresa||S.euNome)) ? [h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)})] : [];
   return [num(p.taxaCobrada)?h("span",{class:"pill num",text:"Taxa "+fmt(p.taxaCobrada)}):null,bonus];
 }
@@ -2432,7 +2434,8 @@ function cartaoOferta(o){
       catch(e){ toast("Não foi possível aceitar ("+(e&&e.code||"erro")+")."); return false; }
     });
     return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-      h("div",{class:"topo"},h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"%"}):null,h("b",{class:"num",style:"font-family:var(--f-display);font-size:18px;background:var(--ok);color:#fff;border-radius:8px;padding:2px 9px",text:"Total "+fmt(tot)})),
+      h("div",{style:"display:flex;justify-content:flex-end"},colunaEnt(h("span",{class:"pill",style:"background:var(--royal);color:#fff",text:"Rota · "+N+" entregas"}),
+        ...linhasGanhoEnt({taxaFixaCentral:true,_rotaBase:N*(num(S.euTaxa)||TAXA_MINIMA),_rotaTot:tot,bonusPct:o.bonusPct}))),
       blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),
       listaParadas(o.paradas), b);
   }
@@ -2442,8 +2445,7 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    h("div",{class:"topo"},h("span",{class:"pill pend",text:"Disponível"}),num(o.bonusPct)>0?h("span",{class:"pill",style:"background:var(--ok);color:#fff",text:"🎁 +"+num(o.bonusPct)+"% bônus"}):null,h("span",{class:"quem-ped num",text:espera!==null?"pedido há "+fmtMin(espera):""})),
-    h("div",{style:"display:flex;flex-direction:column;gap:3px;align-items:flex-end"},...linhasGanhoEnt(o,true)),
+    h("div",{style:"display:flex;justify-content:flex-end"},colunaEnt(h("span",{class:"pill pend",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),...linhasGanhoEnt(o))),
     num(o.adicionais)>0?h("span",{class:"pill",style:"align-self:flex-start;background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(o.adicionais)+" add incluído"}):null,
     blocoRota(o),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
