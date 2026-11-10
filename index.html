@@ -98,6 +98,7 @@ h3{font-family:var(--f-display);font-weight:800;font-size:16px;margin:0}
 .ped-st{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
 .ped .coleta .de.com-st{position:relative;padding-right:150px!important;min-height:80px}
 .coleta .de.com-st .ped-st{position:absolute;right:8px;top:8px}
+body .ped .coleta .de.com-st-ent{flex-direction:row;align-items:flex-start;gap:8px;padding-right:8px!important;padding-bottom:10px!important}
 .ped-badge{border:0;border-radius:8px;padding:5px 10px;color:#fff;font-weight:800;font-size:13px;font-family:var(--f-body);white-space:nowrap}
 .ped-ent{align-self:flex-start;background:var(--royal);color:#fff;border:0;border-radius:8px;padding:6px 12px;font-weight:800;font-size:13px;font-family:var(--f-body)}
 .ped-ent.sem{background:#8A8FA8}
@@ -2289,7 +2290,10 @@ function cartaoPedidoBase(p){
     rodapePag(p)
   );
   { const de=card.querySelector(".coleta .de");
-    if(de){ de.classList.add("com-st"); de.prepend(stCol); }
+    if(de && S.modo==="entregador"){   // entregador: valores ao lado, e o bloco cresce para a Entrega ficar embaixo
+      const esq=h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},...[...de.childNodes]);
+      de.classList.add("com-st-ent"); de.append(esq,stCol); }
+    else if(de){ de.classList.add("com-st"); de.prepend(stCol); }
     else card.prepend(h("div",{style:"display:flex;justify-content:flex-end"},stCol)); }
   const acoes=h("div",{class:"acoes"});
   if(comercio()){
