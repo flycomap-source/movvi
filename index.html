@@ -1075,6 +1075,7 @@ function abrirConfiguracoes(){
       msg,ok),
     item("🔑","Usuário e senha da central","Trocar usuário e senha de acesso",()=>abrirConta()),
     item("⛰","Bairros com adicional","Quais bairros pagam adicional e quantos",()=>abrirBairrosAdicional()),
+    item("🍔","Taxa por bairro (delivery)","Tabela de taxas dos comércios de delivery",()=>abrirTabelaBairros()),
     S.assets?item("🗑","Histórico de fotos","Excluir fotos antigas das entregas",()=>abrirFotos()):null,
     item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
     item("☀",wakeLock?"Tela ligada (desligar)":"Manter tela ligada","Evita que a tela apague durante o expediente",()=>$("#btnTela").click())]);
@@ -3140,6 +3141,33 @@ function bairroComAdicional(...textos){
     if(n.trim() && n.length>tam && casa){ melhor=b; tam=n.length; } });
   return melhor;
 }
+/* ---------- CATEGORIA DE COMÉRCIO E TAXA POR BAIRRO ----------
+   Farmácia (padrão): taxa fixa do comércio em qualquer bairro. Delivery (lanche, marmita…): taxa pela tabela de bairros
+   (config/bairrosTaxa), sem adicional de bairro. O entregador recebe 75% da taxa (mínimo R$ 6,00). */
+const BAIRROS_TAXA_INICIAL=[{"nome": "Água Branca I", "taxa": 10}, {"nome": "Água Branca II", "taxa": 9}, {"nome": "Águas Claras", "taxa": 7}, {"nome": "Alvorada", "taxa": 9}, {"nome": "Amaral", "taxa": 7}, {"nome": "Barroca", "taxa": 7}, {"nome": "Bela Serra", "taxa": 14}, {"nome": "Bela Vista", "taxa": 7}, {"nome": "Cachoeira", "taxa": 7}, {"nome": "Canaã", "taxa": 7}, {"nome": "Canabrava", "taxa": 7}, {"nome": "Capim Branco", "taxa": 7}, {"nome": "Capim Branco II", "taxa": 7}, {"nome": "Capim Branco III", "taxa": 7}, {"nome": "Centro", "taxa": 7}, {"nome": "Chácaras Colina", "taxa": 25}, {"nome": "Chácaras Monjolos", "taxa": 15}, {"nome": "Chácaras Rio Preto", "taxa": 15}, {"nome": "Cidade Nova", "taxa": 7}, {"nome": "Cruzeiro", "taxa": 7}, {"nome": "Curva do Rio", "taxa": 14}, {"nome": "De Lourdes", "taxa": 7}, {"nome": "Divineia", "taxa": 7}, {"nome": "Dom Bosco", "taxa": 7}, {"nome": "Floresta", "taxa": 7}, {"nome": "Industrial", "taxa": 14}, {"nome": "Itapuã", "taxa": 7}, {"nome": "Iúna", "taxa": 7}, {"nome": "Jaciilândia", "taxa": 7}, {"nome": "Jardim", "taxa": 7}, {"nome": "Jardim Amaral", "taxa": 10}, {"nome": "Jardim América", "taxa": 7}, {"nome": "Kamayura", "taxa": 10}, {"nome": "Laguna", "taxa": 8}, {"nome": "Loteamento Zé Pedro", "taxa": 7}, {"nome": "Mamoeiro", "taxa": 20}, {"nome": "N. Sra. Aparecida", "taxa": 7}, {"nome": "N. Sra. do Carmo", "taxa": 7}, {"nome": "Nova Divineia", "taxa": 7}, {"nome": "Novo Horizonte", "taxa": 7}, {"nome": "Novo Jardim", "taxa": 7}, {"nome": "Parque Canabrava", "taxa": 7}, {"nome": "Politécnica", "taxa": 7}, {"nome": "Posto HP", "taxa": 20}, {"nome": "Primavera", "taxa": 7}, {"nome": "Primavera V", "taxa": 7}, {"nome": "Riviera Park", "taxa": 10}, {"nome": "Sagarana", "taxa": 7}, {"nome": "Sagrada Família", "taxa": 10}, {"nome": "Santa Clara", "taxa": 20}, {"nome": "Santa Luzia", "taxa": 7}, {"nome": "Serenata", "taxa": 7}, {"nome": "Setor de Mansões Sul", "taxa": 20}, {"nome": "Terra Nova", "taxa": 9}, {"nome": "Vale do Amanhecer", "taxa": 10}, {"nome": "Vale Verde", "taxa": 7}, {"nome": "Vila do Sol", "taxa": 9}, {"nome": "Vila Militar", "taxa": 7}, {"nome": "Vila São Sebastião", "taxa": 7}];
+S.bairrosTaxa=[]; S.categoriaCom={};
+function taxaPorBairro(b){ const k=normBairro(b||""); if(!k.trim()) return null; const x=(S.bairrosTaxa||[]).find(y=>normBairro(y.nome)===k); return x?num(x.taxa):null; }
+function ehDelivery(nomeEmpresa){
+  if(comercio() && (!nomeEmpresa || slug(nomeEmpresa)===slug(S.euNome||""))) return S.euCategoria==="delivery";
+  return (S.categoriaCom||{})[slug(nomeEmpresa||"")]==="delivery";
+}
+function taxaDaEntrega(nomeEmpresa,bairro,taxaFixa){ if(ehDelivery(nomeEmpresa)){ const t=taxaPorBairro(bairro); if(t!=null) return t; } return taxaFixa; }
+function abrirTabelaBairros(){
+  const linhas=(S.bairrosTaxa.length?S.bairrosTaxa:BAIRROS_TAXA_INICIAL).map(b=>({...b}));
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:6px"});
+  const desenhar=()=>lista.replaceChildren(...linhas.map((b,i)=>{
+    const n=h("input",{class:"inp","aria-label":"Bairro",value:b.nome}); n.addEventListener("input",()=>{ b.nome=n.value; });
+    const v=h("input",{class:"inp num","aria-label":"Taxa",inputmode:"decimal",style:"max-width:110px",value:fmtInput(b.taxa)}); v.addEventListener("input",()=>{ b.taxa=num(v.value); });
+    return h("div",{style:"display:flex;gap:6px;align-items:center"},h("div",{style:"flex:1;min-width:0"},n),v,h("button",{class:"mini",type:"button","aria-label":"Remover bairro",onclick:()=>{ linhas.splice(i,1); desenhar(); }},"✕")); }));
+  desenhar();
+  const add=h("button",{class:"btn sec full",type:"button",onclick:()=>{ linhas.push({nome:"",taxa:7}); desenhar(); }},"＋ Adicionar bairro");
+  const ok=h("button",{class:"btn full",type:"button"},"Salvar tabela");
+  ok.addEventListener("click",async()=>{ const l=linhas.filter(b=>String(b.nome).trim()).map(b=>({nome:String(b.nome).trim(),taxa:num(b.taxa)})).sort((a,b)=>a.nome.localeCompare(b.nome));
+    ok.disabled=true; try{ await comRetry(()=>S.db.doc("config/bairrosTaxa").set({lista:l,atualizadoEm:new Date().toISOString()})); S.bairrosTaxa=l; fechar(); toast("Tabela de bairros salva"); }
+    catch(e){ ok.disabled=false; toast("Não foi possível salvar."); } });
+  const fechar=abrirSheet("Taxa por bairro (delivery)",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Vale para comércios da categoria Delivery. Farmácias continuam com a taxa fixa do cadastro."}),lista,add,ok]);
+}
+
 /* Bairro (obrigatório em toda entrega, menos transferência): lista com os bairros já usados + os da tabela de adicional */
 function bairrosConhecidos(){
   const set=new Map(); const add=b=>{ b=String(b||"").trim(); if(b && !set.has(normBairro(b))) set.set(normBairro(b),b); };
@@ -4216,7 +4244,8 @@ function montarRotaPorFotos(restaurar){
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
-          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:TAXA_PADRAO, bairro:String(x.bairro||"").trim(),
+          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
+          ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && taxaPorBairro(x.bairro)!=null ? {adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true} : {}),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
           // lançada pelo entregador no ponto de coleta: fica "aceita, falta coletar"; só sai em rota quando ele tocar em Coletei
@@ -4458,7 +4487,9 @@ function abrirPedido(p,arquivoComanda,pre){
   const fEnd=h("input",{class:"inp",id:"pEnd",placeholder:"Rua, número, bairro",value:p.endereco||""});
   datalistBairros();
   const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||bairroNoEndereco(p.endereco)||""});
-  fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b) fBairro.value=b; } });
+  fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBairro.value=b; fBairro.dispatchEvent(new Event("change")); } } });
+  const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value)){ const t=taxaPorBairro(fBairro.value); if(t!=null) fTaxa.value=fmtInput(t); } }catch(e){} };
+  fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
   const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),fBairro);
   // endereço pode mudar só neste pedido; opcionalmente atualiza o cadastro do cliente
   const cadEnd=h("input",{type:"checkbox",id:"pAtuEnd",checked:true});
@@ -4857,6 +4888,11 @@ function abrirPedido(p,arquivoComanda,pre){
       ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd))} : {}),
       taxaCobrada: servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : (central()||comercio()) ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
+    // comércio de delivery: taxa pela tabela de bairros e sem adicional de bairro (a central ainda pode mudar a taxa à mão)
+    if(!servicoTaxaFixa(servico,pag) && ehDelivery(dados.coletaEmpresa) && taxaPorBairro(dados.bairro)!=null){
+      if(!(central() && taxaMexida)) dados.taxaCobrada=taxaPorBairro(dados.bairro);
+      dados.adicionais=0; delete dados.adicionalMotivo; delete dados.adicionalBairro; dados.taxaBairro=true;
+    }
     // andamento: quem fez cada etapa
     if(quemAltera()){
       const nAdN=Math.max(0,Math.round(num(dados.adicionais))), nAdA=novo?0:Math.max(0,Math.round(num(p.adicionais)));
@@ -6644,13 +6680,16 @@ function editarComercio(c){
   const fE=h("input",{class:"inp",id:"ecE",value:c.endereco||""});
   const fTel=h("input",{class:"inp",id:"ecTel",type:"tel",inputmode:"tel",value:c.telefone||"",placeholder:"(38) 99999-9999"});
   const fT=h("input",{class:"inp num",id:"ecT",inputmode:"decimal",value:fmtInput(c.taxa??TAXA_PADRAO)});
+  const fCat=h("select",{class:"inp",id:"ecCat"},h("option",{value:"farmacia",text:"Farmácia · taxa fixa em qualquer bairro"}),h("option",{value:"delivery",text:"Delivery (lanche, marmita…) · taxa por bairro"}));
+  fCat.value=c.categoria||"farmacia";
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar comércio":"Salvar");
   const fechar=abrirSheet(novo?"Cadastrar comércio":"Editar "+c.nome,[
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.comercios).get(c.id)||"")+" · "+(c.ativo===false?"bloqueado":c.uid?((S.usuarios||{})[c.uid]?"usuário: "+S.usuarios[c.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
     h("div",{class:"campo"},h("label",{for:"ecN",text:"Nome do comércio"}),fN),
     h("div",{class:"campo"},h("label",{for:"ecE",text:"Endereço de coleta"}),fE),
     h("div",{class:"campo"},h("label",{for:"ecTel",text:"Telefone / WhatsApp"}),fTel),
-    h("div",{class:"campo"},h("label",{for:"ecT",text:"Taxa cobrada por entrega (R$)"}),fT),
+    h("div",{class:"campo"},h("label",{for:"ecCat",text:"Categoria"}),fCat),
+    h("div",{class:"campo"},h("label",{for:"ecT",text:"Taxa cobrada por entrega (R$) · na categoria Delivery vale a tabela de bairros"}),fT),
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"A nova taxa vale para os próximos pedidos. Os já lançados mantêm a taxa de quando foram criados."}),
     ok,
     novo?null:(c.uid?h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); redefinirSenha(c.uid,c.nome); }},"Redefinir usuário e senha")
@@ -6673,7 +6712,7 @@ function editarComercio(c){
       });
       return bt; })()]);
   ok.addEventListener("click",async()=>{
-    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),taxa:num(fT.value)};
+    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia"};
     if(!d.nome){ toast("Informe o nome do comércio."); return; }
     if(novo && S.comercios.some(x=>slug(x.nome)===slug(d.nome))){ toast("Já existe um comércio com esse nome."); return; }
     if(!d.endereco){ toast("Informe o endereço do comércio."); return; }
@@ -6792,6 +6831,10 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
   }
   db.doc("config/central").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.nomeCentral=d.nome||"Central"; if(num(d.valorAdicional)>0) VALOR_ADICIONAL=num(d.valorAdicional); if(typeof renderPedidos==="function") renderPedidos(); },()=>{});
   db.collection("faturasDecisoes").onSnapshot(snap=>{ const m={}; snap.docs.forEach(d=>m[d.id]=d.data()); S.fatDecis=m; verificarFaturasFechadas(true); },()=>{});
+  db.doc("config/bairrosTaxa").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):null;
+    S.bairrosTaxa = d&&Array.isArray(d.lista) ? d.lista.filter(b=>b&&b.nome) : BAIRROS_TAXA_INICIAL;
+    if(!d && central()) db.doc("config/bairrosTaxa").set({lista:BAIRROS_TAXA_INICIAL,atualizadoEm:new Date().toISOString()}).catch(()=>{}); },()=>{ S.bairrosTaxa=BAIRROS_TAXA_INICIAL; });
+  db.collection("comercios").onSnapshot(snap=>{ S.categoriaCom=Object.fromEntries(snap.docs.map(d=>d.data()||{}).filter(c=>c.nome).map(c=>[slug(c.nome),c.categoria||"farmacia"])); },()=>{});
   db.doc("config/adicionais").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.bairrosAdic=Array.isArray(d.bairros)?d.bairros.filter(b=>b&&b.nome&&num(b.qtd)>0):[]; },()=>{});
   db.collection("empresas").onSnapshot(snap=>{ S.empresas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome).sort((a,b)=>a.nome.localeCompare(b.nome)); },()=>{});
   if(S.admin){
@@ -6826,7 +6869,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
     db.doc("vinculos/"+S.uid).onSnapshot(s=>{
       const v=s.exists?s.data():null;
       const antes=S.modo;
-      if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO);
+      if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); S.euCategoria=v.categoria||"farmacia";
         if(!S.subEquipeCom) S.subEquipeCom=db.collection("equipe").onSnapshot(snap=>{ S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); assinarDia(); },()=>{}); }
       else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; }
       else if(v){ S.modo="desativado"; }
