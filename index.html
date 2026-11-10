@@ -728,9 +728,9 @@ function partesGanho(p){
 }
 function linhasGanhoEnt(p,grande){
   const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
-  const lin=(rot,v,cor)=>h("span",{class:"num",style:"font-size:13px;font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)"),text:rot+" "+fmt(v)});
+  const lin=(rot,v,cor)=>h("span",{class:"num",style:"font-size:"+(grande==="mini"?"12px":"13px")+";font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)"),text:rot+" "+fmt(v)});
   return [lin("🔥 Taxa",g.base), g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--laranja-ink)"):null, g.adic>0?lin("➕ Adicional",g.adic,"var(--royal)"):null,
-    h("span",{class:"num",style:"font-size:"+(grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
+    h("span",{class:"num",style:"font-size:"+(grande==="mini"?"15px":grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
 }
 /* põe a coluna de valores ao lado do "Coletar em" (o bloco cresce e a Entrega fica embaixo) */
 function colunaAoLado(bloco,col){
@@ -739,6 +739,8 @@ function colunaAoLado(bloco,col){
   const esq=h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},...[...de.childNodes]);
   de.classList.add("com-st-ent"); de.append(esq,col); return bloco;
 }
+/* entrega disponível: valores num quadradinho compacto */
+function caixaGanho(linhas){ return h("div",{style:"display:flex;flex-direction:column;gap:2px;align-items:flex-end;border:1.5px solid var(--ok);background:var(--ok-bg);border-radius:12px;padding:6px 8px;font-size:12px"},...linhas); }
 function colunaEnt(...itens){ return h("div",{style:"flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;text-align:right"},...itens); }
 /* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
 const dinNaFatura = p => p.dinheiroCom==="fatura" ? dinheiroDoPedido(p) : 0;
@@ -2446,7 +2448,7 @@ function cartaoOferta(o){
     });
     return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
       colunaAoLado(blocoRota({coletaEmpresa:o.coletaEmpresa,coletaEndereco:o.coletaEndereco}),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Rota · "+N+" entregas"}),
-        ...linhasGanhoEnt({taxaFixaCentral:true,_rotaBase:N*(num(S.euTaxa)||TAXA_MINIMA),_rotaTot:tot,bonusPct:o.bonusPct}))),
+        caixaGanho(linhasGanhoEnt({taxaFixaCentral:true,_rotaBase:N*(num(S.euTaxa)||TAXA_MINIMA),_rotaTot:tot,bonusPct:o.bonusPct},"mini")))),
       listaParadas(o.paradas), b);
   }
   const b=deslizar("Aceitar esta entrega",async()=>{
@@ -2455,7 +2457,7 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    colunaAoLado(blocoRota(o),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),...linhasGanhoEnt(o))),
+    colunaAoLado(blocoRota(o),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),caixaGanho(linhasGanhoEnt(o,"mini")))),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
     o.obs?h("div",{class:"obs",text:o.obs}):null,
     b);
