@@ -745,6 +745,9 @@ function colunaEnt(...itens){ return h("div",{style:"flex:none;display:flex;flex
 /* dinheiro que o entregador ficou para descontar na fatura dele (a central manda o Pix ao comércio) */
 const dinNaFatura = p => p.dinheiroCom==="fatura" ? dinheiroDoPedido(p) : 0;
 const dinResolvidoFora = p => p.dinheiroCom==="central" || p.dinheiroCom==="fatura";
+/* dinheiro do comércio que ficou com a central: aparece na fatura do comércio e pode ser abatido dela */
+const dinComCentral = p => (p.status==="entregue" && p.dinheiroCom==="central" && !p.dinheiroDevolvido && !p.pixComercioEnviadoEm && !p.dinheiroAbatidoFatura) ? dinheiroDoPedido(p) : 0;
+const valorFatCom = lst => Math.round(lst.reduce((s,p)=>s+num(p.taxaCobrada)-(p.dinheiroAbatidoFatura?dinheiroDoPedido(p):0),0)*100)/100;
 const valorFatEnt = lst => Math.round((somaGanho(lst)-lst.reduce((s,p)=>s+dinNaFatura(p),0))*100)/100;
 const TAXA_PADRAO = 8;
 const taxaComercioPorNome = nome => { const c=S.comercios.find(x=>slug(x.nome)===slug(nome)); return c ? num(c.taxa||TAXA_PADRAO) : null; };
@@ -2220,14 +2223,14 @@ function dinPendCentral(p){
   if(p.status!=="entregue" || p.pagamento!=="dinheiro" || !(dinheiroDoPedido(p)>0) || dinheiroFicaNaLoja(p) || ehTransf(p)) return null;
   // só fica verde quando o dinheiro chegou no comércio (devolvido em espécie ou Pix enviado);
   // com o entregador ou com a central continua vermelho: ainda tem que chegar ao comércio
-  if(p.dinheiroDevolvido || p.acertado || p.pixComercioEnviadoEm) return false;
+  if(p.dinheiroDevolvido || p.acertado || p.pixComercioEnviadoEm || p.dinheiroAbatidoFatura) return false;
   return true;
 }
 function botaoDinCentral(p,mini){
   const pend=dinPendCentral(p), v=fmt(dinheiroDoPedido(p));
   const txt = mini ? (pend?v+" ▾":"✓ "+v)
     : pend ? (p.dinheiroCom==="fatura"?"💸 Pix pendente "+v:p.dinheiroCom==="central"?"🏢 Com a central "+v:"💵 Dinheiro "+v)+" ▾"
-    : (p.dinheiroDevolvido?"✓ Devolvido "+v:"✓ Pix enviado "+v);
+    : (p.dinheiroDevolvido?"✓ Devolvido "+v:p.dinheiroAbatidoFatura?"✓ Abatido na fatura "+v:"✓ Pix enviado "+v);
   return h("button",{type:"button",class:mini?"badge-l":"",title:"Toque para resolver o dinheiro deste pedido",
     style:(mini?"":"border:0;border-radius:8px;padding:5px 10px;color:#fff;font-weight:800;font-size:14px;font-family:var(--f-body);")+"background:"+(pend?"var(--bad)":"var(--ok)")+";cursor:pointer;color:#fff",
     onclick:e=>{ e.stopPropagation(); abrirDinCentral(p); }},txt);
@@ -5605,7 +5608,7 @@ async function calcularFatura(){
   try{ ps=await buscarPeriodo(de,ate,com?undefined:quem); }catch(e){ out.replaceChildren(h("div",{class:"aviso",text:"Não foi possível buscar os pedidos ("+(e&&e.code||"erro")+")."})); return; }
   ps=ps.filter(p=>p.status==="entregue" && (!com || slug(p.coletaEmpresa||"")===quem));
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
-  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):valorFatEnt(itens);
+  const valorDe=itens=>com?valorFatCom(itens):valorFatEnt(itens);
   const t=hoje();
   const linhas=semanas.filter(([a])=>a<=t).map(([a,f,rot])=>{
     const itens=ps.filter(p=>p.data>=a&&p.data<=f);
@@ -5673,6 +5676,27 @@ async function calcularFatura(){
     porSemana?kpi("Semana em andamento",fmt(emAndamento)):kpi("Entregas",String(linhas.reduce((s2,w)=>s2+w.itens.length,0)))]);
   $("#fatCards").hidden=false;
   out.replaceChildren(h("h3",{style:"margin:0",text:nome}),...cards);
+  // fatura do comércio: dinheiro dele que está com a central (ele tem a receber) e que pode ser abatido da fatura
+  if(com){
+    const comCen=ps.filter(p=>dinComCentral(p)>0), totCen=comCen.reduce((s,p)=>s+dinComCentral(p),0);
+    const abat=ps.filter(p=>p.dinheiroAbatidoFatura), totAbat=abat.reduce((s,p)=>s+dinheiroDoPedido(p),0);
+    if(comCen.length||abat.length){
+      const pn=h("div",{class:"painel",style:"gap:6px;border:2px solid var(--bad)"},
+        h("b",{style:"color:var(--bad);font-size:16px",text:"💵 Dinheiro de "+nome+" com a central"}),
+        comCen.length?h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("span",{text:"A receber pelo comércio"}),h("b",{class:"num",style:"font-size:20px;color:var(--bad)",text:fmt(totCen)})):null,
+        ...comCen.map(p=>h("div",{class:"muted num",style:"font-size:13px;display:flex;justify-content:space-between;gap:8px"},
+          h("span",{text:diaCurto(p.data)+" · "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||"")+" · "+nomeEnt(p.entregadorId)}),h("span",{text:fmt(dinComCentral(p))}))),
+        totAbat?h("div",{class:"num",style:"font-size:13px;color:var(--ok);font-weight:700",text:"✓ Já abatido na fatura: "+fmt(totAbat)}):null);
+      if(comCen.length && central()){
+        const bt=h("button",{class:"btn full",type:"button",style:"background:var(--ok);border-color:var(--ok)"},"Comércio deu OK: abater "+fmt(totCen)+" na fatura");
+        confirma(bt,"Toque de novo para abater "+fmt(totCen),async()=>{ bt.disabled=true; bt.textContent="Abatendo…"; const agora=new Date().toISOString();
+          try{ for(const p of comCen) await comRetry(()=>S.db.doc(p._path).update({dinheiroAbatidoFatura:true,abatidoEm:agora,abatidoPor:S.uid||""})); toast(fmt(totCen)+" abatido na fatura de "+nome); calcularFatura(); }
+          catch(e){ bt.disabled=false; toast("Não foi possível abater ("+(e&&e.code||"erro")+")."); } });
+        pn.append(h("span",{class:"muted",style:"font-size:12px",text:"Ao abater, o valor sai do que o comércio paga de taxas e o dinheiro fica com a central."}),bt);
+      }
+      out.insertBefore(pn,out.children[1]||null);
+    }
+  }
   if(central() && abertasFech.length){
     const un=porSemana?["semana","semanas"]:fatModo==="dia"?["dia","dias"]:["fatura","faturas"];
     const bt=h("button",{class:"btn full",type:"button"},(com?"Recebi todas":"Paguei todas")+" ("+abertasFech.length+" "+(abertasFech.length>1?un[1]:un[0])+" · "+fmt(aPagar)+")");
@@ -5692,7 +5716,7 @@ async function calcularFaturaGeral(out,com,mes){
   if(fatTipo!==(com?"comercio":"entregador")||$("#fatQuem").value) return;
   ps=ps.filter(p=>p.status==="entregue");
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
-  const valorDe=itens=>com?itens.reduce((s,p)=>s+num(p.taxaCobrada),0):valorFatEnt(itens);
+  const valorDe=itens=>com?valorFatCom(itens):valorFatEnt(itens);
   const fechado=p=>!porSemana||somaDias(inicioSemana(p.data),6)<t;
   const m=new Map(); ps.forEach(p=>{ const k=com?slug(p.coletaEmpresa||""):(p.entregadorId||""); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
   const sel=$("#fatQuem");
@@ -5747,7 +5771,7 @@ async function faturasDaSemana(a,f){
       out.push({tipo,quem,f,itens,valor:valor(itens),aberto:valor(abertos),pago:!abertos.length,
         nome:tipo==="comercio"?nomeComercioId(quem):nomeEnt(quem)}); }); };
   agrupa("entregador",p=>p.entregadorId,"pagoEntregadorEm",valorFatEnt);
-  agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",it=>it.reduce((s,p)=>s+num(p.taxaCobrada),0));
+  agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",valorFatCom);
   return out.sort((x,y)=>x.nome.localeCompare(y.nome));
 }
 const decisaoFat=g=>((S.fatDecis||{})[chaveFat(g.tipo,g.quem,g.f)]||{}).status||"";
