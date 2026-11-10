@@ -3151,21 +3151,31 @@ function ehDelivery(nomeEmpresa){
   if(comercio() && (!nomeEmpresa || slug(nomeEmpresa)===slug(S.euNome||""))) return S.euCategoria==="delivery";
   return (S.categoriaCom||{})[slug(nomeEmpresa||"")]==="delivery";
 }
-function taxaDaEntrega(nomeEmpresa,bairro,taxaFixa){ if(ehDelivery(nomeEmpresa)){ const t=taxaPorBairro(bairro); if(t!=null) return t; } return taxaFixa; }
+/* bairro que ainda não está na tabela: R$ 8,00 e o bairro entra na tabela (marcado como novo) para a central conferir */
+const TAXA_BAIRRO_NOVO = 8;
+const taxaBairroDelivery = b => { const t=taxaPorBairro(b); return t!=null ? t : TAXA_BAIRRO_NOVO; };
+function registrarBairroNovo(b){
+  b=String(b||"").trim(); if(!b || taxaPorBairro(b)!=null || !S.db) return;
+  const lista=[...(S.bairrosTaxa||[]),{nome:b,taxa:TAXA_BAIRRO_NOVO,novo:true,criadoEm:new Date().toISOString()}].sort((x,y)=>String(x.nome).localeCompare(String(y.nome)));
+  S.bairrosTaxa=lista; S.db.doc("config/bairrosTaxa").set({lista,atualizadoEm:new Date().toISOString()}).catch(()=>{});
+}
+function taxaDaEntrega(nomeEmpresa,bairro,taxaFixa){ if(ehDelivery(nomeEmpresa) && String(bairro||"").trim()) return taxaBairroDelivery(bairro); return taxaFixa; }
 function abrirTabelaBairros(){
   const linhas=(S.bairrosTaxa.length?S.bairrosTaxa:BAIRROS_TAXA_INICIAL).map(b=>({...b}));
   const lista=h("div",{style:"display:flex;flex-direction:column;gap:6px"});
   const desenhar=()=>lista.replaceChildren(...linhas.map((b,i)=>{
     const n=h("input",{class:"inp","aria-label":"Bairro",value:b.nome}); n.addEventListener("input",()=>{ b.nome=n.value; });
     const v=h("input",{class:"inp num","aria-label":"Taxa",inputmode:"decimal",style:"max-width:110px",value:fmtInput(b.taxa)}); v.addEventListener("input",()=>{ b.taxa=num(v.value); });
-    return h("div",{style:"display:flex;gap:6px;align-items:center"},h("div",{style:"flex:1;min-width:0"},n),v,h("button",{class:"mini",type:"button","aria-label":"Remover bairro",onclick:()=>{ linhas.splice(i,1); desenhar(); }},"✕")); }));
+    if(b.novo) n.style.borderColor="var(--laranja)";
+    return h("div",{style:"display:flex;gap:6px;align-items:center"},b.novo?h("span",{title:"Bairro novo, confira a taxa",style:"font-size:11px;font-weight:800;color:var(--laranja-ink)",text:"NOVO"}):null,h("div",{style:"flex:1;min-width:0"},n),v,h("button",{class:"mini",type:"button","aria-label":"Remover bairro",onclick:()=>{ linhas.splice(i,1); desenhar(); }},"✕")); }));
   desenhar();
   const add=h("button",{class:"btn sec full",type:"button",onclick:()=>{ linhas.push({nome:"",taxa:7}); desenhar(); }},"＋ Adicionar bairro");
   const ok=h("button",{class:"btn full",type:"button"},"Salvar tabela");
-  ok.addEventListener("click",async()=>{ const l=linhas.filter(b=>String(b.nome).trim()).map(b=>({nome:String(b.nome).trim(),taxa:num(b.taxa)})).sort((a,b)=>a.nome.localeCompare(b.nome));
+  ok.addEventListener("click",async()=>{ const l=linhas.filter(b=>String(b.nome).trim()).map(b=>({nome:String(b.nome).trim(),taxa:num(b.taxa)})).sort((a,b)=>a.nome.localeCompare(b.nome));   // salvar confirma os novos
     ok.disabled=true; try{ await comRetry(()=>S.db.doc("config/bairrosTaxa").set({lista:l,atualizadoEm:new Date().toISOString()})); S.bairrosTaxa=l; fechar(); toast("Tabela de bairros salva"); }
     catch(e){ ok.disabled=false; toast("Não foi possível salvar."); } });
-  const fechar=abrirSheet("Taxa por bairro (delivery)",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Vale para comércios da categoria Delivery. Farmácias continuam com a taxa fixa do cadastro."}),lista,add,ok]);
+  const nNovos=linhas.filter(b=>b.novo).length;
+  const fechar=abrirSheet("Taxa por bairro (delivery)",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Vale para comércios da categoria Delivery. Farmácias continuam com a taxa fixa do cadastro. Bairro que não está na tabela entra com "+fmt(TAXA_BAIRRO_NOVO)+" e aparece aqui como NOVO."+(nNovos?" Há "+nNovos+" bairro(s) novo(s) para conferir: ajuste a taxa e toque em Salvar.":"")}),lista,add,ok]);
 }
 
 /* Bairro (obrigatório em toda entrega, menos transferência): lista com os bairros já usados + os da tabela de adicional */
@@ -4245,7 +4255,7 @@ function montarRotaPorFotos(restaurar){
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
           taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
-          ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && taxaPorBairro(x.bairro)!=null ? {adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true} : {}),
+          ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && String(x.bairro||"").trim() ? (registrarBairroNovo(x.bairro),{adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true}) : {}),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
           // lançada pelo entregador no ponto de coleta: fica "aceita, falta coletar"; só sai em rota quando ele tocar em Coletei
@@ -4488,14 +4498,14 @@ function abrirPedido(p,arquivoComanda,pre){
   datalistBairros();
   const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||bairroNoEndereco(p.endereco)||""});
   fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBairro.value=b; fBairro.dispatchEvent(new Event("change")); } } });
-  const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value)){ const t=taxaPorBairro(fBairro.value); if(t!=null) fTaxa.value=fmtInput(t); } }catch(e){} };
+  const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value) && fBairro.value.trim()) fTaxa.value=fmtInput(taxaBairroDelivery(fBairro.value)); }catch(e){} };
   fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
   // comércio de delivery: na frente do bairro aparece a taxa cheia que o comércio paga (tabela de bairros)
   const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px"});
   const atuTaxaBairro=()=>{ const emp=comercio()?S.euNome:fEmp.value; const mostra=(comercio()||central()) && ehDelivery(emp);
     taxaBairroTxt.hidden=!mostra; if(!mostra) return;
     const t=taxaPorBairro(fBairro.value);
-    taxaBairroTxt.textContent = t!=null ? "Taxa: "+fmt(t) : (fBairro.value.trim()?"Bairro fora da tabela":"Escolha o bairro"); };
+    taxaBairroTxt.textContent = fBairro.value.trim() ? "Taxa: "+fmt(t!=null?t:TAXA_BAIRRO_NOVO) : "Escolha o bairro"; };
   fBairro.addEventListener("input",atuTaxaBairro); fBairro.addEventListener("change",atuTaxaBairro); fEmp.addEventListener("input",atuTaxaBairro); fEmp.addEventListener("change",atuTaxaBairro);
   const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),
     h("div",{style:"display:flex;gap:10px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fBairro),taxaBairroTxt));
@@ -4898,8 +4908,9 @@ function abrirPedido(p,arquivoComanda,pre){
       taxaCobrada: servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : (central()||comercio()) ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
     // comércio de delivery: taxa pela tabela de bairros e sem adicional de bairro (a central ainda pode mudar a taxa à mão)
-    if(!servicoTaxaFixa(servico,pag) && ehDelivery(dados.coletaEmpresa) && taxaPorBairro(dados.bairro)!=null){
-      if(!(central() && taxaMexida)) dados.taxaCobrada=taxaPorBairro(dados.bairro);
+    if(!servicoTaxaFixa(servico,pag) && ehDelivery(dados.coletaEmpresa) && dados.bairro){
+      if(!(central() && taxaMexida)) dados.taxaCobrada=taxaBairroDelivery(dados.bairro);
+      registrarBairroNovo(dados.bairro);
       dados.adicionais=0; delete dados.adicionalMotivo; delete dados.adicionalBairro; dados.taxaBairro=true;
     }
     // andamento: quem fez cada etapa
