@@ -4490,7 +4490,16 @@ function abrirPedido(p,arquivoComanda,pre){
   fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBairro.value=b; fBairro.dispatchEvent(new Event("change")); } } });
   const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value)){ const t=taxaPorBairro(fBairro.value); if(t!=null) fTaxa.value=fmtInput(t); } }catch(e){} };
   fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
-  const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),fBairro);
+  // comércio de delivery: na frente do bairro aparece a taxa cheia que o comércio paga (tabela de bairros)
+  const taxaBairroTxt=h("b",{class:"num",style:"white-space:nowrap;color:var(--royal);font-size:16px"});
+  const atuTaxaBairro=()=>{ const emp=comercio()?S.euNome:fEmp.value; const mostra=(comercio()||central()) && ehDelivery(emp);
+    taxaBairroTxt.hidden=!mostra; if(!mostra) return;
+    const t=taxaPorBairro(fBairro.value);
+    taxaBairroTxt.textContent = t!=null ? "Taxa: "+fmt(t) : (fBairro.value.trim()?"Bairro fora da tabela":"Escolha o bairro"); };
+  fBairro.addEventListener("input",atuTaxaBairro); fBairro.addEventListener("change",atuTaxaBairro); fEmp.addEventListener("input",atuTaxaBairro); fEmp.addEventListener("change",atuTaxaBairro);
+  const campoBairro=h("div",{class:"campo"},h("label",{for:"pBairro",text:"Bairro"}),
+    h("div",{style:"display:flex;gap:10px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fBairro),taxaBairroTxt));
+  setTimeout(atuTaxaBairro,0);
   // endereço pode mudar só neste pedido; opcionalmente atualiza o cadastro do cliente
   const cadEnd=h("input",{type:"checkbox",id:"pAtuEnd",checked:true});
   const avisoEnd=h("div",{class:"muted",style:"font-size:13px;display:flex;flex-direction:column;gap:4px",hidden:true},
@@ -4599,7 +4608,7 @@ function abrirPedido(p,arquivoComanda,pre){
     const emprestado = trocado || !!(telEnd && telCad && digTel(telEnd)!==digTel(telCad)); emprestadoAtual=!trocado && emprestado;
     semCadastro=false; endPendente=false; clienteNovo=false; cadastradoTxt="";
     bairroLido=String(r.bairro||""); adicOk=null; adicEscolhido=null;
-    if(!fBairro.value.trim()) fBairro.value = bairroLido || bairroNoEndereco(r.endereco) || "";
+    if(!fBairro.value.trim()){ fBairro.value = bairroLido || bairroNoEndereco(r.endereco) || ""; fBairro.dispatchEvent(new Event("change")); }
     produtosLidos=Array.isArray(r.produtosControlados)?r.produtosControlados.map(x=>String(x).trim()).filter(Boolean):[];
     if(r.pegarReceita===true||r.pegarReceita==="true"||produtosLidos.length){ receita=true; atuRec(); }
     // cadastro emprestado / outro endereço: o nome do cabeçalho é de outra pessoa; nome de quem recebe não vira cliente
