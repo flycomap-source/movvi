@@ -5664,8 +5664,8 @@ async function calcularFatura(){
   if(!S.db){ out.append(h("div",{class:"aviso",text:"Sem conexão com os dados."})); return; }
   if(central()&&!quem&&mes){ calcularFaturaGeral(out,com,mes); return; }
   if(!quem||!mes){ out.append(h("p",{class:"muted",style:"margin:0",text:com?"Escolha o comércio.":"Escolha o entregador."})); return; }
-  // entregador com fechamento mensal: a fatura é o mês inteiro e fecha no último dia do mês
-  const mensal=!com && fechamentoDe(quem)==="mensal" && fatModo==="semana";
+  // entregador ou comércio com fechamento mensal: a fatura é o mês inteiro e fecha no último dia do mês
+  const mensal=fechamentoFat(com?"comercio":"entregador",quem)==="mensal" && fatModo==="semana";
   let semanas=intervalosFatura(mes);
   if(mensal&&mes){ const [y,m]=mes.split("-").map(Number); semanas=[[mes+"-01",isoDia(new Date(y,m,0)),"Mês · "+new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"})+" · fechamento mensal"]]; }
   if(!semanas.length) return;
@@ -5785,7 +5785,7 @@ async function calcularFaturaGeral(out,com,mes){
   ps=ps.filter(p=>p.status==="entregue");
   const campo=com?"pagoComercioEm":"pagoEntregadorEm";
   const valorDe=itens=>com?valorFatCom(itens):valorFatEnt(itens);
-  const fechado=p=>!porSemana||(!com&&fechamentoDe(p.entregadorId)==="mensal" ? String(p.data).slice(0,7)<t.slice(0,7) : somaDias(inicioSemana(p.data),6)<t);
+  const fechado=p=>!porSemana||((com?fechamentoCom(slug(p.coletaEmpresa||"")):fechamentoDe(p.entregadorId))==="mensal" ? String(p.data).slice(0,7)<t.slice(0,7) : somaDias(inicioSemana(p.data),6)<t);
   const m=new Map(); ps.forEach(p=>{ const k=com?slug(p.coletaEmpresa||""):(p.entregadorId||""); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
   const sel=$("#fatQuem");
   const nomeDe=k=>{ if(!com) return nomeEnt(k); const o=[...sel.options].find(o=>o.value===k||slug(o.text)===k); return o?o.text:k; };
@@ -5818,6 +5818,8 @@ async function calcularFaturaGeral(out,com,mes){
 function ultimaSemanaFechada(){ const t=hoje(), d=deIso(t).getDay(); const f=somaDias(t,-(d===0?7:d)); return [somaDias(f,-6),f]; }
 /* fechamento da fatura de cada entregador: semanal (padrão, fecha no domingo) ou mensal (fecha no último dia do mês) */
 function fechamentoDe(entId){ const m=(S.equipe||[]).find(x=>x.id===entId); if(m) return m.fechamento==="mensal"?"mensal":"semanal"; return (!central()&&entId===S.eu)?(S.euFechamento||"semanal"):"semanal"; }
+function fechamentoCom(id){ const c=(S.comercios||[]).find(x=>slug(x.nome)===id||x.id===id); return c&&c.fechamento==="mensal"?"mensal":"semanal"; }
+const fechamentoFat=(tipo,quem)=>tipo==="comercio"?fechamentoCom(quem):fechamentoDe(quem);
 function ultimoMesFechado(){ const ini=hoje().slice(0,7)+"-01", f=somaDias(ini,-1); return [f.slice(0,7)+"-01",f]; }
 function chaveFat(tipo,quem,f){ return tipo+"_"+String(quem).replace(/[\/.#$\[\]]/g,"-")+"_"+f; }
 function nomeComercioId(id){ const c=S.comercios.find(c=>slug(c.nome)===id)||S.empresas.find(e=>e.id===id||slug(e.nome)===id); return c?c.nome:id; }
@@ -5841,9 +5843,9 @@ async function faturasDaSemana(a,f,soMensais){
     m.forEach((itens,quem)=>{ const abertos=itens.filter(p=>!p[campo]);
       out.push({tipo,quem,f,itens,valor:valor(itens),aberto:valor(abertos),pago:!abertos.length,
         nome:tipo==="comercio"?nomeComercioId(quem):nomeEnt(quem)}); }); };
-  // semana: só os entregadores de fechamento semanal · mês: só os de fechamento mensal (e nenhum comércio)
+  // semana: só quem tem fechamento semanal · mês: só quem tem fechamento mensal (entregadores e comércios)
   agrupa("entregador",p=>p.entregadorId&&((fechamentoDe(p.entregadorId)==="mensal")===!!soMensais)?p.entregadorId:"","pagoEntregadorEm",valorFatEnt);
-  if(!soMensais) agrupa("comercio",p=>slug(p.coletaEmpresa||""),"pagoComercioEm",valorFatCom);
+  agrupa("comercio",p=>{ const k=slug(p.coletaEmpresa||""); return k&&((fechamentoCom(k)==="mensal")===!!soMensais)?k:""; },"pagoComercioEm",valorFatCom);
   out.forEach(g=>{ g.mensal=!!soMensais; });
   return out.sort((x,y)=>x.nome.localeCompare(y.nome));
 }
@@ -5869,7 +5871,7 @@ setTimeout(()=>verificarFaturasFechadas(),4000);
 async function gruposFechados(){
   const [a,f]=ultimaSemanaFechada(), [ma,mf]=ultimoMesFechado();
   const sem=await faturasDaSemana(a,f,false);
-  const temMensal=(S.equipe||[]).some(e=>e.fechamento==="mensal");
+  const temMensal=(S.equipe||[]).some(e=>e.fechamento==="mensal")||(S.comercios||[]).some(c=>c.fechamento==="mensal");
   const mes=temMensal?await faturasDaSemana(ma,mf,true):[];
   return [...sem,...mes];
 }
@@ -7016,6 +7018,8 @@ function editarComercio(c){
   const fT=h("input",{class:"inp num",id:"ecT",inputmode:"decimal",value:fmtInput(c.taxa??TAXA_PADRAO)});
   const fCat=h("select",{class:"inp",id:"ecCat"},h("option",{value:"farmacia",text:"Farmácia · taxa fixa em qualquer bairro"}),h("option",{value:"delivery",text:"Delivery (lanche, marmita…) · taxa por bairro"}));
   fCat.value=c.categoria||"farmacia";
+  const fF=h("select",{class:"inp",id:"ecF"},h("option",{value:"semanal",text:"Fechamento semanal (fecha todo domingo)"}),h("option",{value:"mensal",text:"Fechamento mensal (fecha no último dia do mês)"}));
+  fF.value=c.fechamento==="mensal"?"mensal":"semanal";
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar comércio":"Salvar");
   const fechar=abrirSheet(novo?"Cadastrar comércio":"Editar "+c.nome,[
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.comercios).get(c.id)||"")+" · "+(c.ativo===false?"bloqueado":c.uid?((S.usuarios||{})[c.uid]?"usuário: "+S.usuarios[c.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
@@ -7023,6 +7027,7 @@ function editarComercio(c){
     h("div",{class:"campo"},h("label",{for:"ecE",text:"Endereço de coleta"}),fE),
     h("div",{class:"campo"},h("label",{for:"ecTel",text:"Telefone / WhatsApp"}),fTel),
     h("div",{class:"campo"},h("label",{for:"ecCat",text:"Categoria"}),fCat),
+    h("div",{class:"campo"},h("label",{for:"ecF",text:"Fatura"}),fF),
     h("div",{class:"campo"},h("label",{for:"ecT",text:"Taxa cobrada por entrega (R$) · na categoria Delivery vale a tabela de bairros"}),fT),
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"A nova taxa vale para os próximos pedidos. Os já lançados mantêm a taxa de quando foram criados."}),
     ok,
@@ -7046,7 +7051,7 @@ function editarComercio(c){
       });
       return bt; })()]);
   ok.addEventListener("click",async()=>{
-    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia"};
+    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia",fechamento:fF.value==="mensal"?"mensal":"semanal"};
     if(!d.nome){ toast("Informe o nome do comércio."); return; }
     if(novo && S.comercios.some(x=>slug(x.nome)===slug(d.nome))){ toast("Já existe um comércio com esse nome."); return; }
     if(!d.endereco){ toast("Informe o endereço do comércio."); return; }
