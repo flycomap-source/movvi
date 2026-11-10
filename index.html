@@ -7342,6 +7342,7 @@ function editarComercio(c){
   const fN=h("input",{class:"inp",id:"ecN",value:c.nome||""});
   const fE=h("input",{class:"inp",id:"ecE",value:c.endereco||""});
   const fTel=h("input",{class:"inp",id:"ecTel",type:"tel",inputmode:"tel",value:c.telefone||"",placeholder:"(38) 99999-9999"});
+  const fTel2=h("input",{class:"inp",id:"ecTel2",type:"tel",inputmode:"tel",value:c.telefone2||"",placeholder:"Outro telefone (opcional)"});
   const fT=h("input",{class:"inp num",id:"ecT",inputmode:"decimal",value:fmtInput(c.taxa??TAXA_PADRAO)});
   const fCat=h("select",{class:"inp",id:"ecCat"},h("option",{value:"farmacia",text:"Farmácia · taxa fixa em qualquer bairro"}),h("option",{value:"delivery",text:"Delivery (lanche, marmita…) · taxa por bairro"}));
   fCat.value=c.categoria||"farmacia";
@@ -7353,6 +7354,7 @@ function editarComercio(c){
     h("div",{class:"campo"},h("label",{for:"ecN",text:"Nome do comércio"}),fN),
     h("div",{class:"campo"},h("label",{for:"ecE",text:"Endereço de coleta"}),fE),
     h("div",{class:"campo"},h("label",{for:"ecTel",text:"Telefone / WhatsApp"}),fTel),
+    h("div",{class:"campo"},h("label",{for:"ecTel2",text:"Telefone 2 (opcional)"}),fTel2),
     h("div",{class:"campo"},h("label",{for:"ecCat",text:"Categoria"}),fCat),
     h("div",{class:"campo"},h("label",{for:"ecF",text:"Fatura"}),fF),
     h("div",{class:"campo"},h("label",{for:"ecT",text:"Taxa cobrada por entrega (R$) · na categoria Delivery vale a tabela de bairros"}),fT),
@@ -7378,7 +7380,7 @@ function editarComercio(c){
       });
       return bt; })()]);
   ok.addEventListener("click",async()=>{
-    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia",fechamento:fF.value==="mensal"?"mensal":"semanal"};
+    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),telefone2:fTel2.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia",fechamento:fF.value==="mensal"?"mensal":"semanal"};
     if(!d.nome){ toast("Informe o nome do comércio."); return; }
     if(novo && S.comercios.some(x=>slug(x.nome)===slug(d.nome))){ toast("Já existe um comércio com esse nome."); return; }
     if(!d.endereco){ toast("Informe o endereço do comércio."); return; }
