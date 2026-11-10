@@ -1693,7 +1693,7 @@ function assinarDia(forcar){
             novoPedido("Receita para buscar em "+d.receitaBuscarEm+" ("+(d.coletaEmpresa||"comércio")+"): peça a ordem de serviço e lance a corrida em Receitas pendentes");
           if(central() && ch.type==="modified" && d.trocoPendente && !(S.fontesDia[col]||[]).find(x=>x.id===ch.doc.id&&x.trocoPendente))
             novoPedido("Troco de "+fmt(d.trocoDevido)+" a enviar para "+(d.cliente||d.telefone||"o cliente")+" (Pix ou outra corrida): veja em Trocos a enviar");
-          if(S.modo==="entregador" && ch.type==="added" && !d.aceitoEm) novoPedido("Nova entrega para você"+(d.coletaEmpresa?" · coleta em "+d.coletaEmpresa:""));
+          if(S.modo==="entregador" && ch.type==="added" && (!d.aceitoEm || (d.criadoPor && d.criadoPor!==S.uid))) novoPedido((d.aceitoEm?"Nova entrega · já está em Indo coletar":"Nova entrega para você")+(d.coletaEmpresa?" · coleta em "+d.coletaEmpresa:""));
           if(comercio() && ch.type==="modified" && antes[ch.doc.id]!==d.status){
             if(d.status==="a_caminho") alerta("Entregador designado: "+(d.entregadorNome||""));
             if(d.status==="entregue") alerta("Entrega concluída"+(d.cliente?" · "+d.cliente:""));
@@ -2052,10 +2052,10 @@ async function trocarEntregador(lista, entId){
   const destinoCol=colDe(entId);
   for(const x of lista){
     const {id,_path,...d}=x;
-    const novo=comRegistro(x,"Entrega passada de "+nomeEnt(d.entregadorId)+" para "+(m.nome||nomeEnt(entId)),{...d,entregadorId:entId,aceitoEm:null,emRotaEm:null,status:"pendente",substituidoEm:new Date().toISOString(),entregadorAnterior:d.entregadorId||"",...(num(d.ordemEntrega)>0?{ordemDe:entId}:{})});
+    const novo=comRegistro(x,"Entrega passada de "+nomeEnt(d.entregadorId)+" para "+(m.nome||nomeEnt(entId)),{...d,entregadorId:entId,aceitoEm:aceiteAuto(entId),emRotaEm:null,status:"pendente",substituidoEm:new Date().toISOString(),entregadorAnterior:d.entregadorId||"",...(num(d.ordemEntrega)>0?{ordemDe:entId}:{})});
     const destino=destinoCol+"/"+id;
     if(destino!==_path){ await comRetry(()=>S.db.doc(destino).set(novo)); await comRetry(()=>S.db.doc(_path).delete()); }
-    else await comRetry(()=>S.db.doc(_path).update({aceitoEm:null,emRotaEm:null,status:"pendente",entregadorId:entId,...(num(d.ordemEntrega)>0?{ordemDe:entId}:{}),...(novo.registros?{registros:novo.registros}:{})}));
+    else await comRetry(()=>S.db.doc(_path).update({aceitoEm:aceiteAuto(entId),emRotaEm:null,status:"pendente",entregadorId:entId,...(num(d.ordemEntrega)>0?{ordemDe:entId}:{}),...(novo.registros?{registros:novo.registros}:{})}));
     // avisa o comércio e o registro de quem aceitou
     if(x.viaOferta) await S.db.doc("aceites/"+id).update({entregadorId:entId,entregadorNome:m.nome||"",aceitoPor:m.uid||"",status:"aceita",syncEstado:"aceita"}).catch(()=>{});
     const o=x.origem||{};
@@ -2661,13 +2661,15 @@ async function aceitarOferta(o,silencioso){
   if(d.data && d.data!==S.dia) mudarDia(d.data); }
   return true;
 }
+/* pedido mandado pela central: grupo Movvi+ precisa aceitar; grupo Outros já cai direto em "Indo coletar" */
+const aceiteAuto = entId => grupoDe(membro(entId))==="outros" ? new Date().toISOString() : null;
 async function designar(p, entId){
   const m=membro(entId)||{};
   { const cb=comBonusCampanha(p); if(cb){ p={...p,...cb}; await S.db.doc(p._path).update(cb).catch(()=>{}); } }   // campanha de bônus valendo agora
   if(p.tipo==="rota"){
     const ok=await travarAceite(p.id,{tipo:"rota",qtd:(p.paradas||[]).length,lojaUid:"",pedidoId:p.id,origemPath:p._path,aceitoPor:m.uid||"",entregadorId:entId,entregadorNome:m.nome||"",designadoEm:new Date().toISOString(),status:"aceita"});
     if(!ok) return false;
-    for(const d of docsDaRota({...p,rotaId:p.id},{entregadorId:entId,taxaCobrada:num(p.taxaCobrada),designadoEm:new Date().toISOString(),criadoPor:S.uid||""}))
+    for(const d of docsDaRota({...p,rotaId:p.id},{entregadorId:entId,taxaCobrada:num(p.taxaCobrada),designadoEm:new Date().toISOString(),criadoPor:S.uid||"",...(aceiteAuto(entId)?{aceitoEm:aceiteAuto(entId)}:{})}))
       await comRetry(()=>S.db.doc(colDe(entId)+"/"+d.id).set(d.dados));
     return true;
   }
@@ -2675,7 +2677,7 @@ async function designar(p, entId){
   const ok=await travarAceite(p.id,{lojaUid,pedidoId:p.id,origemPath:p._path,aceitoPor:m.uid||"",entregadorId:entId,entregadorNome:m.nome||"",designadoEm:new Date().toISOString(),status:"aceita"});
   if(!ok) return false;
   const {id,_path,...d}=p;
-  { const base={...copiaDaOferta(dadosOferta(d,lojaUid,p.id,p._path)),entregadorId:entId,taxaCobrada:num(p.taxaCobrada),designadoEm:new Date().toISOString(),criadoPor:S.uid||""};
+  { const base={...copiaDaOferta(dadosOferta(d,lojaUid,p.id,p._path)),entregadorId:entId,taxaCobrada:num(p.taxaCobrada),designadoEm:new Date().toISOString(),criadoPor:S.uid||"",...(aceiteAuto(entId)?{aceitoEm:aceiteAuto(entId)}:{})};
     await comRetry(()=>S.db.doc(colDe(entId)+"/"+p.id).set(comRegistro(base,"Pedido enviado para "+(m.nome||nomeEnt(entId)),base))); }
   return true;
 }
@@ -5183,7 +5185,7 @@ function abrirPedido(p,arquivoComanda,pre){
         toast(soMovvi?"Pedido enviado ao grupo Movvi+":"Pedido enviado a todos os entregadores");
       }else if(novo){
         const agoraIso=new Date().toISOString();
-        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso}:{})}));   // entregador: aceita, falta coletar (sai em rota no "Coletei")
+        await comRetry(()=>S.db.collection(destino).add({...dados,status:"pendente",acertado:false,criadoEm:agoraIso,criadoPor:S.uid||"",...(S.modo==="entregador"?{aceitoEm:agoraIso}:(central()&&entId&&aceiteAuto(entId))?{aceitoEm:agoraIso}:{})}));   // entregador: aceita, falta coletar (sai em rota no "Coletei")
         toast("Pedido lançado");
       }else if(aguardandoEnt){
         // ainda ninguém pegou: atualiza no mesmo lugar (as ofertas aos entregadores são refeitas sozinhas)
@@ -5201,7 +5203,7 @@ function abrirPedido(p,arquivoComanda,pre){
         const atualCol=p._path.slice(0,p._path.lastIndexOf("/"));
         if(atualCol!==destino){
           const {id,_path,...resto}=p;
-          await comRetry(()=>S.db.doc(destino+"/"+p.id).set({...resto,...dados,aceitoEm:null,emRotaEm:null,rotaId:null,rotaQtd:null}));
+          await comRetry(()=>S.db.doc(destino+"/"+p.id).set({...resto,...dados,aceitoEm:entId?aceiteAuto(entId):null,emRotaEm:null,rotaId:null,rotaQtd:null}));
           await comRetry(()=>S.db.doc(p._path).delete());
         }else{
           await comRetry(()=>S.db.doc(p._path).update(dados));
