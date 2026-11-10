@@ -2245,8 +2245,8 @@ function abrirDinCentral(p){
       for(const r of (S.pixPend||[]).filter(r=>r.pedidoPath===p._path)) await S.db.doc("recados/"+r.id).update({lidoEm:agora()}).catch(()=>{});
       Object.assign(p,upd); fechar(); toast(okTxt); if(typeof renderPedidos==="function") renderPedidos(); }
     catch(e){ bt.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; } };
-  const bt=(t,sub,cor)=>h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:12px;line-height:1.2;background:"+cor+";border-color:"+cor},
-    h("b",{style:"font-size:16px",text:t}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:sub}));
+  const bt=(t,sub,cor)=>h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:1px;padding:8px 10px;min-height:0;line-height:1.2;background:"+cor+";border-color:"+cor},
+    h("b",{style:"font-size:15px",text:t}),h("span",{style:"font-size:11.5px;font-weight:600;opacity:.9",text:sub}));
   const bDev=bt("Dinheiro devolvido ao comércio",(p.dinheiroCom==="central"?"A central":ent)+" entregou "+fmt(v)+" em "+emp,"var(--royal)");
   const bCen=bt("Dinheiro entregue na central",ent+" entregou "+fmt(v)+" para a central","var(--laranja)");
   bCen.addEventListener("click",()=>fazer(bCen,{dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:agora(),dinheiroCentralPor:S.uid||""},"Dinheiro marcado como entregue na central"));
@@ -2256,12 +2256,20 @@ function abrirDinCentral(p){
   bPix.addEventListener("click",()=>fazer(bPix,{dinheiroCom:naCentral?"central":"fatura",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:agora(),pixComercioPor:S.uid||"",pixComercioValor:v},naCentral?"Pix marcado como enviado":"Pix marcado como enviado · desconta na fatura do entregador"));
   const desfazer = dinPendCentral(p)===false ? h("button",{class:"btn sec full",type:"button"},"Desfazer (voltar para pendente)") : null;
   if(desfazer) desfazer.addEventListener("click",()=>fazer(desfazer,{dinheiroDevolvido:false,devolvidoEm:"",dinheiroCom:["fatura","central"].includes(p.dinheiroCom)?p.dinheiroCom:"loja",pixComercioEnviadoEm:"",pixComercioPendente:p.dinheiroCom==="fatura"},"Voltou para pendente (vermelho)"));
-  const fechar=abrirSheet("Dinheiro do pedido"+(p.numero?" #"+p.numero:""),[
-    h("div",{class:"painel",style:"gap:4px"},
-      h("b",{style:"font-size:20px",class:"num",text:fmt(v)+" em dinheiro"}),
-      h("span",{text:"Comércio: "+emp}),h("span",{text:"Entregador: "+ent}),
-      h("span",{class:"muted",style:"font-size:13px",text:p.dinheiroCom==="fatura"?"O entregador ficou com o dinheiro (descontar na fatura dele).":p.dinheiroCom==="central"?"O entregador entregou o dinheiro na central.":"O entregador ficou de devolver o dinheiro no comércio."})),
-    bDev,bPix,(naCentral||dinPendCentral(p)===false)?null:bCen,desfazer,msg]);
+  // caixa no meio da tela, compacta e com rolagem (cabe em tela de notebook)
+  const cx=h("div",{role:"dialog","aria-modal":"true","aria-label":"Dinheiro do pedido",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.55);display:grid;place-items:center;padding:12px"});
+  const fechar=()=>cx.remove();
+  cx.addEventListener("click",e=>{ if(e.target===cx) fechar(); });
+  const esc=e=>{ if(e.key==="Escape"){ fechar(); document.removeEventListener("keydown",esc); } }; document.addEventListener("keydown",esc);
+  const quem=p.dinheiroCom==="fatura"?"O entregador ficou com o dinheiro (descontar na fatura dele).":p.dinheiroCom==="central"?"O entregador entregou o dinheiro na central.":"O entregador ficou de devolver o dinheiro no comércio.";
+  cx.append(h("div",{style:"background:var(--card,#fff);border-radius:16px;padding:14px 16px;max-width:440px;width:100%;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:8px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
+    h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:8px"},
+      h("b",{style:"font-size:17px",text:"Dinheiro do pedido"+(p.numero?" #"+p.numero:"")}),
+      h("button",{class:"ic-btn",type:"button","aria-label":"Fechar",onclick:fechar},"✕")),
+    h("div",{style:"font-size:13px;line-height:1.35"},h("b",{class:"num",style:"font-size:18px;color:var(--bad)",text:fmt(v)+" em dinheiro"}),h("br"),
+      "Comércio: "+emp+" · Entregador: "+ent,h("br"),h("span",{class:"muted",text:quem})),
+    bDev,bPix,(naCentral||dinPendCentral(p)===false)?null:bCen,desfazer,msg));
+  document.body.append(cx);
 }
 function rodapePag(p){
   const v=valorACobrar(p), e=p.status==="entregue";
