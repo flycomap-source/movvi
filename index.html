@@ -1028,6 +1028,8 @@ function abrirMenuCentral(){
     item("↩","Trocos a enviar","Clientes que pagaram a mais e ficaram sem troco",()=>abrirTrocosPendentes()),
     item("✍","Notas a devolver","Notas de convênio assinadas que ainda não voltaram ao comércio",()=>abrirNotasPendentes()),
     item("▤","Relatórios","Entregadores, comércios e pedidos",()=>abrirEscolhaRelatorio()),
+    item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
+    item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
     sec("Cadastros e acessos"),
     item("☺","Clientes","Cadastrar, editar e buscar clientes",()=>{ irPara("equipe"); mostrarCadastro("clientes"); }),
     item("🛵","Entregadores","Cadastrar, editar, senhas e pedidos de acesso",()=>{ irPara("equipe"); mostrarCadastro("entregadores"); }),
@@ -2657,6 +2659,7 @@ async function aceitarOferta(o,silencioso){
 }
 async function designar(p, entId){
   const m=membro(entId)||{};
+  { const cb=comBonusCampanha(p); if(cb){ p={...p,...cb}; await S.db.doc(p._path).update(cb).catch(()=>{}); } }   // campanha de bônus valendo agora
   if(p.tipo==="rota"){
     const ok=await travarAceite(p.id,{tipo:"rota",qtd:(p.paradas||[]).length,lojaUid:"",pedidoId:p.id,origemPath:p._path,aceitoPor:m.uid||"",entregadorId:entId,entregadorNome:m.nome||"",designadoEm:new Date().toISOString(),status:"aceita"});
     if(!ok) return false;
@@ -2685,6 +2688,7 @@ function podeVerOferta(m,p){
   return true;
 }
 async function publicarOferta(p){
+  { const cb=comBonusCampanha(p); if(cb){ p={...p,...cb}; await S.db.doc(p._path).update(cb).catch(()=>{}); } }   // campanha de bônus valendo agora
   const lojaUid=lojaUidDe(p);
   const {id,_path,...d}=p;
   const of = p.tipo==="rota"
@@ -4685,7 +4689,7 @@ function abrirPedido(p,arquivoComanda,pre){
   const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value) && fBairro.value.trim()) fTaxa.value=fmtInput(taxaBairroDelivery(fBairro.value)); try{ atuBonus(); }catch(e){} }catch(e){} };
   fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
   // bônus para o entregador (central): entregador (75% da taxa) | bônus % | total
-  const fBonus=h("input",{class:"inp num",id:"pBonus",type:"number",min:"0",max:"200",step:"5",inputmode:"numeric",placeholder:"0",style:"max-width:90px",value:num(p.bonusPct)?String(num(p.bonusPct)):""});
+  const fBonus=h("input",{class:"inp num",id:"pBonus",type:"number",min:"0",max:"200",step:"5",inputmode:"numeric",placeholder:"0",style:"max-width:90px",value:num(p.bonusPct)?String(num(p.bonusPct)):(!p.id&&campanhaAtiva()?String(num(campanhaAtiva().pct)):"")});
   const vBase=h("b",{class:"num"}), vTot=h("b",{class:"num",style:"color:var(--ok);font-size:17px"});
   const atuBonus=()=>{ const base=Math.round(Math.max(TAXA_MINIMA,num(fTaxa.value)*PCT_ENTREGADOR)*100)/100, b=Math.max(0,num(fBonus.value));
     vBase.textContent=fmt(base); vTot.textContent=fmt(Math.round(base*(1+b/100)*100)/100); };
@@ -6487,6 +6491,146 @@ function abrirRecado(p,dest){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedido "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||"")+". O entregador recebe um aviso no celular e o recado aparece na tela dele."}),
     chips,txt,msg,ok]);
 }
+/* ---------- CAMPANHAS DE BÔNUS ----------
+   A central cria campanhas (ex.: "Dia de chuva", +10%) que valem só hoje, esta semana, num período ou todo dia
+   (ou em dias da semana escolhidos), com horário opcional. Enquanto a campanha vale, todo pedido enviado aos entregadores
+   leva o bônus. Guardado em config/campanhas = {lista:[{id,nome,pct,tipo,de,ate,dias,horaIni,horaFim,ativa,criadoEm}]}. */
+const DIAS_SEM=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+function campanhaVale(c,quando){
+  if(!c || c.ativa===false || !(num(c.pct)>0)) return false;
+  const q=quando||new Date(), d=isoDia(q), hm=String(q.getHours()).padStart(2,"0")+":"+String(q.getMinutes()).padStart(2,"0");
+  if(c.de && d<c.de) return false;
+  if(c.ate && d>c.ate) return false;
+  if(c.tipo==="recorrente" && Array.isArray(c.dias) && c.dias.length && !c.dias.includes(q.getDay())) return false;
+  if(c.horaIni && hm<c.horaIni) return false;
+  if(c.horaFim && hm>c.horaFim) return false;
+  return true;
+}
+function campanhaAtiva(quando){
+  const l=(S.campanhas||[]).filter(c=>campanhaVale(c,quando));
+  return l.sort((a,b)=>num(b.pct)-num(a.pct))[0]||null;
+}
+/* pedido sem bônus próprio pega o bônus da campanha que vale agora */
+function comBonusCampanha(p){
+  if(num(p.bonusPct)>0 || p.semCampanha) return null;
+  const c=campanhaAtiva(); if(!c) return null;
+  return {bonusPct:num(c.pct),campanhaId:c.id,campanhaNome:c.nome||""};
+}
+function descCampanha(c){
+  const per = c.tipo==="hoje" ? "Só "+(c.de===hoje()?"hoje":diaCurto(c.de))
+    : c.tipo==="semana" ? "Semana · "+diaCurto(c.de)+" a "+diaCurto(c.ate)
+    : c.tipo==="periodo" ? diaCurto(c.de)+" a "+diaCurto(c.ate)
+    : "Todo dia"+(Array.isArray(c.dias)&&c.dias.length&&c.dias.length<7?" · "+c.dias.slice().sort().map(i=>DIAS_SEM[i]).join(", "):"")+(c.ate?" até "+diaCurto(c.ate):"");
+  return per+(c.horaIni||c.horaFim?" · "+(c.horaIni||"00:00")+" às "+(c.horaFim||"23:59"):"");
+}
+async function salvarCampanhas(lista){ await comRetry(()=>S.db.doc("config/campanhas").set({lista,atualizadoEm:new Date().toISOString()})); }
+/* aviso para todos os entregadores ativos (chega como notificação no celular e aparece na tela deles) */
+async function avisarEntregadores(texto,soIds){
+  const alvo=ativos().filter(m=>m.uid && (!soIds || soIds.includes(m.id)));
+  const agora=new Date().toISOString();
+  for(const m of alvo){ const id="av"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"aviso",para:m.uid,paraNome:m.nome||"",de:"Central",deUid:S.uid||"",texto,criadoEm:agora})); }
+  return alvo.length;
+}
+function abrirAvisoEntregadores(textoInicial){
+  const prontos=["🌧️ Está chovendo: tem bônus nas entregas!","🎁 Hoje tem bônus em todas as entregas","📢 Movimento alto, fiquem disponíveis","⚠️ Confiram o dinheiro antes de sair"];
+  const txt=h("textarea",{class:"inp",id:"avisoTxt",rows:"3",maxlength:"300",placeholder:"Escreva o aviso para os entregadores"},);
+  txt.value=textoInicial||"";
+  const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
+  const lista=ativos().filter(m=>m.uid);
+  const marc=new Set(lista.map(m=>m.id));
+  const quem=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...lista.map(m=>{ const b=h("button",{class:"chip",type:"button","aria-pressed":"true",style:"background:var(--royal);color:#fff;border-color:var(--royal)"},m.nome);
+    b.addEventListener("click",()=>{ const on=!marc.has(m.id); on?marc.add(m.id):marc.delete(m.id); b.setAttribute("aria-pressed",String(on)); b.style.cssText=on?"background:var(--royal);color:#fff;border-color:var(--royal)":""; }); return b; }));
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"📣 Enviar aviso");
+  ok.addEventListener("click",async()=>{ const texto=txt.value.trim(); msg.hidden=true;
+    if(!texto){ msg.hidden=false; msg.textContent="Escreva o aviso."; return; }
+    if(!marc.size){ msg.hidden=false; msg.textContent="Escolha pelo menos um entregador."; return; }
+    ok.disabled=true; ok.textContent="Enviando…";
+    try{ const n=await avisarEntregadores(texto,[...marc]); fechar(); toast("Aviso enviado para "+n+(n===1?" entregador":" entregadores")); }
+    catch(e){ ok.disabled=false; ok.textContent="📣 Enviar aviso"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; } });
+  const fechar=abrirSheet("Aviso para os entregadores",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Chega como notificação no celular de cada um e aparece na tela do app."}),
+    chips,txt,h("span",{class:"lbl",text:"Para quem (toque para tirar ou colocar)"}),quem,msg,ok]);
+}
+function abrirCampanhas(){
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:10px"});
+  const desenhar=()=>{
+    const cs=(S.campanhas||[]).slice().sort((a,b)=>String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")));
+    const agora=campanhaAtiva();
+    lista.replaceChildren(
+      h("div",{class:"painel",style:"gap:4px;border:2px solid "+(agora?"var(--ok)":"var(--line)")},
+        h("b",{style:"font-size:16px",text:agora?"🎁 Valendo agora: +"+num(agora.pct)+"% · "+(agora.nome||"Campanha"):"Nenhuma campanha valendo agora"}),
+        h("span",{class:"muted",style:"font-size:13px",text:agora?"Todo pedido enviado aos entregadores agora leva esse bônus.":"Os pedidos saem sem bônus (a não ser que você coloque no pedido)."})),
+      ...(cs.length?cs.map(c=>{ const vale=campanhaVale(c), acabou=c.ate&&c.ate<hoje();
+        const st=c.ativa===false?h("span",{class:"pill",text:"Pausada"}):acabou?h("span",{class:"pill acert",text:"Encerrada"}):vale?h("span",{class:"pill ok",text:"Valendo agora"}):h("span",{class:"pill",text:"Agendada"});
+        const tog=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},c.ativa===false?"Retomar":"Pausar");
+        tog.addEventListener("click",async()=>{ tog.disabled=true; try{ await salvarCampanhas((S.campanhas||[]).map(x=>x.id===c.id?{...x,ativa:x.ativa===false}:x)); }catch(e){ tog.disabled=false; toast("Não foi possível salvar."); } });
+        const av=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"📣 Avisar");
+        av.addEventListener("click",()=>abrirAvisoEntregadores("🎁 Bônus de "+num(c.pct)+"% nas entregas · "+(c.nome||"")+" · "+descCampanha(c)));
+        const del=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px;color:var(--bad);border-color:var(--bad)"},"Excluir");
+        del.addEventListener("click",async()=>{ if(!del.dataset.ok){ del.dataset.ok="1"; del.textContent="Toque de novo"; setTimeout(()=>{ delete del.dataset.ok; del.textContent="Excluir"; },3000); return; }
+          del.disabled=true; try{ await salvarCampanhas((S.campanhas||[]).filter(x=>x.id!==c.id)); toast("Campanha excluída"); }catch(e){ del.disabled=false; toast("Não foi possível excluir."); } });
+        return h("div",{class:"painel",style:"gap:6px"},
+          h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("b",{text:c.nome||"Campanha"}),h("b",{class:"num",style:"color:var(--ok);font-size:20px",text:"+"+num(c.pct)+"%"})),
+          h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,h("span",{class:"quem-ped",text:descCampanha(c)})),
+          h("div",{style:"display:flex;gap:8px"},tog,av,del)); })
+      :[h("p",{class:"muted",style:"margin:0",text:"Nenhuma campanha criada ainda."})]));
+  };
+  S.redesenharCampanhas=desenhar; desenhar();
+  mostrarPagina("Central","Campanhas de bônus",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Crie um bônus para os entregadores: só hoje (ex.: dia de chuva), a semana toda, num período ou todo dia. Enquanto a campanha vale, todo pedido enviado leva o bônus."}),
+    h("div",{style:"display:flex;gap:8px"},
+      h("button",{class:"btn",type:"button",style:"flex:1",onclick:()=>criarCampanha()},"＋ Criar campanha"),
+      h("button",{class:"btn sec",type:"button",style:"flex:1",onclick:()=>abrirAvisoEntregadores("")},"📣 Enviar aviso")),
+    lista]);
+}
+function criarCampanha(){
+  const t=hoje(), dom=somaDias(t,(7-deIso(t).getDay())%7);
+  const fN=h("input",{class:"inp",id:"cpN",placeholder:"Ex.: Dia de chuva, Fim de semana",maxlength:"40"});
+  const fP=h("input",{class:"inp num",id:"cpP",type:"number",min:"1",max:"200",step:"1",inputmode:"numeric",value:"10",style:"max-width:110px"});
+  const chipsP=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...[5,10,15,20,30].map(v=>h("button",{class:"chip",type:"button",onclick:()=>{ fP.value=String(v); }},"+"+v+"%")));
+  let tipo="hoje";
+  const seg=h("div",{class:"seg",role:"group",style:"grid-template-columns:repeat(2,1fr)"});
+  const fDe=h("input",{class:"inp",id:"cpDe",type:"date",value:t}), fAte=h("input",{class:"inp",id:"cpAte",type:"date",value:dom});
+  const per=h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"cpDe",text:"De"}),fDe),h("div",{class:"campo"},h("label",{for:"cpAte",text:"Até (vazio = sem fim)"}),fAte));
+  const dias=new Set([0,1,2,3,4,5,6]);
+  const chipsD=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...DIAS_SEM.map((n,i)=>{ const b=h("button",{class:"chip",type:"button",style:"background:var(--royal);color:#fff;border-color:var(--royal)"},n);
+    b.addEventListener("click",()=>{ dias.has(i)?dias.delete(i):dias.add(i); b.style.cssText=dias.has(i)?"background:var(--royal);color:#fff;border-color:var(--royal)":""; }); return b; }));
+  const campoDias=h("div",{class:"campo"},h("span",{class:"lbl",text:"Em quais dias"}),chipsD);
+  const fHi=h("input",{class:"inp",id:"cpHi",type:"time"}), fHf=h("input",{class:"inp",id:"cpHf",type:"time"});
+  const hor=h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"cpHi",text:"Das (opcional)"}),fHi),h("div",{class:"campo"},h("label",{for:"cpHf",text:"Até (opcional)"}),fHf));
+  const fAv=h("input",{type:"checkbox",id:"cpAv"}); fAv.checked=true;
+  const OPC=[["hoje","Só hoje"],["semana","Esta semana"],["periodo","Período"],["recorrente","Recorrente"]];
+  const atu=()=>{ seg.replaceChildren(...OPC.map(([k,tx])=>h("button",{type:"button","aria-pressed":String(tipo===k),onclick:()=>{ tipo=k; if(k==="recorrente") fAte.value=""; else if(k==="periodo"&&!fAte.value) fAte.value=dom; atu(); }},tx)));
+    per.hidden=!(tipo==="periodo"||tipo==="recorrente"); campoDias.hidden=tipo!=="recorrente"; };
+  atu();
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"Criar campanha");
+  ok.addEventListener("click",async()=>{
+    const pct=Math.round(num(fP.value)); msg.hidden=true;
+    if(!(pct>0)){ msg.hidden=false; msg.textContent="Informe o bônus em %."; return; }
+    const c={id:"cp"+Date.now().toString(36),nome:fN.value.trim()||("Bônus "+pct+"%"),pct,tipo,ativa:true,criadoEm:new Date().toISOString(),criadoPor:S.uid||"",
+      horaIni:fHi.value||"",horaFim:fHf.value||""};
+    if(tipo==="hoje"){ c.de=t; c.ate=t; }
+    else if(tipo==="semana"){ c.de=t; c.ate=dom; }
+    else if(tipo==="periodo"){ c.de=fDe.value||t; c.ate=fAte.value||""; if(!c.ate){ msg.hidden=false; msg.textContent="Informe até quando vale."; return; } if(c.ate<c.de){ msg.hidden=false; msg.textContent="A data final é antes da inicial."; return; } }
+    else { c.de=fDe.value||t; c.ate=fAte.value||""; c.dias=[...dias].sort(); if(!c.dias.length){ msg.hidden=false; msg.textContent="Escolha pelo menos um dia."; return; } }
+    ok.disabled=true; ok.textContent="Salvando…";
+    try{ await salvarCampanhas([...(S.campanhas||[]),c]);
+      if(fAv.checked){ const n=await avisarEntregadores("🎁 Bônus de "+pct+"% nas entregas · "+c.nome+" · "+descCampanha(c)); toast("Campanha criada · aviso enviado para "+n+(n===1?" entregador":" entregadores")); }
+      else toast("Campanha criada");
+      fechar(); }
+    catch(e){ ok.disabled=false; ok.textContent="Criar campanha"; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Criar campanha de bônus",[
+    h("div",{class:"campo"},h("label",{for:"cpN",text:"Nome da campanha"}),fN),
+    h("div",{class:"campo"},h("label",{for:"cpP",text:"Bônus para o entregador (%)"}),h("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},fP,chipsP)),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Quando vale"}),seg),
+    per,campoDias,hor,
+    h("label",{class:"manter",style:"justify-content:flex-start"},fAv," Avisar os entregadores agora (notificação no celular)"),
+    msg,ok]);
+}
 /* ---------- PIX PARA O COMÉRCIO ----------
    Entregador ficou com o dinheiro (desconta na fatura dele): vai um aviso para cada pessoa da central
    (recados/<id> com tipo "pix") dizendo que tem que mandar o valor da venda por Pix ao comércio. */
@@ -6553,7 +6697,7 @@ function mostrarRecado(r,semSom){
   const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"Entendi");
   const caixa=h("div",{id:"recadoTela",role:"alertdialog","aria-modal":"true","aria-label":"Recado",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
     h("div",{style:"background:var(--card,#fff);border-radius:22px;padding:22px 20px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;border:3px solid var(--laranja);box-shadow:0 20px 60px rgba(0,0,0,.25)"},
-      h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--laranja-ink)",text:"📣 Recado de "+(r.de||"Comércio")}),
+      h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--laranja-ink)",text:(r.tipo==="aviso"?"📢 Aviso da ":"📣 Recado de ")+(r.de||"Comércio")}),
       h("div",{style:"font-size:21px;font-weight:800;line-height:1.3;overflow-wrap:anywhere",text:r.texto||""}),
       h("div",{class:"muted",style:"font-size:14px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente,r.endereco].filter(Boolean).join(" · ")}),
       h("div",{class:"muted",style:"font-size:12px",text:r.criadoEm?"Enviado às "+new Date(r.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""}),ok));
@@ -7182,6 +7326,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
     try{ S.admin=!!(await user.isOwner()); }catch(e){}
   }
   db.doc("config/central").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.nomeCentral=d.nome||"Central"; if(num(d.valorAdicional)>0) VALOR_ADICIONAL=num(d.valorAdicional); if(typeof renderPedidos==="function") renderPedidos(); },()=>{});
+  db.doc("config/campanhas").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.campanhas=Array.isArray(d.lista)?d.lista:[]; if(S.redesenharCampanhas&&$("#v-pagina")&&!$("#v-pagina").hidden) S.redesenharCampanhas(); },()=>{});
   db.collection("faturasDecisoes").onSnapshot(snap=>{ const m={}; snap.docs.forEach(d=>m[d.id]=d.data()); S.fatDecis=m; verificarFaturasFechadas(true); },()=>{});
   db.doc("config/bairrosTaxa").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):null;
     S.bairrosTaxa = d&&Array.isArray(d.lista) ? d.lista.filter(b=>b&&b.nome) : BAIRROS_TAXA_INICIAL;
