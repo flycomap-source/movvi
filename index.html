@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=8"></script></head><body>
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=9"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -408,6 +408,7 @@ body .solic-loja .loja{color:var(--ink)}
       <div class="campo"><label for="acNome" id="acNomeLbl">Seu nome</label><input class="inp" id="acNome" autocomplete="name" placeholder="Como a central te conhece"></div>
       <div class="campo" id="acEndCampo" hidden><label for="acEnd">Endereço de coleta</label><input class="inp" id="acEnd" placeholder="Rua, número, bairro"></div>
       <div class="campo" id="acTelCampo" hidden><label for="acTel">Telefone / WhatsApp</label><input class="inp" id="acTel" type="tel" inputmode="tel" placeholder="(38) 99999-9999"></div>
+      <div class="campo" id="acPixCampo"><label for="acPix">Chave Pix (obrigatória, para receber os pagamentos)</label><input class="inp" id="acPix" autocomplete="off" placeholder="CPF, telefone, e-mail ou chave aleatória"></div>
       <button class="btn full" id="acPedir" type="button">Pedir acesso</button>
     </div>
     <p class="lema">Mais do que entrega. Mais pra você.</p>
@@ -1570,6 +1571,15 @@ function renderAcesso(){
     return;
   }
   login.hidden=true;
+  // cadastro feito na primeira tela (Primeiro acesso): o pedido de acesso vai sozinho para a central
+  const cad=window.movviCadastro;
+  const chCad="movvi.cadEnviado."+(S.uid||"");
+  if(cad && cad.tipo && S.db && S.uid && S.modo==="semacesso" && !S.cadEnviado && !ls.get(chCad)){
+    S.cadEnviado=true; ls.set(chCad,"1");
+    S.db.doc("solicitacoes/"+S.uid).set({nome:cad.nome||"",tipo:cad.tipo,endereco:cad.tipo==="comercio"?(cad.endereco||""):"",telefone:cad.telefone||"",pix:cad.tipo==="entregador"?(cad.pix||""):"",
+      ...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}).catch(()=>{ S.cadEnviado=false; });
+    tit.textContent="Pedido enviado"; txt.textContent="Olá, "+(cad.nome||"")+". A central já recebeu seu cadastro. Assim que liberar, o app abre para você."; form.hidden=true; return;
+  }
   tit.textContent="Você é entregador ou comércio?";
   txt.textContent="Escolha e informe seus dados. A central libera seu acesso.";
   form.hidden=false;
@@ -1606,14 +1616,16 @@ document.querySelectorAll("#acTipo button").forEach(b=>b.addEventListener("click
   $("#acNome").placeholder = tipoAcesso==="comercio" ? "Ex.: Farmácia Central" : "Como a central te conhece";
   $("#acEndCampo").hidden = tipoAcesso!=="comercio";
   $("#acTelCampo").hidden = tipoAcesso!=="comercio";
+  $("#acPixCampo").hidden = tipoAcesso!=="entregador";
 }));
 $("#acPedir").addEventListener("click",async()=>{
-  const nome=$("#acNome").value.trim(), endereco=$("#acEnd").value.trim(), telefone=$("#acTel").value.trim();
+  const nome=$("#acNome").value.trim(), endereco=$("#acEnd").value.trim(), telefone=$("#acTel").value.trim(), pix=$("#acPix").value.trim();
   if(!nome){ toast(tipoAcesso==="comercio"?"Informe o nome do comércio.":"Informe seu nome."); return; }
+  if(tipoAcesso==="entregador" && pix.length<5){ toast("Informe sua chave Pix."); return; }
   if(tipoAcesso==="comercio" && !endereco){ toast("Informe o endereço do comércio."); return; }
   if(tipoAcesso==="comercio" && !telValido(telefone)){ toast("Informe o telefone do comércio."); return; }
   if(!S.db||!S.uid){ toast("Entre com seu usuário para pedir acesso."); return; }
-  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone:tipoAcesso==="comercio"?telefone:"",...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}));
+  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone,pix:tipoAcesso==="entregador"?pix:"",...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}));
     S.db.doc("senhas/"+S.uid).update({tipo:tipoAcesso,nome}).catch(()=>{});
     toast("Pedido enviado à central"); }
   catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+"). Peça à central para te convidar por e-mail como Editor."); }
@@ -6614,14 +6626,17 @@ function renderSolicitacoes(){
     const taxa=h("input",{class:"inp num",inputmode:"decimal",placeholder:"Taxa por entrega (R$)",id:"soltx-"+sol.id});
     const campoTaxa=h("div",{class:"campo"},h("label",{for:"soltx-"+sol.id,text:"Taxa por entrega (R$)"}),taxa);
     const at=()=>{ campoTaxa.hidden=!!sel.value; }; sel.addEventListener("change",at); at();
+    const grp=h("select",{class:"inp",id:"solg-"+sol.id},h("option",{value:"movvi",text:"Movvi+ (vê todos os pedidos)"}),h("option",{value:"outros",text:"Outros (só pedidos pagos e em dinheiro)"}));
     const lib=h("button",{class:"btn",type:"button"},"Liberar acesso");
     const rec=h("button",{class:"btn sec",type:"button"},"Recusar");
-    lib.addEventListener("click",async()=>{ lib.disabled=true; lib.textContent="Liberando…"; try{ await aprovar(sol,sel.value||null,num(taxa.value)); toast("Acesso liberado para "+sol.nome); }catch(e){ lib.disabled=false; lib.textContent="Liberar acesso"; toast("Não foi possível liberar ("+(e&&e.code||"erro")+")."); } });
+    lib.addEventListener("click",async()=>{ lib.disabled=true; lib.textContent="Liberando…"; try{ await aprovar({...sol,grupo:grp.value},sel.value||null,num(taxa.value)); toast("Acesso liberado para "+sol.nome); }catch(e){ lib.disabled=false; lib.textContent="Liberar acesso"; toast("Não foi possível liberar ("+(e&&e.code||"erro")+")."); } });
     rec.addEventListener("click",async()=>{ try{ await S.db.doc("solicitacoes/"+sol.id).delete(); toast("Pedido recusado"); }catch(e){ toast("Não foi possível recusar."); } });
     box.append(h("div",{class:"sol"},
       h("div",null,h("b",{text:sol.nome||"Sem nome"}),h("div",{class:"muted",style:"font-size:13px",text:"Pediu acesso "+(sol.criadoEm?new Date(sol.criadoEm).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"")})),
+      (sol.pix||sol.telefone)?h("div",{class:"muted num",style:"font-size:13px"},sol.telefone?h("div",{text:"📱 "+sol.telefone}):null,sol.pix?h("div",{text:"💠 Chave Pix: "+sol.pix}):null):null,
       h("div",{class:"campo"},h("label",{for:"sol-"+sol.id,text:"Quem é"}),sel),
       campoTaxa,
+      h("div",{class:"campo"},h("label",{for:"solg-"+sol.id,text:"Grupo"}),grp),
       h("div",{style:"display:flex;gap:8px"},lib,rec)));
   });
 }
@@ -6662,7 +6677,7 @@ async function aprovar(sol, alvoId, taxaNova){
   const uid=sol.id; let m;
   if(alvoId){
     m=membro(alvoId);
-    await comRetry(()=>S.db.doc("equipe/"+alvoId).update({uid}));
+    await comRetry(()=>S.db.doc("equipe/"+alvoId).update({uid,...(sol.pix?{pix:sol.pix}:{}),...(sol.telefone?{telefone:sol.telefone}:{}),...(sol.grupo?{grupo:sol.grupo}:{})}));
     // move os pedidos que já existiam para a área dele
     const snap=await S.db.collection("pedidos").where("entregadorId","==",alvoId).get();
     for(const d of snap.docs){
@@ -6671,10 +6686,10 @@ async function aprovar(sol, alvoId, taxaNova){
     }
   }else{
     m={nome:sol.nome||"Entregador",taxa:taxaNova};
-    const ref=await comRetry(()=>S.db.collection("equipe").add({nome:m.nome,taxa:m.taxa,ativo:true,uid,criadoEm:new Date().toISOString()}));
+    const ref=await comRetry(()=>S.db.collection("equipe").add({nome:m.nome,taxa:m.taxa,ativo:true,uid,pix:sol.pix||"",telefone:sol.telefone||"",grupo:sol.grupo||"movvi",criadoEm:new Date().toISOString()}));
     alvoId=ref.id;
   }
-  await comRetry(()=>S.db.doc("vinculos/"+uid).set({equipeId:alvoId,nome:m.nome,taxa:num(m.taxa),ativo:true}));
+  await comRetry(()=>S.db.doc("vinculos/"+uid).set({equipeId:alvoId,nome:m.nome,taxa:num(m.taxa),ativo:true,grupo:sol.grupo||m.grupo||"movvi"}));
   await comRetry(()=>S.db.doc("solicitacoes/"+uid).delete());
 }
 async function sincronizarVinculo(m, mud){
@@ -7032,12 +7047,21 @@ function editarEntregador(e){
   const novo=!e; e=e||{};
   const fN=h("input",{class:"inp",id:"eeN",value:e.nome||"",placeholder:"Nome do entregador"});
   const fT=h("input",{class:"inp num",id:"eeT",inputmode:"decimal",value:novo?"":fmtInput(e.taxa),placeholder:"0,00"});
+  const fG=h("select",{class:"inp",id:"eeG"},h("option",{value:"movvi",text:"Movvi+ (vê todos os pedidos)"}),h("option",{value:"outros",text:"Outros (só pedidos pagos e em dinheiro)"}));
+  fG.value=grupoDe(e);
+  const fSA=h("input",{type:"checkbox",id:"eeSA"}); fSA.checked=!!e.semAdicional;
+  const fP=h("input",{class:"inp",id:"eeP",value:e.pix||"",placeholder:"CPF, telefone, e-mail ou chave aleatória",autocomplete:"off"});
+  const fTel=h("input",{class:"inp",id:"eeTel",type:"tel",inputmode:"tel",value:e.telefone||"",placeholder:"(38) 99999-9999"});
   const msg=h("div",{class:"aviso",hidden:true});
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar entregador":"Salvar alterações");
   const corpo=[
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.equipe).get(e.id)||"")+" · "+(e.ativo===false?"bloqueado":e.uid?((S.usuarios||{})[e.uid]?"usuário: "+S.usuarios[e.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
     h("div",{class:"campo"},h("label",{for:"eeN",text:"Nome"}),fN),
     h("div",{class:"campo"},h("label",{for:"eeT",text:"Mínimo por entrega (R$)"}),fT),
+    h("div",{class:"campo"},h("label",{for:"eeG",text:"Grupo"}),fG),
+    h("label",{class:"manter",style:"justify-content:flex-start"},fSA," Faz parte da central (não recebe adicionais)"),
+    h("div",{class:"campo"},h("label",{for:"eeP",text:"Chave Pix (para pagamento)"}),fP),
+    h("div",{class:"campo"},h("label",{for:"eeTel",text:"Telefone / WhatsApp"}),fTel),
     msg,ok];
   if(!novo){
     if(e.uid) corpo.push(h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); redefinirSenha(e.uid,e.nome); }},"Redefinir usuário e senha"));
@@ -7056,12 +7080,13 @@ function editarEntregador(e){
   }
   const fechar=abrirSheet(novo?"Cadastrar entregador":"Editar "+e.nome,corpo);
   ok.addEventListener("click",async()=>{
-    const nome=fN.value.trim(), taxa=num(fT.value); msg.hidden=true;
+    const nome=fN.value.trim(), taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(); msg.hidden=true;
     if(!nome){ msg.hidden=false; msg.textContent="Informe o nome."; return; }
     ok.disabled=true;
     try{
-      if(novo) await comRetry(()=>S.db.collection("equipe").add({nome,taxa,ativo:true,criadoEm:new Date().toISOString()}));
-      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update({nome,taxa})); await sincronizarVinculo(e,{nome,taxa}); }
+      const d={nome,taxa,grupo,semAdicional,pix,telefone};
+      if(novo) await comRetry(()=>S.db.collection("equipe").add({...d,ativo:true,criadoEm:new Date().toISOString()}));
+      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional}); }
       fechar(); toast(novo?"Entregador cadastrado":"Entregador atualizado");
     }catch(err){ ok.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(err&&err.code||"erro")+")."; }
   });

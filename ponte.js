@@ -308,35 +308,60 @@
   #movviLogin .bt:disabled{opacity:.6}
   #movviLogin .tr{border:0;background:none;color:#004AAD;font-weight:700;padding:6px;cursor:pointer}
   #movviLogin .er{background:#FDE3E1;color:#B42318;border-radius:10px;padding:10px 12px;font-size:14px}
-  #movviLogin .mt{color:#5F6285;font-size:13px;text-align:center;margin:0}`;
+  #movviLogin .mt{color:#5F6285;font-size:13px;text-align:center;margin:0}
+  #movviLogin .tp{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#EEF0F8;border-radius:12px;padding:4px}
+  #movviLogin .tp button{border:0;border-radius:9px;padding:10px;font:800 15px "Nunito",system-ui,sans-serif;background:transparent;color:#5F6285;cursor:pointer}
+  #movviLogin .tp button[aria-pressed="true"]{background:#004AAD;color:#fff}
+  #movviLogin form{max-height:calc(100vh - 32px);overflow:auto}`;
   function telaLogin(modo, msg) {
     let el = document.getElementById("movviLogin");
     if (!el) { const st = document.createElement("style"); st.textContent = css; document.head.append(st); el = document.createElement("div"); el.id = "movviLogin"; document.body.append(el); }
     const cad = modo === "cadastrar";
     el.innerHTML = `<form autocomplete="on">
       <div class="lg">MOVVi<i>+</i></div>
-      <p class="mt">${cad ? "Crie seu acesso. Depois a central libera você." : "Entre com seu usuário e senha."}</p>
-      ${cad ? '<label>Seu nome<input id="mlNome" autocomplete="name" required></label>' : ""}
+      <p class="mt">${cad ? "Primeiro acesso: faça seu cadastro. Depois a central libera você." : "Entre com seu usuário e senha."}</p>
+      ${cad ? `<div class="tp" role="group" aria-label="Você é"><button type="button" data-t="entregador" aria-pressed="true">Entregador</button><button type="button" data-t="comercio" aria-pressed="false">Comércio</button></div>
+      <label><span id="mlNomeLbl">Seu nome</span><input id="mlNome" autocomplete="name" required></label>
+      <label>Telefone / WhatsApp<input id="mlTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(38) 99999-9999" required></label>
+      <label id="mlPixL">Chave Pix (para receber os pagamentos)<input id="mlPix" autocomplete="off" placeholder="CPF, telefone, e-mail ou chave aleatória"></label>
+      <label id="mlEndL" style="display:none">Endereço de coleta<input id="mlEnd" autocomplete="street-address" placeholder="Rua, número, bairro"></label>` : ""}
       <label>Usuário<input id="mlUser" autocomplete="username" autocapitalize="none" required></label>
       <label>Senha<input id="mlSenha" type="password" autocomplete="${cad ? "new-password" : "current-password"}" required></label>
       ${cad ? '<label>Repita a senha<input id="mlSenha2" type="password" autocomplete="new-password" required></label>' : ""}
       <div class="er" id="mlErro" hidden></div>
       <button class="bt" type="submit">${cad ? "Criar acesso" : "Entrar"}</button>
-      <button class="tr" type="button" id="mlTroca">${cad ? "Já tenho acesso — entrar" : "Primeira vez? Criar acesso"}</button>
+      <button class="tr" type="button" id="mlTroca">${cad ? "Já tenho acesso — entrar" : "Primeiro acesso? Cadastre-se"}</button>
       ${cad ? "" : '<p class="mt">Esqueceu a senha? Peça à central para redefinir.</p>'}
     </form>`;
     const f = el.querySelector("form"), er = el.querySelector("#mlErro");
     if (msg) { er.hidden = false; er.textContent = msg; }
     el.querySelector("#mlTroca").onclick = () => telaLogin(cad ? "entrar" : "cadastrar");
+    let tipo = "entregador";
+    if (cad) el.querySelectorAll(".tp button").forEach(b => b.onclick = () => {
+      tipo = b.dataset.t;
+      el.querySelectorAll(".tp button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      el.querySelector("#mlNomeLbl").textContent = tipo === "comercio" ? "Nome do comércio" : "Seu nome";
+      el.querySelector("#mlPixL").style.display = tipo === "entregador" ? "" : "none";
+      el.querySelector("#mlEndL").style.display = tipo === "comercio" ? "" : "none";
+    });
     f.onsubmit = async (ev) => {
       ev.preventDefault(); er.hidden = true;
       const user = el.querySelector("#mlUser").value.trim(), senha = el.querySelector("#mlSenha").value;
       if (senha.length < 6) { er.hidden = false; er.textContent = "A senha precisa ter pelo menos 6 caracteres."; return; }
       if (cad && senha !== el.querySelector("#mlSenha2").value) { er.hidden = false; er.textContent = "As duas senhas não são iguais. Digite de novo."; return; }
+      const v = id => (el.querySelector(id) ? el.querySelector(id).value.trim() : "");
+      const dados = cad ? { tipo, nome: v("#mlNome"), telefone: v("#mlTel"), pix: tipo === "entregador" ? v("#mlPix") : "", endereco: tipo === "comercio" ? v("#mlEnd") : "" } : null;
+      if (cad) {
+        const falta = !dados.nome ? (tipo === "comercio" ? "Informe o nome do comércio." : "Informe seu nome.")
+          : String(dados.telefone).replace(/\D/g, "").length < 10 ? "Informe o telefone com DDD."
+          : (tipo === "entregador" && dados.pix.length < 5) ? "Informe sua chave Pix (obrigatória para receber os pagamentos)."
+          : (tipo === "comercio" && !dados.endereco) ? "Informe o endereço de coleta." : "";
+        if (falta) { er.hidden = false; er.textContent = falta; return; }
+      }
       const email = user.toLowerCase().replace(/[^a-z0-9._-]/g, "") + "@" + DOMINIO;
       const bt = f.querySelector(".bt"); bt.disabled = true; bt.textContent = "Aguarde…";
       const r = cad
-        ? await sb.auth.signUp({ email, password: senha, options: { data: { nome: el.querySelector("#mlNome").value.trim(), usuario: user } } })
+        ? await sb.auth.signUp({ email, password: senha, options: { data: { ...dados, usuario: user } } })
         : await sb.auth.signInWithPassword({ email, password: senha });
       if (r.error) {
         bt.disabled = false; bt.textContent = cad ? "Criar acesso" : "Entrar"; er.hidden = false;
@@ -353,6 +378,7 @@
     sessao = session;
     const meta = session.user.user_metadata || {};
     window.movviUsuario = meta.usuario || String(session.user.email || "").replace("@" + DOMINIO, "");
+    if (meta.tipo) window.movviCadastro = { tipo: meta.tipo, nome: meta.nome || "", telefone: meta.telefone || "", pix: meta.pix || "", endereco: meta.endereco || "" };
     const { data: p }= await sb.from("perfis").select("papel,nome,ativo").eq("id", session.user.id).maybeSingle();
     perfil = p || { papel: "pendente" };
     const el = document.getElementById("movviLogin"); if (el) el.remove();
