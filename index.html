@@ -2218,15 +2218,16 @@ function statusCard(p){
    dinPendCentral: null = não é dinheiro a resolver; true = pendente (vermelho); false = resolvido (verde) */
 function dinPendCentral(p){
   if(p.status!=="entregue" || p.pagamento!=="dinheiro" || !(dinheiroDoPedido(p)>0) || dinheiroFicaNaLoja(p) || ehTransf(p)) return null;
-  if(p.dinheiroDevolvido || p.acertado || p.dinheiroCom==="central") return false;
-  if(p.dinheiroCom==="fatura" && p.pixComercioEnviadoEm) return false;
+  // só fica verde quando o dinheiro chegou no comércio (devolvido em espécie ou Pix enviado);
+  // com o entregador ou com a central continua vermelho: ainda tem que chegar ao comércio
+  if(p.dinheiroDevolvido || p.acertado || p.pixComercioEnviadoEm) return false;
   return true;
 }
 function botaoDinCentral(p,mini){
   const pend=dinPendCentral(p), v=fmt(dinheiroDoPedido(p));
   const txt = mini ? (pend?v+" ▾":"✓ "+v)
-    : pend ? (p.dinheiroCom==="fatura"?"💸 Pix pendente "+v:"💵 Dinheiro "+v)+" ▾"
-    : (p.dinheiroDevolvido?"✓ Devolvido "+v:p.dinheiroCom==="central"?"✓ Com a central "+v:"✓ Pix enviado "+v);
+    : pend ? (p.dinheiroCom==="fatura"?"💸 Pix pendente "+v:p.dinheiroCom==="central"?"🏢 Com a central "+v:"💵 Dinheiro "+v)+" ▾"
+    : (p.dinheiroDevolvido?"✓ Devolvido "+v:"✓ Pix enviado "+v);
   return h("button",{type:"button",class:mini?"badge-l":"",title:"Toque para resolver o dinheiro deste pedido",
     style:(mini?"":"border:0;border-radius:8px;padding:5px 10px;color:#fff;font-weight:800;font-size:14px;font-family:var(--f-body);")+"background:"+(pend?"var(--bad)":"var(--ok)")+";cursor:pointer;color:#fff",
     onclick:e=>{ e.stopPropagation(); abrirDinCentral(p); }},txt);
@@ -2243,20 +2244,21 @@ function abrirDinCentral(p){
     catch(e){ bt.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; } };
   const bt=(t,sub,cor)=>h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:12px;line-height:1.2;background:"+cor+";border-color:"+cor},
     h("b",{style:"font-size:16px",text:t}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:sub}));
-  const bDev=bt("Dinheiro devolvido ao comércio",ent+" entregou "+fmt(v)+" em "+emp,"var(--royal)");
+  const bDev=bt("Dinheiro devolvido ao comércio",(p.dinheiroCom==="central"?"A central":ent)+" entregou "+fmt(v)+" em "+emp,"var(--royal)");
   const bCen=bt("Dinheiro entregue na central",ent+" entregou "+fmt(v)+" para a central","var(--laranja)");
   bCen.addEventListener("click",()=>fazer(bCen,{dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:agora(),dinheiroCentralPor:S.uid||""},"Dinheiro marcado como entregue na central"));
-  const bPix=bt("Pix enviado ao comércio","A central mandou "+fmt(v)+" para "+emp+" · desconta na fatura de "+ent,"var(--ok)");
-  bDev.addEventListener("click",()=>fazer(bDev,{dinheiroDevolvido:true,devolvidoEm:agora(),devolvidoPor:S.uid||"",dinheiroCom:"loja",pixComercioPendente:false,pixComercioEnviadoEm:""},"Dinheiro marcado como devolvido ao comércio"));
-  bPix.addEventListener("click",()=>fazer(bPix,{dinheiroCom:"fatura",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:agora(),pixComercioPor:S.uid||"",pixComercioValor:v},"Pix marcado como enviado · desconta na fatura do entregador"));
+  const naCentral=p.dinheiroCom==="central";
+  const bPix=bt("Pix enviado ao comércio","A central mandou "+fmt(v)+" para "+emp+(naCentral?" (o dinheiro está com a central)":" · desconta na fatura de "+ent),"var(--ok)");
+  bDev.addEventListener("click",()=>fazer(bDev,{dinheiroDevolvido:true,devolvidoEm:agora(),devolvidoPor:S.uid||"",dinheiroCom:p.dinheiroCom==="central"?"central":"loja",pixComercioPendente:false,pixComercioEnviadoEm:""},"Dinheiro marcado como devolvido ao comércio"));
+  bPix.addEventListener("click",()=>fazer(bPix,{dinheiroCom:naCentral?"central":"fatura",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:agora(),pixComercioPor:S.uid||"",pixComercioValor:v},naCentral?"Pix marcado como enviado":"Pix marcado como enviado · desconta na fatura do entregador"));
   const desfazer = dinPendCentral(p)===false ? h("button",{class:"btn sec full",type:"button"},"Desfazer (voltar para pendente)") : null;
-  if(desfazer) desfazer.addEventListener("click",()=>fazer(desfazer,{dinheiroDevolvido:false,devolvidoEm:"",dinheiroCom:p.dinheiroCom==="fatura"?"fatura":"loja",pixComercioEnviadoEm:"",pixComercioPendente:p.dinheiroCom==="fatura"},"Voltou para pendente"));
+  if(desfazer) desfazer.addEventListener("click",()=>fazer(desfazer,{dinheiroDevolvido:false,devolvidoEm:"",dinheiroCom:["fatura","central"].includes(p.dinheiroCom)?p.dinheiroCom:"loja",pixComercioEnviadoEm:"",pixComercioPendente:p.dinheiroCom==="fatura"},"Voltou para pendente (vermelho)"));
   const fechar=abrirSheet("Dinheiro do pedido"+(p.numero?" #"+p.numero:""),[
     h("div",{class:"painel",style:"gap:4px"},
       h("b",{style:"font-size:20px",class:"num",text:fmt(v)+" em dinheiro"}),
       h("span",{text:"Comércio: "+emp}),h("span",{text:"Entregador: "+ent}),
       h("span",{class:"muted",style:"font-size:13px",text:p.dinheiroCom==="fatura"?"O entregador ficou com o dinheiro (descontar na fatura dele).":p.dinheiroCom==="central"?"O entregador entregou o dinheiro na central.":"O entregador ficou de devolver o dinheiro no comércio."})),
-    bDev,bPix,bCen,desfazer,msg]);
+    bDev,bPix,(naCentral||dinPendCentral(p)===false)?null:bCen,desfazer,msg]);
 }
 function rodapePag(p){
   const v=valorACobrar(p), e=p.status==="entregue";
