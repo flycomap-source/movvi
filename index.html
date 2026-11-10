@@ -2279,7 +2279,7 @@ function cartaoPedidoBase(p){
       p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff;font-weight:800",text:"🔁 "+((entregue&&(p.transfDe||p.transfPara))?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência / Receita")}):null,
       pillReceita(p),
       p.acertado?h("span",{class:"pill acert",text:"Acertado"}):null,
-      num(p.adicionais)>0 && !comercio()?h("span",{class:"pill",style:"background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(p.adicionais)+(S.modo==="entregador"?" add":(num(p.adicionais)>1?" adicionais":" adicional"))}):null,
+      num(p.adicionais)>0 && !comercio() && S.modo!=="entregador"?h("span",{class:"pill",style:"background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(p.adicionais)+(num(p.adicionais)>1?" adicionais":" adicional")}):null,
       (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0 && !comercio())
         ? h(S.modo==="entregador"?"button":"span",{class:"pill ordem",type:"button",style:"background:var(--laranja);color:#fff;font-weight:800;font-size:12.5px;padding:4px 10px;border:0",title:S.modo==="entregador"?"Toque para mudar a ordem das entregas":"Posição desta entrega na rota do entregador",
             onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:"🧭 "+num(p.ordemEntrega)+"ª entrega de "+num(p.ordemQtd)+(S.modo==="entregador"?" ▾":"")})
@@ -2450,7 +2450,6 @@ function cartaoOferta(o){
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
     h("div",{style:"display:flex;justify-content:flex-end"},colunaEnt(h("span",{class:"pill pend",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),...linhasGanhoEnt(o))),
-    num(o.adicionais)>0?h("span",{class:"pill",style:"align-self:flex-start;background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(o.adicionais)+" add incluído"}):null,
     blocoRota(o),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
     o.obs?h("div",{class:"obs",text:o.obs}):null,
