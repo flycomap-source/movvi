@@ -903,7 +903,18 @@ function ehDoMeuComercio(p){
   if(!p) return false;
   if(p.origem && p.origem.lojaUid===S.uid) return false;   // já aparece pelo pedido que o próprio comércio fez
   const eu=chaveNomeCom(S.euNome); if(!eu) return false;
-  return chaveNomeCom(p.coletaEmpresa)===eu || (p.tipoServico==="transferencia" && chaveNomeCom(p.transfDe)===eu);
+  if(chaveNomeCom(p.coletaEmpresa)===eu) return true;
+  // transferência: as duas lojas veem (a de onde sai e a que recebe). "Loja 41" = Farmácia Canaã 41.
+  if(p.tipoServico==="transferencia") return [p.transfDe,p.transfPara,p.cliente,p.endereco].some(x=>lojaSouEu(x,eu));
+  return false;
+}
+function lojaSouEu(x,eu){
+  x=String(x||"").trim(); if(!x) return false;
+  if(chaveNomeCom(x)===eu) return true;
+  const n=(x.match(/\d+/)||[])[0], meuN=(String(S.euNome||"").match(/\d+/)||[])[0];
+  // "Loja N" / "Canaã N" bate com o comércio Canaã de mesmo número
+  if(n && meuN && Number(n)===Number(meuN) && /canaa/.test(semAcento(String(S.euNome)).toLowerCase()) && (/^\s*loja\b/i.test(x)||/canaa/.test(semAcento(x).toLowerCase()))) return true;
+  const c=n?comercioDaLoja(x):null; return !!(c && chaveNomeCom(c.nome)===eu);
 }
 /* entrega lançada pela central/entregador vista pelo comércio: mesmo jeito dos pedidos dele */
 function comoPedidoDaLoja(p){
