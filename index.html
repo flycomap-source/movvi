@@ -6009,7 +6009,7 @@ async function abrirEnviarSaldo(disponivel,depois){
     try{ const id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), agora=new Date().toISOString();
       const d={de:S.eu,deNome:S.euNome||"",deUid:S.uid||"",para:dest.id,paraNome:dest.nome||"",paraUid:dest.uid||"",valor:v,motivo:fMot.value.trim(),status:"pendente",criadoEm:agora,data:hoje(),autorizacao:textoAut(),autorizadoEm:agora};
       await comRetry(()=>S.db.doc("transfSaldo/"+id).set(d));
-      for(const uid of (S.uidsCentral||[]).filter(Boolean)){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      for(const uid of (await uidsDaCentral())){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
         await S.db.doc("recados/"+rid).set({tipo:"transf",para:uid,de:S.euNome||"Entregador",deUid:S.uid||"",texto:"🔁 Quer enviar "+fmt(v)+" para "+dest.nome+(d.motivo?" ("+d.motivo+")":"")+". Aprove em Transferências entre entregadores.",criadoEm:agora}).catch(()=>{}); }
       fechar(); toast("Pedido enviado: aguardando a central aprovar"); if(depois) depois(); }
     catch(e){ ok.disabled=false; ok.textContent="Pedir aprovação da transferência"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; }
@@ -7087,6 +7087,14 @@ function abrirRecado(p,dest){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Pedido "+(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||"")+". O entregador recebe um aviso no celular e o recado aparece na tela dele."}),
     chips,txt,msg,ok]);
 }
+/* quem é da central: lista ao vivo; se ainda não chegou, lê na hora (config e, se faltar, perfis) */
+async function uidsDaCentral(){
+  let l=(S.uidsCentral||[]).filter(Boolean); if(l.length) return l;
+  try{ const sn=await S.db.doc("config/avisoCentral").get(); const d=sn.exists?(sn.data()||{}):{}; l=(Array.isArray(d.uids)?d.uids:[]).filter(Boolean); }catch(e){}
+  if(!l.length && window.movviSupabase){ try{ const {data}=await window.movviSupabase.from("perfis").select("id").eq("papel","central"); l=(data||[]).map(x=>x.id).filter(Boolean); }catch(e){} }
+  if(l.length) S.uidsCentral=l;
+  return l;
+}
 /* Entregador: "Fale com a central" (mesma caixa de recado; chega para todos da central) */
 function abrirFaleCentral(){
   const prontos=["Estou indo para a central","Cliente não atende","Endereço não encontrado","Preciso de troco","Tive um problema na entrega, me liga"];
@@ -7097,9 +7105,9 @@ function abrirFaleCentral(){
   ok.addEventListener("click",async()=>{
     const texto=txt.value.trim(); msg.hidden=true;
     if(!texto){ msg.hidden=false; msg.textContent="Escreva a mensagem."; return; }
-    const uids=(S.uidsCentral||[]).filter(Boolean);
-    if(!uids.length){ msg.hidden=false; msg.textContent="Não achei a central agora. Tente de novo em instantes."; return; }
     ok.disabled=true; ok.textContent="Enviando…";
+    const uids=await uidsDaCentral();
+    if(!uids.length){ ok.disabled=false; ok.textContent="📣 Enviar para a central"; msg.hidden=false; msg.textContent="Não achei a central agora. Tente de novo em instantes."; return; }
     try{ const agora=new Date().toISOString();
       for(const uid of uids){ const id="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
         await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"contato",para:uid,paraNome:"Central",de:S.euNome||"Entregador",deUid:S.uid||"",texto,criadoEm:agora})); }
@@ -7306,7 +7314,7 @@ function criarCampanha(){
    Entregador ficou com o dinheiro (desconta na fatura dele): vai um aviso para cada pessoa da central
    (recados/<id> com tipo "pix") dizendo que tem que mandar o valor da venda por Pix ao comércio. */
 async function avisarCentralPix(p){
-  const uids=(S.uidsCentral||[]).filter(Boolean); if(!uids.length) return;
+  const uids=await uidsDaCentral(); if(!uids.length) return;
   const quem=S.modo==="entregador"?(S.euNome||"Entregador"):nomeEnt(p.entregadorId), v=num(p.pixComercioValor||p.valorDinheiro), emp=p.coletaEmpresa||"comércio";
   const agora=new Date().toISOString();
   for(const uid of uids){
