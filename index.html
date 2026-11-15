@@ -753,6 +753,8 @@ function linhasGanhoEnt(p,grande){
     h("span",{class:"num",style:"font-size:"+(grande==="mini"?"15px":grande?"20px":"17px")+";font-weight:900;background:var(--ok);color:#fff;border-radius:10px;padding:4px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(23,132,90,.35)",text:"Total "+fmt(g.total)})];
 }
 /* entregador, na tela de entregas: taxa normal, adicional (se tiver), bônus (se tiver) e o total — tudo no cantinho do cartão */
+/* entrega ainda esperando o entregador aceitar (só aí aparece a faixa com taxa, ADD, % e total) */
+const aguardaAceiteEnt = p => !p.aceitoEm && !p.emRotaEm && !["entregue","cancelado","recusado","excluido"].includes(p.status);
 function caixaValoresEnt(p){
   const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
   const it=(rot,v,cor)=>h("span",{style:"display:flex;flex-direction:column;align-items:center;line-height:1.15;font-weight:800;color:"+(cor||"var(--ink)")},h("span",{style:"font-size:11.5px",text:rot}),h("span",{class:"num",style:"font-size:13.5px;white-space:nowrap",text:fmt(v)}));
@@ -2423,7 +2425,7 @@ function rodapePag(p){
     h("div",{style:"display:flex;flex-direction:column;gap:1px"},
       h("span",{class:"muted",style:"font-size:13px"},"Pedido ",h("b",{class:"ped-nro num",text:p.numero?"#"+p.numero:"—"})),
       h("div",{style:"display:flex;align-items:baseline;gap:6px"},h("span",{style:"font-weight:700;color:var(--ink)",text:"Total"}),h("b",{class:"ped-total num",text:v?fmt(v):"—"}))),
-    S.modo==="entregador" ? caixaValoresEnt(p) : null,
+    S.modo==="entregador" && aguardaAceiteEnt(p) ? caixaValoresEnt(p) : null,
     h("div",{style:"display:flex;flex-direction:column;gap:1px;align-items:flex-end;text-align:right"},
       h("span",{class:"muted",style:"font-size:13px",text:tit}),
       (central()&&e&&dinPendCentral(p)!==null)?botaoDinCentral(p,false):h("b",{style:"color:"+(p.pagamento==="pix"?"var(--ok)":"var(--bad)"),text:forma}),
@@ -2501,7 +2503,7 @@ function cartaoPedidoBase(p){
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
     h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
     // entregador (depois de aceitar): só a taxa total dele, em verde
-    S.modo==="entregador" ? null
+    S.modo==="entregador" ? (aguardaAceiteEnt(p) ? null : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(ganhoPedido(p))}))
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
