@@ -7218,17 +7218,17 @@ function abrirChat(conv,chegou){
   if(ja){ ja.frente(); if(chegou) ja.marcarLida(); return; }
   const c0=chatDoc(conv), par=ehPar(c0), soLer=central()&&par;
   const meuLado = par ? S.uid : (central()?"central":"entregador");
-  const lista=h("div",{style:"flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:5px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
+  const lista=h("div",{style:"flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:5px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
   const txt=h("textarea",{class:"inp",rows:"2",maxlength:"500",placeholder:"Escreva a mensagem",style:"resize:none;flex:1;min-height:44px"});
   const env=h("button",{class:"btn",type:"button",style:"flex:none;padding:0 16px"},"Enviar");
   const prontos = central() ? ["Ok, entendido 👍","Me liga, por favor"] : par ? ["Me liga, por favor"] : ["Cliente não atende","Me liga, por favor"];
   const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
-  const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Minimizar",title:"Minimizar"},"—");
+  const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",title:"Voltar",style:"font-size:22px"},"←");
   const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
   const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env);
-  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(calc(-50% + "+(n*28)+"px));width:min(440px,calc(100vw - 24px));max-height:min(560px,78vh);background:var(--card,#fff);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px;padding:12px;border:2px solid var(--royal)"},
-    h("div",{style:"display:flex;align-items:center;gap:8px"},h("b",{style:"flex:1;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim,btMin),
+  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+    h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btMin,h("b",{style:"flex:1;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim),
     lista,soLer?null:chips,rodape);
   document.body.append(jan);
   let unsub=null, primeira=true, fechada=false;
@@ -7251,14 +7251,18 @@ function abrirChat(conv,chegou){
     env.disabled=false; };
   env.addEventListener("click",mandar);
   txt.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); mandar(); } });
-  btMin.addEventListener("click",fechar);
+  // botão "voltar" do celular fecha a conversa; o ← da tela também desfaz esse passo do histórico
+  const voltarCel=()=>{ porVoltar=true; fechar(); };
+  let porVoltar=false;
+  try{ history.pushState({chat:conv},""); window.addEventListener("popstate",voltarCel,{once:true}); }catch(e){}
+  btMin.addEventListener("click",()=>{ window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} });
   if(btFim){ let armado=false;
     btFim.addEventListener("click",async()=>{
       if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
       const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador"), c=chatDoc(conv);
       try{ await S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto:"Conversa encerrada "+quem,lado:"sistema",nome:"",uid:S.uid||"",em:ag});
         await S.db.doc("chats/"+conv).set({uid:conv,nome:central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador"),aberto:false,ultima:"Conversa encerrada",ultimaDe:"sistema",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
-      fechar(); toast("Conversa encerrada");
+      window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} toast("Conversa encerrada");
     }); }
   S.chatJanelas[conv]={
     frente:()=>{ document.body.append(jan); },
