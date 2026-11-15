@@ -5527,7 +5527,7 @@ function abrirConfirmacao(p){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,btMudarPag,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
+    infoValor,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
