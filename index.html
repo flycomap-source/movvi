@@ -5775,21 +5775,22 @@ async function renderCarteira(box){
   const porEmp={}; pend.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa"; porEmp[k]=(porEmp[k]||0)+dinheiroDoPedido(p); });
   const tile=(tit,val,cor,sub)=>h("div",{class:"painel",style:"gap:4px;border-color:"+cor},h("span",{class:"muted",style:"font-size:13px",text:tit}),h("b",{class:"num",style:"font-size:28px;color:"+cor,text:fmt(val)}),sub?h("span",{class:"muted",style:"font-size:12px",text:sub}):null);
   box.replaceChildren(
-    h("h3",{style:"margin:0",text:"💼 Minha carteira · "+new Date(t+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}),
-    tile("Saldo das entregas do mês",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" · ganhos "+fmt(ganhos)+(saldo!==ganhos?" (já descontado o dinheiro que ficou com você)":"")),
-    tile("Dinheiro ainda com você",din,din>0?"var(--laranja-ink)":"var(--muted)",din>0?"Para devolver às lojas ou repassar à central":"Nenhum dinheiro para devolver"),
-    din>0?h("div",{style:"display:flex;flex-direction:column;gap:4px;font-size:14px"},...Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([e,v])=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},h("span",{text:e}),h("b",{class:"num",text:fmt(v)})))):null,
-    din>0?h("button",{class:"btn full",type:"button",onclick:()=>{ fatTipo="dinheiro"; prepararFatura(); }},"Devolver à empresa ou repassar à central"):null);
+    h("h3",{style:"margin:0",text:"💼 Minha carteira"}),
+    tile("Saldo das entregas que você já fez",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" neste mês"),
+    tile("Dinheiro que está com você",din,din>0?"var(--laranja-ink)":"var(--muted)",din>0?"Para devolver às lojas ou repassar à central (botão Dinheiro)":"Nenhum dinheiro para devolver"),
+    h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
 }
 function prepararFatura(){
   const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["dinheiro","Dinheiro"],["carteira","💼 Carteira"]];
   // carteira do entregador: saldo das entregas do mês + dinheiro que está com ele
-  let cart=document.getElementById("carteiraBox"); if(!cart){ cart=h("div",{id:"carteiraBox",class:"view",style:"display:flex;flex-direction:column;gap:12px",hidden:true}); $("#fatTipo").after(cart); }
+  let cart=document.getElementById("carteiraBox"); if(!cart){ cart=h("div",{id:"carteiraBox",class:"view",style:"display:flex;flex-direction:column;gap:12px",hidden:true}); $("#fatPainel").after(cart); }
+  $("#fatDica").hidden = fatTipo==="carteira";
   cart.hidden = fatTipo!=="carteira";
   if(fatTipo==="carteira"){
     const seg0=$("#fatTipo"); seg0.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg0.hidden=false;
     seg0.replaceChildren(...tipos.map(([k,t])=>h("button",{type:"button","aria-pressed":String(fatTipo===k),onclick:()=>{ fatTipo=k; prepararFatura(); }},t)));
-    ["#acDinheiro","#fatResultado","#fatPainel","#fatCards","#fatQuemCampo","#fatModo","#fatMesCampo","#fatPeriodo"].forEach(sel=>{ const e=$(sel); if(e) e.hidden=true; });
+    ["#acDinheiro","#fatResultado","#fatCards","#fatQuemCampo","#fatModo","#fatMesCampo","#fatPeriodo"].forEach(sel=>{ const e=$(sel); if(e) e.hidden=true; });
+    $("#fatPainel").hidden=false;
     $("#fatEyebrow").textContent="Carteira"; renderCarteira(cart); return;
   }
   const seg=$("#fatTipo"); seg.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg.hidden=central();
