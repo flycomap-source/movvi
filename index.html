@@ -395,6 +395,7 @@ body .solic-loja .loja{color:var(--ink)}
 <main>
   <div id="avisoDb" class="aviso" hidden>Para usar o app, entre com seu usuário e senha.</div>
   <div id="avisoFotos" class="aviso" hidden style="display:flex;align-items:center;gap:10px"></div>
+  <div id="avisoPush" class="painel" hidden style="border:2px solid var(--laranja);gap:8px;margin-bottom:10px"></div>
 
   <!-- ACESSO (entregador ainda não liberado) -->
   <section class="view acesso" id="v-acesso" hidden>
@@ -1088,7 +1089,7 @@ function abrirMenuCentral(){
     sec("Aparelho"),
     item("☀",wakeLock?"Tela ligada (desligar)":"Manter tela ligada","Evita que a tela apague durante o expediente",()=>$("#btnTela").click()),
     item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
-    item("🔔","Avisos com o app fechado","Receber notificação de pedido de comércio no celular",()=>ativarAvisos()),
+    item("🔔","Avisos com o app fechado","Receber notificação de pedido de comércio no celular",async()=>{ if(await ativarAvisos()) testarAviso(); pintarAvisoPush(); }),
     sec("Conta"),
     item("👤","Meus dados","Usuário e senha da central",()=>abrirConta()),
     item("⚙","Configurações","Nome, senha, valor do adicional, bairros e fotos",()=>abrirConfiguracoes()),
@@ -1385,6 +1386,34 @@ async function ativarAvisos(silencioso){
 }
 // quem já ativou: renova a inscrição ao abrir o app (o celular às vezes troca)
 setTimeout(()=>{ try{ if(window.movviSupabase && S.uid && Notification.permission==="granted") ativarAvisos(true); }catch(e){} },8000);
+/* faixa na tela principal: pede para ativar os avisos (o celular toca mesmo bloqueado / com a tela apagada) */
+function pintarAvisoPush(){
+  const box=$("#avisoPush"); if(!box) return;
+  let suporta=false; try{ suporta=!!(window.movviSupabase && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window); }catch(e){}
+  const adiado=Number(ls.get("movvi.avisoPushDepois."+S.uid)||0)>Date.now();
+  if(!S.uid || !suporta || !S.modo || ["carregando","semacesso","desativado"].includes(S.modo) || avisosAtivos() || adiado){ box.hidden=true; return; }
+  const bloqueado=Notification.permission==="denied";
+  const bt=h("button",{class:"btn",type:"button",style:"background:var(--laranja);border-color:var(--laranja)"},"🔔 Ativar avisos");
+  bt.addEventListener("click",async()=>{ bt.disabled=true; const ok=await ativarAvisos(); bt.disabled=false; pintarAvisoPush(); if(ok) testarAviso(); });
+  const depois=h("button",{class:"btn sec",type:"button"},"Agora não");
+  depois.addEventListener("click",()=>{ ls.set("movvi.avisoPushDepois."+S.uid,String(Date.now()+24*3600e3)); box.hidden=true; });
+  box.replaceChildren(
+    h("b",{style:"font-size:16px",text:"🔔 Faça o celular tocar mesmo com a tela apagada"}),
+    h("span",{style:"font-size:13px",text:bloqueado
+      ? "Os avisos do Movvi+ estão bloqueados neste celular. Abra Configurações › Apps › Movvi+ (ou Chrome) › Notificações, permita e volte aqui."
+      : S.modo==="entregador" ? "Ative para saber de entrega nova e de recado da central mesmo com o app fechado."
+      : central() ? "Ative para saber de pedido de comércio e de mensagem dos entregadores mesmo com o app fechado."
+      : "Ative para receber os recados da central mesmo com o app fechado."}),
+    h("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},bloqueado?null:bt,depois));
+  box.hidden=false;
+}
+/* teste: manda um aviso para o próprio celular depois de alguns segundos (dá tempo de apagar a tela) */
+function testarAviso(){
+  toast("Teste: apague a tela agora. Em 15 segundos o celular deve tocar.",6000);
+  setTimeout(()=>{ const id="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), ag=new Date().toISOString();
+    S.db.doc("recados/"+id).set({tipo:"teste",para:S.uid,de:"Movvi+",deUid:S.uid||"",texto:"Teste de aviso: se você ouviu, está tudo certo ✅",criadoEm:ag,lidoEm:ag}).catch(()=>{}); },15000);
+}
+setInterval(pintarAvisoPush,60000); setTimeout(pintarAvisoPush,9000);
 /* entregador: primeira vez que abre o app no dia (depois da meia-noite) → "Bom dia, fulano! Está pronto para trabalhar?" */
 function saudacaoDoDia(){
   if(S.modo!=="entregador" || !S.uid || !$("#trava").hidden || document.visibilityState!=="visible") return;
@@ -3090,7 +3119,7 @@ function abrirMeuMenu(){
     comercio()?null:item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
-    window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular":"Receber aviso de entrega nova mesmo com o app fechado",()=>ativarAvisos()):null,
+    window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular · toque para testar":"Receber aviso de entrega nova mesmo com o app fechado",async()=>{ if(await ativarAvisos()) testarAviso(); pintarAvisoPush(); }):null,
     item("⎋","Sair","Volta para a tela de login",sair)].filter(Boolean));
 }
 /* som só quando chega pedido; mudanças de status só mostram o aviso */
