@@ -6193,10 +6193,12 @@ async function dinheiroComigo(){
 function kpiDinheiroComigo(){
   const val=h("b",{class:"num",text:"…"});
   const bt=h("button",{class:"btn",type:"button",style:"padding:6px 12px;font-size:14px;background:var(--laranja);border-color:var(--laranja)",hidden:true},"Devolver");
-  const box=h("div",{class:"kpi",style:"border-color:var(--laranja)"},h("span",{text:"Dinheiro com você"}),
+  const box=h("div",{class:"kpi",style:"border-color:var(--laranja)"},h("span",{text:"Dinheiro a devolver"}),
     h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"},val,bt));
   let info=null;
-  dinheiroComigo().then(r=>{ info=r; val.textContent=fmt(r.total); val.style.color=r.total>0?"var(--laranja-ink)":"var(--muted)"; bt.hidden=!(r.total>0); })
+  dinheiroComigo().then(r=>{ info=r;
+      if(r.total>0){ val.textContent=fmt(r.total); val.style.color="var(--laranja-ink)"; bt.hidden=false; box.style.borderColor="var(--laranja)"; }
+      else { val.textContent="✓ Nada a devolver"; val.style.color="var(--ok)"; val.style.fontSize="15px"; bt.hidden=true; box.style.borderColor="var(--line)"; } })
     .catch(()=>{ val.textContent="—"; });
   bt.addEventListener("click",()=>{ if(info) abrirDevolverDinheiro(info); });
   return box;
@@ -6235,8 +6237,8 @@ function abrirDevolverDinheiro(info){
 }
 function prepararFatura(){
   guardarTela();
-  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["carteira","💼 Carteira"]];
-  if(!central() && fatTipo==="dinheiro") fatTipo="carteira";   // entregador: o "Dinheiro" agora fica dentro da Carteira
+  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"]];
+  if(!central()) fatTipo="entregador";   // entregador: só "Minha fatura" (a Carteira saiu; o dinheiro a devolver aparece dentro da fatura)
   // carteira do entregador: saldo das entregas do mês + dinheiro que está com ele
   let cart=document.getElementById("carteiraBox"); if(!cart){ cart=h("div",{id:"carteiraBox",class:"view",style:"display:flex;flex-direction:column;gap:12px",hidden:true}); $("#fatPainel").after(cart); }
   $("#fatDica").hidden = fatTipo==="carteira";
@@ -6248,7 +6250,7 @@ function prepararFatura(){
     $("#fatPainel").hidden=false;
     $("#fatEyebrow").textContent="Carteira"; renderCarteira(cart); return;
   }
-  const seg=$("#fatTipo"); seg.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg.hidden=central();
+  const seg=$("#fatTipo"); seg.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg.hidden=central()||tipos.length<2;
   seg.replaceChildren(...tipos.map(([k,t])=>h("button",{type:"button","aria-pressed":String(fatTipo===k),onclick:()=>{ fatTipo=k; prepararFatura(); }},t)));
   if(!$("#fatMes").value) $("#fatMes").value=hoje().slice(0,7);
   const din=fatTipo==="dinheiro";
