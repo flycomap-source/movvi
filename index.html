@@ -941,7 +941,7 @@ function irPara(v){
   if(v==="equipe" && !central()) v="entregas";
   if(v==="equipe") setTimeout(()=>mostrarCadastro(cadAtual),0);
   if(v==="acerto" && comercio()) v="entregas";
-  viewAtual=v;
+  viewAtual=v; guardarTela();
   document.querySelectorAll(".aba").forEach(b=>{ if(b.dataset.v===v) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current"); });
   ["acesso","entregas","acerto","relatorios","equipe","pagina"].forEach(x=>{ $("#v-"+x).hidden = x!==v; });
   $("#fab").hidden = v!=="entregas" || !(central()||comercio()||S.modo==="entregador");
@@ -975,7 +975,21 @@ function abrirEscolhaRelatorio(){
     op("comercios","🏪","Comércios","Taxas a receber, notas e receitas por comércio"),
     op("pedidos","☰","Pedidos","Todos os pedidos do período, com filtros")]);
 }
+/* ao puxar a tela para baixo (atualizar a página), volta para a mesma tela em que estava */
+function guardarTela(){ try{ if(S.modo && S.modo!=="carregando") sessionStorage.setItem("movvi.tela",JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo})); }catch(e){} }
+function restaurarTela(){
+  if(S.telaRestaurada || !S.modo || ["carregando","semacesso","desativado"].includes(S.modo)) return;
+  S.telaRestaurada=true;
+  let t=null; try{ t=JSON.parse(sessionStorage.getItem("movvi.tela")||"null"); }catch(e){}
+  if(!t || t.modo!==S.modo || !t.v || t.v==="entregas" || t.v==="acesso") return;
+  setTimeout(()=>{ try{
+    if(t.v==="acerto" && t.fat) fatTipo=t.fat;
+    irPara(t.v);
+    if(t.v==="relatorios" && t.rel && typeof escolherRelTipo==="function") escolherRelTipo(t.rel);
+  }catch(e){} },0);
+}
 function aplicarModo(){
+  setTimeout(restaurarTela,0);
   const comAbas = central()||comercio()||S.modo==="entregador";
   $("#abas").hidden=!comAbas;
   $("#abaEquipe").hidden=true;
@@ -5800,6 +5814,7 @@ async function renderCarteira(box){
     h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
 }
 function prepararFatura(){
+  guardarTela();
   const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["carteira","💼 Carteira"]];
   if(!central() && fatTipo==="dinheiro") fatTipo="carteira";   // entregador: o "Dinheiro" agora fica dentro da Carteira
   // carteira do entregador: saldo das entregas do mês + dinheiro que está com ele
@@ -6317,7 +6332,7 @@ function pintarRelTipo(){
   $("#relFTexto").placeholder=central()&&relTipo?REL_BUSCA[relTipo]:"Buscar pedido, cliente, telefone, comércio ou entregador";
   $("#relTit").textContent=central()?(relTipo?"Relatório de "+REL_TIPOS.find(t=>t[0]===relTipo)[1].toLowerCase():"Qual relatório?"):$("#relTit").textContent;
 }
-function escolherRelTipo(k){
+function escolherRelTipo(k){ setTimeout(guardarTela,0);
   relTipo=k; RF.forEach(id=>{ $("#"+id).value=""; }); $("#relFiltros").hidden=true; atuBotaoFiltros(); pintarRelTipo();
   limparRel(); return;
   if(S.relCache) renderRelatorio(filtrarRel(S.relCache.ps),S.relCache.de,S.relCache.ate);
