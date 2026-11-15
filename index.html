@@ -5900,6 +5900,13 @@ function ouvirTransf(){
   if(S.subTransf){ S.subTransf(); S.subTransf=null; }
   if(!S.db || !(central()||S.modo==="entregador")) return;
   S.subTransf=S.db.collection("transfSaldo").onSnapshot(snap=>{ S.transf=snap.docs.map(d=>({id:d.id,_path:"transfSaldo/"+d.id,...d.data()})); },()=>{});
+  if(S.subCart){ S.subCart(); S.subCart=null; }
+  S.subCart=S.db.collection("carteiras").onSnapshot(snap=>{ S.carteiras=new Set(snap.docs.filter(d=>(d.data()||{}).ativa!==false).map(d=>d.id)); },()=>{});
+}
+/* carteira é opcional: o entregador escolhe criar (fica em carteiras/<id do entregador>) */
+async function temCarteira(id){
+  if(S.carteiras && S.carteiras.has(id)) return true;
+  try{ const sn=await S.db.doc("carteiras/"+id).get(); return !!(sn.exists && (sn.data()||{}).ativa!==false); }catch(e){ return false; }
 }
 function ajusteTransf(entId,de,ate){
   let v=0; (S.transf||[]).forEach(x=>{ if(x.status!=="aprovada" || !x.dataAprov || x.dataAprov<de || x.dataAprov>ate) return;
@@ -5956,6 +5963,7 @@ async function abrirEnviarSaldo(disponivel,depois){
   ok.addEventListener("click",async()=>{
     msg.hidden=true; achar(); const v=Math.round(num(fVal.value)*100)/100;
     if(!dest){ msg.hidden=false; msg.textContent="Digite ou leia a chave de quem vai receber."; return; }
+    if(!(await temCarteira(dest.id))){ msg.hidden=false; msg.textContent=dest.nome+" ainda não criou a carteira. Peça para criar em Minhas faturas › Carteira."; return; }
     if(!(v>0)){ msg.hidden=false; msg.textContent="Informe o valor."; return; }
     if(v>disponivel+0.001){ msg.hidden=false; msg.textContent="Você só pode enviar até "+fmt(disponivel)+" (seu saldo disponível)."; return; }
     if(!fAut.checked){ msg.hidden=false; msg.textContent="Marque a autorização para continuar."; return; }
@@ -6012,6 +6020,26 @@ function abrirTransfCentral(){
 }
 
 async function renderCarteira(box){
+  box.replaceChildren(h("p",{class:"muted",text:"Abrindo a sua carteira…"}));
+  if(!(await temCarteira(S.eu))){
+    const bt=h("button",{class:"btn full",type:"button",style:"font-size:17px;padding:14px"},"💼 Criar minha carteira");
+    bt.addEventListener("click",async()=>{ bt.disabled=true; bt.textContent="Criando…";
+      try{ await comRetry(()=>S.db.doc("carteiras/"+S.eu).set({equipeId:S.eu,uid:S.uid||"",nome:S.euNome||"",ativa:true,criadaEm:new Date().toISOString()}));
+        (S.carteiras=S.carteiras||new Set()).add(S.eu); toast("Carteira criada"); renderCarteira(box); }
+      catch(e){ bt.disabled=false; bt.textContent="💼 Criar minha carteira"; toast("Não foi possível criar ("+(e&&e.code||"erro")+")."); } });
+    box.replaceChildren(
+      h("h3",{style:"margin:0",text:"💼 Carteira"}),
+      h("div",{class:"painel",style:"gap:8px"},
+        h("p",{style:"margin:0",text:"A carteira é opcional. Use só se quiser."}),
+        h("ul",{style:"margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px"},
+          h("li",{text:"Mostra o saldo das entregas que você já fez no mês."}),
+          h("li",{text:"Mostra o dinheiro dos clientes que está com você, para devolver às lojas ou repassar à central."}),
+          h("li",{text:"Deixa você mandar parte do seu saldo para outro entregador que também tenha carteira (a central aprova)."})),
+        h("p",{class:"muted",style:"margin:0;font-size:12px",text:"Sem carteira, nada muda: você continua recebendo a sua fatura normalmente."})),
+      bt,
+      h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
+    return;
+  }
   box.replaceChildren(h("p",{class:"muted",text:"Calculando a sua carteira…"}));
   const t=hoje(), ini=t.slice(0,8)+"01";
   const d90=new Date(Date.now()-90*864e5).toISOString().slice(0,10);
