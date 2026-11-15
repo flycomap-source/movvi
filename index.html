@@ -1030,8 +1030,8 @@ function aplicarModo(){
   $("#acTit").textContent = central() ? "Faturas" : "Minha fatura e dinheiro";
   $("#relTit").textContent = central() ? "Relatório do período" : "Minhas entregas no período";
   $("#fabTxt").textContent = comercio() ? (S.euCategoria==="delivery"?"Chamar entregador":"Pedir entrega") : "Pedido";
-  $("#fab").classList.toggle("fab-chamar", comercio() && S.euCategoria==="delivery");
-  $("#fab").setAttribute("aria-label", comercio() && S.euCategoria==="delivery" ? "Chamar entregador" : "Novo pedido");
+  $("#fab").classList.remove("fab-chamar");
+  $("#fab").setAttribute("aria-label","Novo pedido");
   $("#rDinLbl").textContent = "Em dinheiro";
   renderQuem(); renderAcesso();
   irPara(comAbas ? (viewAtual==="acesso"?"entregas":viewAtual) : "acesso");
@@ -4649,45 +4649,80 @@ function botaoScanDemanda(fecharMenu,escanear,txtScan){
 }
 /* comércio de delivery (lanche, marmita…): "Chamar entregador" = foto da comanda ou só endereço e bairro */
 function abrirChamarEntregador(){
+  garantirClientes();
   const item=(icone,titulo,desc,acao,principal)=>{ const b=h("button",{class:principal?"btn full":"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:16px"},
       h("span",{style:"font-size:26px;width:32px;text-align:center;flex:none",text:icone}),
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{style:"font-size:17px",text:titulo}),h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc})));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
-  const fechar=abrirSheet("Chamar entregador",[
-    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),"Foto da comanda"):null,
-    item("📍","Digitar endereço e bairro","Só o endereço de entrega e o bairro",()=>abrirEntregaRapida(),!S.sample)]);
+  const fechar=abrirSheet("Lançar entrega",[
+    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))):null,
+    item("✏️","Lançar manual","Nome, telefone, endereço e bairro do cliente",()=>abrirEntregaRapida(),!S.sample)]);
 }
 function abrirEntregaRapida(){
+  garantirClientes();
+  const fCli=h("input",{class:"inp",id:"erCli",placeholder:"Nome do cliente",autocomplete:"off"});
+  const fTel=h("input",{class:"inp",id:"erTel",type:"tel",inputmode:"tel",placeholder:"(38) 9 9999-9999",autocomplete:"off"});
   const fEnd=h("input",{class:"inp",id:"erEnd",placeholder:"Rua, número, complemento",autocomplete:"off"});
   const fBai=h("input",{class:"inp",id:"erBai",placeholder:"Bairro"});
+  const achado=h("div",{class:"painel",style:"gap:8px;border:2px solid var(--royal)",hidden:true});
   const txTaxa=h("b",{class:"num",style:"color:var(--royal);font-size:18px"});
-  const atu=()=>{ const b=fBai.value.trim(); txTaxa.textContent=b?"Taxa: "+fmt(taxaBairroDelivery(b)):""; };
+  const atu=()=>{ const b=fBai.value.trim(); txTaxa.textContent=b?"Taxa de entrega: "+fmt(taxaBairroDelivery(b)):""; };
   fBai.addEventListener("input",atu); fBai.addEventListener("change",atu);
-  fEnd.addEventListener("change",()=>{ if(!fBai.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBai.value=b; atu(); } } });
+  const porBairro=()=>{ if(!fBai.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBai.value=b; atu(); } } };
+  fEnd.addEventListener("change",porBairro);
+  // telefone digitado: procura o cliente na base da central e pergunta se é ele
+  let ultimoTel="", confirmado=null;
+  async function procurar(){
+    const d=digTel(fTel.value); if(!telValido(fTel.value) || d===ultimoTel) return; ultimoTel=d; confirmado=null;
+    let c=cliPorTel(fTel.value), dados=c?{nome:c.nome,enderecos:enderecosDe(c)}:null;
+    if(!dados){ try{ const sn=await S.db.doc("telefones/"+d).get(); if(sn.exists){ const a=sn.data()||{}; dados={nome:a.nome||"",enderecos:enderecosDe(a)}; } }catch(e){} }
+    if(digTel(fTel.value)!==d) return;
+    if(!dados || (!dados.nome && !dados.enderecos.length)){ achado.hidden=false; achado.style.borderColor="var(--line)"; achado.replaceChildren(h("span",{class:"muted",style:"font-size:13px",text:"Cliente novo: preencha os dados abaixo. Ele fica cadastrado para a próxima vez."})); return; }
+    achado.hidden=false; achado.style.borderColor="var(--royal)";
+    const usar=end=>{ confirmado=d; if(dados.nome) fCli.value=dados.nome; if(end){ fEnd.value=end; fBai.value=""; porBairro(); }
+      achado.replaceChildren(h("span",{style:"color:var(--ok);font-weight:700",text:"✓ Cliente confirmado"+(dados.nome?": "+dados.nome:"")}));
+      setTimeout(()=>{ try{ (fBai.value.trim()?fEnd:fBai).focus(); }catch(e){} },50); };
+    const ends=dados.enderecos.slice(0,4);
+    achado.replaceChildren(
+      h("span",{class:"muted",style:"font-size:13px",text:"Cliente cadastrado com este telefone. É este?"}),
+      h("b",{style:"font-size:17px",text:dados.nome||"(sem nome)"}),
+      ...(ends.length?ends.map(x=>h("button",{class:"btn full",type:"button",style:"justify-content:flex-start;text-align:left",onclick:()=>usar(x.endereco)},"📍 Sim · "+x.endereco)):[h("button",{class:"btn full",type:"button",onclick:()=>usar("")},"Sim, é este")]),
+      ends.length?h("button",{class:"btn sec full",type:"button",onclick:()=>usar("")},"É este, mas em outro endereço"):null,
+      h("button",{class:"btn sec full",type:"button",onclick:()=>{ confirmado=null; achado.replaceChildren(h("span",{class:"muted",style:"font-size:13px",text:"Tudo bem: preencha os dados do cliente abaixo."})); fCli.value=""; fCli.focus(); }},"Não é este cliente"));
+  }
+  fTel.addEventListener("input",()=>{ if(telValido(fTel.value)) procurar(); else { achado.hidden=true; ultimoTel=""; } });
+  fTel.addEventListener("change",procurar);
   const msg=h("div",{class:"aviso",hidden:true});
   const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"🛵 Chamar entregador");
   ok.addEventListener("click",async()=>{
-    const endereco=fEnd.value.trim(), bairro=fBai.value.trim(); msg.hidden=true;
+    const cliente=fCli.value.trim(), telefone=fTel.value.trim(), endereco=fEnd.value.trim(), bairro=fBai.value.trim(); msg.hidden=true;
+    if(!cliente){ msg.hidden=false; msg.textContent="Informe o nome do cliente."; fCli.focus(); return; }
+    if(!telefone){ msg.hidden=false; msg.textContent="Informe o telefone do cliente."; fTel.focus(); return; }
+    if(!telValido(telefone)){ msg.hidden=false; msg.textContent="O telefone está incompleto."; fTel.focus(); return; }
     if(!endereco){ msg.hidden=false; msg.textContent="Informe o endereço de entrega."; fEnd.focus(); return; }
     if(!bairro){ msg.hidden=false; msg.textContent="Informe o bairro."; fBai.focus(); return; }
     ok.disabled=true; ok.textContent="Chamando…";
     try{
       const numero=String(await proximoNumero(1)).padStart(6,"0"), agora=new Date().toISOString();
       registrarBairroNovo(bairro);
-      const d={numero,data:hoje(),coletaEmpresa:S.euNome,coletaEndereco:S.euEndereco||"",cliente:"",telefone:"",endereco,bairro,
+      let codigo=""; try{ const c=await clientePorTelefone(telComDDD(telefone),endereco,cliente); codigo=(c&&c.codigo)||""; }catch(e){}
+      const d={numero,data:hoje(),coletaEmpresa:S.euNome,coletaEndereco:S.euEndereco||"",cliente,telefone:telComDDD(telefone),clienteCodigo:codigo,endereco,bairro,
         pagamento:"pix",valorDinheiro:0,valorNota:0,valorCartao:0,trocoPara:0,pegarReceita:false,produtosReceita:[],obs:"",
         tipoServico:"entrega",taxaCobrada:taxaBairroDelivery(bairro),taxaBairro:true,adicionais:0,
         status:"solicitado",acertado:false,criadoEm:agora,criadoPor:S.uid||"",
-        registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Chamou entregador (só endereço)",em:agora}]};
+        registros:[{quem:quemAltera(),usuario:meuUsuario(),uid:S.uid||"",acao:"Lançou manual",em:agora}]};
       await comRetry(()=>S.db.collection(colDe("")).add(d));
       fechar(); toast("Entregador chamado · pedido #"+numero);
     }catch(e){ ok.disabled=false; ok.textContent="🛵 Chamar entregador"; msg.hidden=false; msg.textContent="Não foi possível chamar ("+(e&&e.code||"erro")+")."; }
   });
-  const fechar=abrirSheet("Chamar entregador",[
+  const fechar=abrirSheet("Lançar manual",[
+    h("div",{class:"campo"},h("label",{for:"erTel",text:"Telefone do cliente"}),fTel),
+    achado,
+    h("div",{class:"campo"},h("label",{for:"erCli",text:"Nome do cliente"}),fCli),
     h("div",{class:"campo"},h("label",{for:"erEnd",text:"Endereço de entrega"}),fEnd),
     h("div",{class:"campo"},h("label",{for:"erBai",text:"Bairro"}),comListaBairros(fBai)),
     txTaxa,msg,ok]);
-  setTimeout(()=>{ try{ fEnd.focus(); }catch(e){} },150);
+  setTimeout(()=>{ try{ fTel.focus(); }catch(e){} },150);
 }
 $("#fabRota").addEventListener("click",()=>abrirRota());
 $("#fabCli").addEventListener("click",()=>{
