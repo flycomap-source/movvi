@@ -7095,29 +7095,104 @@ async function uidsDaCentral(){
   if(l.length) S.uidsCentral=l;
   return l;
 }
-/* Entregador: "Fale com a central" (mesma caixa de recado; chega para todos da central) */
-function abrirFaleCentral(){
-  const prontos=["Estou indo para a central","Cliente não atende","Endereço não encontrado","Preciso de troco","Tive um problema na entrega, me liga"];
-  const txt=h("textarea",{class:"inp",id:"recadoCenTxt",rows:"3",maxlength:"300",placeholder:"Escreva a mensagem para a central"});
-  const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
-  const msg=h("div",{class:"aviso",hidden:true});
-  const ok=h("button",{class:"btn full",type:"button"},"📣 Enviar para a central");
-  ok.addEventListener("click",async()=>{
-    const texto=txt.value.trim(); msg.hidden=true;
-    if(!texto){ msg.hidden=false; msg.textContent="Escreva a mensagem."; return; }
-    ok.disabled=true; ok.textContent="Enviando…";
-    const uids=await uidsDaCentral();
-    if(!uids.length){ ok.disabled=false; ok.textContent="📣 Enviar para a central"; msg.hidden=false; msg.textContent="Não achei a central agora. Tente de novo em instantes."; return; }
-    try{ const agora=new Date().toISOString();
-      for(const uid of uids){ const id="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-        await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"contato",para:uid,paraNome:"Central",de:S.euNome||"Entregador",deUid:S.uid||"",texto,criadoEm:agora})); }
-      fechar(); toast("Mensagem enviada para a central"); }
-    catch(e){ ok.disabled=false; ok.textContent="📣 Enviar para a central"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; }
-  });
-  const fechar=abrirSheet("Fale com a central",[
-    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"A central recebe um aviso no celular e a mensagem aparece na tela dela."}),
-    chips,txt,msg,ok]);
+/* ===== Bate-papo entregador ↔ central =====
+   chats/<uid do entregador>              resumo da conversa {nome, aberto, ultima, naoLidaCentral, naoLidaEnt}
+   chat/<uid do entregador>/msgs/<id>     cada mensagem {texto, lado:"central"|"entregador", nome, em}
+   Cada mensagem também gera um recado (já marcado como lido) só para o celular tocar com o app fechado. */
+S.chatJanelas=S.chatJanelas||{};
+function ouvirChats(){
+  if(S.subChats){ S.subChats(); S.subChats=null; }
+  if(!S.db || !S.uid) return;
+  if(central()){
+    S.subChats=S.db.collection("chats").onSnapshot(snap=>{
+      S.chats=snap.docs.map(d=>({id:d.id,...d.data()}));
+      S.chats.filter(c=>c.aberto && c.naoLidaCentral).forEach(c=>abrirChat(c.id,c.nome||"Entregador",true));
+      Object.keys(S.chatJanelas).forEach(k=>{ const c=S.chats.find(x=>x.id===k); if(c && !c.aberto) S.chatJanelas[k].encerrada(c.encerradoPor); });
+      pintarDockChats();
+    },()=>{});
+  } else if(S.modo==="entregador"){
+    S.subChats=S.db.doc("chats/"+S.uid).onSnapshot(sn=>{ const c=sn.exists?(sn.data()||{}):null; if(!c) return;
+      if(c.aberto && c.naoLidaEnt) abrirChat(S.uid,"Central",true);
+      if(!c.aberto && S.chatJanelas[S.uid]) S.chatJanelas[S.uid].encerrada(c.encerradoPor); },()=>{});
+  }
 }
+/* central: conversas abertas que foram minimizadas ficam num botãozinho no canto */
+function pintarDockChats(){
+  let d=document.getElementById("chatDock");
+  const abertos=(S.chats||[]).filter(c=>c.aberto && !S.chatJanelas[c.id]);
+  if(!central() || !abertos.length){ if(d) d.remove(); return; }
+  if(!d){ d=h("div",{id:"chatDock",style:"position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9990;display:flex;flex-direction:column;gap:6px"}); document.body.append(d); }
+  d.replaceChildren(...abertos.map(c=>h("button",{class:"btn",type:"button",style:"box-shadow:0 6px 18px rgba(0,0,0,.25);padding:8px 14px;font-size:14px",onclick:()=>abrirChat(c.id,c.nome||"Entregador",false)},"💬 "+(c.nome||"Entregador"))));
+}
+async function enviarChat(conv,nomeEnt,texto){
+  const ag=new Date().toISOString(), id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const lado=central()?"central":"entregador";
+  await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+id).set({texto,lado,nome:central()?"Central":(S.euNome||"Entregador"),uid:S.uid||"",em:ag}));
+  await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:""}));
+  // aviso no celular (com o app fechado) para o outro lado
+  const destinos=lado==="central"?[conv]:await uidsDaCentral();
+  for(const uid of destinos){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    S.db.doc("recados/"+rid).set({tipo:"chat",para:uid,de:lado==="central"?"Central":(S.euNome||"Entregador"),deUid:S.uid||"",conv,texto,criadoEm:ag,lidoEm:ag}).catch(()=>{}); }
+}
+function abrirChat(conv,nome,chegou){
+  const ja=S.chatJanelas[conv];
+  if(ja){ ja.frente(); if(chegou) ja.marcarLida(); return; }
+  const nomeEnt = central() ? nome : (S.euNome||"Entregador");
+  const lista=h("div",{style:"flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
+  const txt=h("textarea",{class:"inp",rows:"2",maxlength:"500",placeholder:"Escreva a mensagem",style:"resize:none;flex:1;min-height:44px"});
+  const env=h("button",{class:"btn",type:"button",style:"flex:none;padding:0 16px"},"Enviar");
+  const prontos = central() ? ["Ok, entendido 👍","Já resolvo","Me liga, por favor","Pode seguir"] : ["Cliente não atende","Endereço não encontrado","Preciso de troco","Estou indo para a central","Me liga, por favor"];
+  const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
+  const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Minimizar",title:"Minimizar"},"—");
+  const btFim=h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
+  const n=Object.keys(S.chatJanelas).length;
+  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+nome,style:"position:fixed;z-index:9996;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(calc(-50% + "+(n*28)+"px));width:min(440px,calc(100vw - 24px));max-height:min(560px,78vh);background:var(--card,#fff);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px;padding:12px;border:2px solid var(--royal)"},
+    h("div",{style:"display:flex;align-items:center;gap:8px"},h("b",{style:"flex:1;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+(central()?nome:"Central")}),btFim,btMin),
+    lista,chips,h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env));
+  document.body.append(jan);
+  let unsub=null, primeira=true, fechada=false;
+  const marcarLida=()=>{ S.db.doc("chats/"+conv).update(central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
+  const fechar=()=>{ if(fechada) return; fechada=true; if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
+  const hora=iso=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
+    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-60);
+    const meuLado=central()?"central":"entregador";
+    lista.replaceChildren(...(ms.length?ms.map(m=>{ const meu=m.lado===meuLado, sis=m.lado==="sistema";
+      return sis ? h("div",{style:"align-self:center;font-size:12px;color:var(--muted);text-align:center",text:m.texto+" · "+hora(m.em)})
+        : h("div",{style:"max-width:82%;align-self:"+(meu?"flex-end":"flex-start")+";background:"+(meu?"var(--royal)":"var(--card,#fff)")+";color:"+(meu?"#fff":"var(--ink)")+";border-radius:14px;padding:7px 11px;box-shadow:0 1px 2px rgba(0,0,0,.08)"},
+            h("div",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere",text:m.texto}),
+            h("div",{style:"font-size:11px;opacity:.75;text-align:right",text:(meu?"":m.nome+" · ")+hora(m.em)})); })
+      :[h("p",{class:"muted",style:"margin:auto;font-size:13px;text-align:center",text:central()?"Sem mensagens ainda.":"Escreva para a central. Ela recebe na hora."})]));
+    lista.scrollTop=lista.scrollHeight;
+    const ult=ms[ms.length-1];
+    if(ult && ult.lado!==meuLado && ult.lado!=="sistema"){ marcarLida(); if(!primeira) try{ bip(); }catch(e){} }
+    chips.hidden=ms.length>2;
+    primeira=false;
+  },()=>{});
+  const mandar=async()=>{ const t=txt.value.trim(); if(!t) return; env.disabled=true;
+    try{ await enviarChat(conv,nomeEnt,t); txt.value=""; txt.focus(); }catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
+    env.disabled=false; };
+  env.addEventListener("click",mandar);
+  txt.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); mandar(); } });
+  btMin.addEventListener("click",fechar);
+  let armado=false;
+  btFim.addEventListener("click",async()=>{
+    if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
+    const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador");
+    try{ await S.db.doc("chat/"+conv+"/msgs/m"+Date.now().toString(36)).set({texto:"Conversa encerrada "+quem,lado:"sistema",nome:"",uid:S.uid||"",em:ag});
+      await S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:false,ultima:"",ultimaDe:"sistema",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
+    fechar(); toast("Conversa encerrada");
+  });
+  S.chatJanelas[conv]={
+    frente:()=>{ document.body.append(jan); },
+    marcarLida,
+    encerrada:(quem)=>{ if(fechada) return; txt.disabled=true; env.disabled=true; chips.hidden=true;
+      toast("Conversa encerrada"+(quem?" "+quem:"")); setTimeout(fechar,2500); }};
+  if(chegou){ marcarLida(); try{ bip(); }catch(e){} try{ if(navigator.vibrate) navigator.vibrate([200,80,200]); }catch(e){} }
+  pintarDockChats();
+  if(!chegou) setTimeout(()=>{ try{ txt.focus(); }catch(e){} },100);
+}
+function abrirFaleCentral(){ abrirChat(S.uid,"Central",false); }
 $("#btnFaleCentral").addEventListener("click",()=>abrirFaleCentral());
 /* ---------- COMÉRCIO: CONFIRMAR O ACERTO DO DINHEIRO ----------
    Pedido em dinheiro finalizado aparece num aviso vermelho na tela do comércio até ele confirmar que recebeu o dinheiro
@@ -7362,6 +7437,7 @@ function ouvirRecados(){
   if(S.subAvisoCentral){ S.subAvisoCentral(); S.subAvisoCentral=null; }
   if(!S.db || !S.uid) return;
   ouvirTransf();
+  ouvirChats();
   // quem é da central (para o aviso de Pix ao comércio chegar no celular dela)
   S.subAvisoCentral=S.db.doc("config/avisoCentral").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{};
     S.uidsCentral=Array.isArray(d.uids)?d.uids.filter(Boolean):[];

@@ -1,6 +1,6 @@
 /* Movvi+ — service worker: permite instalar o app e mostra os avisos de entrega com o app fechado.
    Não guarda dados: tudo vem sempre do servidor (pedidos ao vivo). */
-const VERSAO = "movvi-v4";
+const VERSAO = "movvi-v5";
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("fetch", (e) => {
@@ -21,6 +21,11 @@ self.addEventListener("push", (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { corpo: e.data ? e.data.text() : "" }; }
   e.waitUntil((async () => {
+    // mensagem/recado com o app aberto na frente: não mostra notificação (a conversa já aparece na tela)
+    if (/^📣/.test(String(d.titulo || ""))) {
+      const janelas = await self.clients.matchAll({ type: "window", includeUncontrolled: true }).catch(() => []);
+      if (janelas.some((c) => c.visibilityState === "visible")) return;
+    }
     const abertas = await self.registration.getNotifications({ tag: GRUPO }).catch(() => []);
     const ant = (abertas[0] && abertas[0].data) || {};
     const linha = [d.titulo, d.corpo].filter(Boolean).join(": ").replace(/^🛎️?\s*/, "");
