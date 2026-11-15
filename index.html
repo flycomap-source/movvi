@@ -268,7 +268,10 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 .ordem{flex:none;font-size:12px;font-weight:800;letter-spacing:.04em;color:var(--royal);background:var(--royal-soft);border-radius:8px;padding:5px 7px;align-self:flex-start;margin-top:2px}
 .disp-col{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .disp-col[hidden]{display:none}
-.fale-central{border:0;border-radius:999px;background:rgba(255,255,255,.18);color:inherit;font:inherit;font-size:11px;font-weight:800;padding:3px 8px;white-space:nowrap;cursor:pointer;line-height:1.2}
+.fale-central{border:1.5px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font:inherit;font-size:13.5px;font-weight:800;padding:6px 12px;min-height:32px;white-space:nowrap;cursor:pointer;line-height:1.1}
+.disp-col .chave{width:46px;height:26px;border-radius:13px}
+.disp-col .chave::after{width:20px;height:20px}
+.disp-col .chave[aria-checked="true"]::after{transform:translateX(20px)}
 .chave{flex:none;width:54px;height:30px;border-radius:15px;border:0;padding:0;position:relative;background:#8B90B8;cursor:pointer;transition:background .25s}
 .chave::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .25s}
 .chave[aria-checked="true"]{background:#22B573}
