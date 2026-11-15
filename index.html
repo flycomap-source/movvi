@@ -4286,7 +4286,7 @@ function abrirEscanearOpcoes(){
 }
 /* Rascunho da rota por fotos: cada comanda lida fica salva (no aparelho e na conta),
    para não perder o que já foi lido se o celular fechar o app por falta de memória. */
-const RASC_CAMPOS=["bairro","servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
+const RASC_CAMPOS=["taxa","bairro","servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
 let tRasc=null;
 function rascunhoRotaSalvar(paradas){
   clearTimeout(tRasc);
@@ -4446,7 +4446,9 @@ function montarRotaPorFotos(restaurar){
       return h("div",{class:"parada"},cab,posChips,
         st.erro?h("div",{class:"aviso",text:st.erro}):null, blocoConf, blocoSemBase, blocoNovo, blocoAd,
         st.cliente?h("div",{style:"font-size:13px;font-weight:700;color:var(--ok)",text:"Cliente da base"+(st.loc?" · com localização":"")}):null,
-        cruz, fNome, fEnd, fBaiW, fTel, h("div",{class:"linha"},sel,fVal), fTr,
+        cruz, fNome, fEnd, fBaiW, fTel, h("div",{class:"linha"},sel,fVal), central()?(()=>{ const auto=()=>servicoTaxaFixa(st.servico,st.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(st.empresa,st.bairro,taxaComercioPorNome(st.empresa)??TAXA_PADRAO);
+            const fTx=inp("taxa","Taxa da entrega (R$) · automática: "+fmt(auto()),{inputmode:"decimal"}); fTx.addEventListener("focus",()=>{ fTx.placeholder="Taxa da entrega (R$) · automática: "+fmt(auto()); });
+            return h("div",{class:"campo"},h("span",{class:"lbl",text:"Taxa (deixe em branco para a automática)"}),fTx); })():null, fTr,
         (()=>{ const c=h("input",{type:"checkbox",checked:st.servico==="transferencia"}); c.addEventListener("change",()=>{ st.servico=c.checked?"transferencia":"entrega"; lbl.style.color=c.checked?"var(--royal)":""; });
           const lbl=h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700;"+(st.servico==="transferencia"?"color:var(--royal)":"")},c,"🔁 Transferência / busca de receita / cobrança"); return lbl; })(),
         (()=>{ const c=h("input",{type:"checkbox",checked:!!st.receita}); c.addEventListener("change",()=>{ st.receita=c.checked; lbl.style.color=c.checked?"var(--bad)":""; });
@@ -4510,7 +4512,7 @@ function montarRotaPorFotos(restaurar){
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
-          taxaCobrada:servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
+          taxaCobrada:(central() && num(x.taxa)>0) ? num(x.taxa) : servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
           ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && String(x.bairro||"").trim() ? (registrarBairroNovo(x.bairro),{adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true}) : {}),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
@@ -4864,8 +4866,10 @@ function abrirPedido(p,arquivoComanda,pre){
     try{ campoBairro.hidden = servico==="transferencia"; }catch(e){}
     // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
     try{ const fixa=servicoTaxaFixa(servico,pag);
-      if(fixa && !fTaxa.disabled){ fTaxa._antes=fTaxa.value; fTaxa.value=fmtInput(TAXA_FIXA_CENTRAL); fTaxa.disabled=true; fTaxa.title="Convênio, transferência e busca de receita: taxa fixa de "+fmt(TAXA_FIXA_CENTRAL)+" para a central"; }
-      else if(!fixa && fTaxa.disabled){ fTaxa.disabled=false; if(fTaxa._antes!=null) fTaxa.value=fTaxa._antes; fTaxa.title=""; }
+      // sugere R$ 4,00, mas a central pode mudar a taxa à mão (o campo fica editável)
+      if(fixa && !fTaxa.dataset.fixa){ fTaxa.dataset.fixa="1"; fTaxa._antes=fTaxa.value; if(!taxaMexida) fTaxa.value=fmtInput(TAXA_FIXA_CENTRAL); fTaxa.title="Sugestão para convênio, transferência e busca de receita: "+fmt(TAXA_FIXA_CENTRAL)+" (pode mudar)"; }
+      else if(!fixa && fTaxa.dataset.fixa){ delete fTaxa.dataset.fixa; if(fTaxa._antes!=null && !taxaMexida) fTaxa.value=fTaxa._antes; fTaxa.title=""; }
+      fTaxa.disabled=false;
     }catch(e){}
     Object.keys(segBtns).forEach(k=>segBtns[k].setAttribute("aria-pressed",String(pag===k)));
     dica.textContent = pag==="dinheiro" ? "O entregador recebe esse valor em mãos e repassa no acerto." : pag==="cartao" ? "Levar a maquininha: o cliente paga no cartão." : pag==="convenio" ? "Convênio: o cliente assina a nota na entrega e a nota assinada volta para o comércio. Nada a cobrar." : "Nada a cobrar do cliente na entrega.";
@@ -5217,7 +5221,7 @@ function abrirPedido(p,arquivoComanda,pre){
       ...(central()?{adicionais:Math.max(0,Math.min(9,Math.round(num(fAdic.value)))),adicionaisPelaCentral:Math.round(num(fAdic.value))>0}:{}),
       ...((central()||S.modo==="entregador") && adicOk===true && adicEscolhido ? {adicionalMotivo:"Bairro "+adicEscolhido.nome, adicionalBairro:adicEscolhido.nome} : {}),
       ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd))} : {}),
-      taxaCobrada: servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : (central()||comercio()) ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
+      taxaCobrada: central() ? num(fTaxa.value) : servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : comercio() ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
     // comércio de delivery: taxa pela tabela de bairros e sem adicional de bairro (a central ainda pode mudar a taxa à mão)
     if(!servicoTaxaFixa(servico,pag) && ehDelivery(dados.coletaEmpresa) && dados.bairro){
