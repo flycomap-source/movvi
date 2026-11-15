@@ -1929,7 +1929,7 @@ function renderPedidos(){
   };
   const grupos={aguardando:[],aceite:[],coletar:[],rota:[],fim:finalizadas};
   ps.forEach(p=>grupos[estado(p)].push(p));
-  const caixa=(chave,titulo,qtd,cor,preencher)=>{
+  const caixa=(chave,titulo,qtd,cor,preencher,extra)=>{
     if(!qtd) return;
     const recolhivel = S.modo!=="entregador";
     let fechado=false; if(recolhivel){ try{ fechado=localStorage.getItem("movvi.recolhido."+chave)==="1"; }catch(e){} }
@@ -1941,7 +1941,8 @@ function renderPedidos(){
       h("b",{text:titulo+" ("+qtd+")"}),
       h("span",{class:"grupo-qtd num",text:String(qtd)}),
       recolhivel?bt:null);
-    const g=h("section",{class:"grupo"+(fechado?" fechado":"")},cab,corpo);
+    if(extra) cab.style.margin="0";
+    const g=h("section",{class:"grupo"+(fechado?" fechado":"")},extra?h("div",{style:"display:flex;align-items:center;gap:8px;margin:2px 0 10px"},cab,extra):cab,corpo);
     const alterna=()=>{ fechado=!fechado; g.classList.toggle("fechado",fechado); const r=fechado?"Expandir":"Recolher"; bt.setAttribute("aria-label",r); bt.title=r; bt.setAttribute("aria-expanded",String(!fechado)); try{ localStorage.setItem("movvi.recolhido."+chave,fechado?"1":"0"); }catch(e){} };
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
     if(emLinhas()) corpo.append(cabecalhoLinhas());
@@ -1962,8 +1963,10 @@ function renderPedidos(){
   if(S.modo==="entregador"){
     const minhas=[...grupos.aceite,...grupos.coletar,...grupos.rota];
     minhas.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
+    const btRota=h("button",{type:"button",title:"Editar rota",  "aria-label":"Editar rota",
+      style:"width:42px;height:38px;flex:none;border:0;border-radius:8px;background:var(--laranja);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)"},"🧭");
+    btRota.addEventListener("click",e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); });
     caixa("minhas","Minhas entregas",minhas.length,"var(--royal)",corpo=>{
-      if(minhas.length>=2) corpo.append(botaoOrdemEntregas(S.eu,minhas));
       const g={};
       grupos.coletar.filter(p=>!p.rotaId).forEach(p=>{ const k=p.coletaEmpresa||p.coletaEndereco||"Mesmo local"; (g[k]=g[k]||[]).push(p); });
       Object.entries(g).filter(([,l])=>l.length>1).forEach(([loc,l])=>{
@@ -1979,7 +1982,7 @@ function renderPedidos(){
           h("span",{class:"muted",style:"font-size:13px",text:"Coletou todas no mesmo lugar? Saia em rota com todas de uma vez."}),b));
       });
       minhas.forEach(p=>poe(corpo,p));
-    });
+    },btRota);
     // finalizadas dele só em Hoje, Ontem ou no dia do calendário (em Últimas 3h não aparecem, para não confundir com entrega em andamento)
     { const fim=S.periodo==="3h"?[]:grupos.fim.slice().sort((x,y)=>String(y.entregueEm||"").localeCompare(String(x.entregueEm||"")));
       const fimEnt=fim.filter(p=>!ehTransf(p)), fimTr=fim.filter(ehTransf);
