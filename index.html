@@ -5829,10 +5829,15 @@ async function abrirEnviarSaldo(disponivel,depois){
   const fMot=h("input",{class:"inp",id:"trMot",placeholder:"Motivo (ex.: paguei um produto)"});
   const msg=h("div",{class:"aviso",hidden:true});
   let dest=null;
+  const fAut=h("input",{type:"checkbox",id:"trAut",style:"width:22px;height:22px;flex:none;margin-top:2px"});
+  const txtAut=h("span",{style:"font-size:14px;line-height:1.35"});
+  const textoAut=()=>{ const v=Math.round(num(fVal.value)*100)/100;
+    return "Autorizo a Movvi+ a pagar "+(v>0?fmt(v):"R$ ___")+" da minha remuneração a "+(dest?dest.nome:"___")+", por minha conta e ordem. Esse valor continua sendo ganho meu; a Movvi+ apenas faz o pagamento a quem eu indiquei."; };
+  const atualAut=()=>{ txtAut.textContent=textoAut(); };
   const achar=()=>{ const c=fCh.value.trim().toUpperCase(); dest=eq.find(e=>chaveDe(e.id)===c)||null;
     quem.textContent = !c ? "" : dest ? "Para: "+dest.nome : "Nenhum entregador com essa chave";
-    quem.style.color = dest ? "var(--ok)" : c ? "var(--bad)" : ""; };
-  fCh.addEventListener("input",achar);
+    quem.style.color = dest ? "var(--ok)" : c ? "var(--bad)" : ""; atualAut(); };
+  fCh.addEventListener("input",achar); fVal.addEventListener("input",atualAut); atualAut();
   const btQR=h("button",{class:"btn sec",type:"button",onclick:()=>lerQR(ch=>{ fCh.value=ch; achar(); fVal.focus(); })},"📷 Ler QR");
   const ok=h("button",{class:"btn full",type:"button"},"Pedir aprovação da transferência");
   ok.addEventListener("click",async()=>{
@@ -5840,9 +5845,10 @@ async function abrirEnviarSaldo(disponivel,depois){
     if(!dest){ msg.hidden=false; msg.textContent="Digite ou leia a chave de quem vai receber."; return; }
     if(!(v>0)){ msg.hidden=false; msg.textContent="Informe o valor."; return; }
     if(v>disponivel+0.001){ msg.hidden=false; msg.textContent="Você só pode enviar até "+fmt(disponivel)+" (seu saldo disponível)."; return; }
+    if(!fAut.checked){ msg.hidden=false; msg.textContent="Marque a autorização para continuar."; return; }
     ok.disabled=true; ok.textContent="Enviando…";
     try{ const id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), agora=new Date().toISOString();
-      const d={de:S.eu,deNome:S.euNome||"",deUid:S.uid||"",para:dest.id,paraNome:dest.nome||"",paraUid:dest.uid||"",valor:v,motivo:fMot.value.trim(),status:"pendente",criadoEm:agora,data:hoje()};
+      const d={de:S.eu,deNome:S.euNome||"",deUid:S.uid||"",para:dest.id,paraNome:dest.nome||"",paraUid:dest.uid||"",valor:v,motivo:fMot.value.trim(),status:"pendente",criadoEm:agora,data:hoje(),autorizacao:textoAut(),autorizadoEm:agora};
       await comRetry(()=>S.db.doc("transfSaldo/"+id).set(d));
       for(const uid of (S.uidsCentral||[]).filter(Boolean)){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
         await S.db.doc("recados/"+rid).set({tipo:"transf",para:uid,de:S.euNome||"Entregador",deUid:S.uid||"",texto:"🔁 Quer enviar "+fmt(v)+" para "+dest.nome+(d.motivo?" ("+d.motivo+")":"")+". Aprove em Transferências entre entregadores.",criadoEm:agora}).catch(()=>{}); }
@@ -5854,6 +5860,7 @@ async function abrirEnviarSaldo(disponivel,depois){
     h("div",{class:"campo"},h("label",{for:"trChave",text:"Chave de quem vai receber"}),h("div",{style:"display:flex;gap:8px"},h("div",{style:"flex:1;min-width:0"},fCh),btQR),quem),
     h("div",{class:"campo"},h("label",{for:"trVal",text:"Valor (R$)"}),fVal),
     h("div",{class:"campo"},h("label",{for:"trMot",text:"Motivo"}),fMot),
+    h("label",{for:"trAut",class:"painel",style:"display:flex;flex-direction:row;gap:10px;align-items:flex-start;cursor:pointer"},fAut,txtAut),
     h("p",{class:"muted",style:"margin:0;font-size:12px",text:"A central precisa aprovar. Aprovada, o valor sai do seu saldo e entra no saldo de quem recebe."}),msg,ok]);
 }
 function listaTransf(itens,comAcoes){
@@ -5861,7 +5868,8 @@ function listaTransf(itens,comAcoes){
   return h("div",{style:"display:flex;flex-direction:column;gap:8px"},...itens.map(x=>{
     const linha=h("div",{class:"painel",style:"gap:6px"},
       h("div",{style:"display:flex;justify-content:space-between;gap:8px;align-items:baseline"},h("b",{text:(x.deNome||"?")+" → "+(x.paraNome||"?")}),h("b",{class:"num",text:fmt(num(x.valor))})),
-      h("div",{class:"meta",style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},h("span",{class:"pill "+(st[x.status]||st.pendente)[0],text:(st[x.status]||st.pendente)[1]}),h("span",{class:"quem-ped",text:new Date(x.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(x.motivo?" · "+x.motivo:"")})));
+      h("div",{class:"meta",style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},h("span",{class:"pill "+(st[x.status]||st.pendente)[0],text:(st[x.status]||st.pendente)[1]}),h("span",{class:"quem-ped",text:new Date(x.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(x.motivo?" · "+x.motivo:"")})),
+      x.autorizacao?h("div",{class:"muted",style:"font-size:12px;font-style:italic",text:"✍️ "+x.autorizacao+" ("+new Date(x.autorizadoEm||x.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})+")"}):null);
     if(comAcoes && x.status==="pendente"){
       const decidir=async(aprovar,bt)=>{ bt.disabled=true; const agora=new Date().toISOString();
         try{ await comRetry(()=>S.db.doc(x._path).update({status:aprovar?"aprovada":"recusada",decididoEm:agora,decididoPor:S.uid||"",...(aprovar?{dataAprov:hoje()}:{})}));
