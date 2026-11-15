@@ -289,21 +289,23 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 body.tela-larga main,body.tela-larga .top-in{max-width:1600px}
 body.tela-larga #v-entregas .grupo-corpo:not(:has(> .linha-ped)){display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
 body.tela-larga #v-entregas .grupo-corpo:has(> .linha-ped){gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);padding:0;margin-bottom:14px}
-.linha-ped{display:grid;grid-template-columns:104px 84px 64px minmax(80px,1fr) minmax(80px,1fr) minmax(110px,1.6fr) 100px minmax(90px,1fr) minmax(80px,1.2fr) 120px 62px 112px;gap:8px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;background:var(--card);cursor:pointer}
+.linha-ped{display:grid;grid-template-columns:130px 62px minmax(110px,1fr) minmax(170px,2fr) minmax(120px,1fr) minmax(130px,170px) 78px 140px;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font-size:15px;background:var(--card);cursor:pointer}
+.linha-ped.com{grid-template-columns:160px 62px 76px minmax(180px,2fr) minmax(130px,1fr) minmax(140px,180px) 160px}
+.linha-ped .sub{display:block;font-size:12.5px;color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .linha-ped:last-child{border-bottom:0}
 .linha-ped:hover{background:var(--royal-soft)}
-.linha-ped.cab{cursor:default;background:var(--bg);font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:7px 12px}
+.linha-ped.cab{cursor:default;background:var(--bg);font-size:11.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:7px 12px}
 .linha-ped.cab:hover{background:var(--bg)}
 .linha-ped .c{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .linha-ped .forte{font-weight:700}
 .linha-ped .r{text-align:right}
 .linha-ped .din{color:var(--ok);font-weight:700}
 .linha-ped.fim{color:var(--muted)}
-.linha-ped .badge-l{border:0;border-radius:6px;padding:3px 8px;color:#fff;font-weight:800;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.linha-ped .ent-l{border:0;border-radius:6px;padding:3px 8px;background:var(--royal);color:#fff;font-weight:700;font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linha-ped .badge-l{border:0;border-radius:6px;padding:5px 9px;color:#fff;font-weight:800;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linha-ped .ent-l{border:0;border-radius:6px;padding:5px 9px;background:var(--royal);color:#fff;font-weight:700;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .linha-ped .ent-l.sem{background:#8A8FA8}
 .linha-ped .acoes-l{display:flex;gap:4px;justify-content:flex-end}
-.mini-bt{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:3px 7px;font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap}
+.mini-bt{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:5px 9px;font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap}
 .mini-bt:hover{border-color:var(--royal);color:var(--royal)}
 .periodo{display:flex;justify-content:center;gap:4px;margin-top:-4px;position:relative}
 .periodo #perCalTxt:not(:empty){margin-left:5px}
@@ -976,17 +978,23 @@ function abrirEscolhaRelatorio(){
     op("pedidos","☰","Pedidos","Todos os pedidos do período, com filtros")]);
 }
 /* ao puxar a tela para baixo (atualizar a página), volta para a mesma tela em que estava */
-function guardarTela(){ try{ if(S.modo && S.modo!=="carregando") sessionStorage.setItem("movvi.tela",JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo})); }catch(e){} }
+const TELA_SALVA=(()=>{ try{ const t=JSON.parse(sessionStorage.getItem("movvi.telaAtual")||localStorage.getItem("movvi.telaAtual")||"null");
+  return t && (Date.now()-(t.em||0))<30*60*1000 ? t : null; }catch(e){ return null; } })();
+function guardarTela(){
+  if(!S.telaRestaurada) return; // não sobrescreve antes de voltar à tela salva
+  try{ if(S.modo && !["carregando","semacesso","desativado"].includes(S.modo)){
+    const j=JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo,em:Date.now()});
+    sessionStorage.setItem("movvi.telaAtual",j); localStorage.setItem("movvi.telaAtual",j); } }catch(e){} }
 function restaurarTela(){
   if(S.telaRestaurada || !S.modo || ["carregando","semacesso","desativado"].includes(S.modo)) return;
-  S.telaRestaurada=true;
-  let t=null; try{ t=JSON.parse(sessionStorage.getItem("movvi.tela")||"null"); }catch(e){}
-  if(!t || t.modo!==S.modo || !t.v || t.v==="entregas" || t.v==="acesso") return;
+  const t=TELA_SALVA;
+  if(!t || t.modo!==S.modo || !t.v || t.v==="entregas" || t.v==="acesso"){ S.telaRestaurada=true; guardarTela(); return; }
   setTimeout(()=>{ try{
     if(t.v==="acerto" && t.fat) fatTipo=t.fat;
+    S.telaRestaurada=true;
     irPara(t.v);
     if(t.v==="relatorios" && t.rel && typeof escolherRelTipo==="function") escolherRelTipo(t.rel);
-  }catch(e){} },0);
+  }catch(e){ S.telaRestaurada=true; } },0);
 }
 function aplicarModo(){
   setTimeout(restaurarTela,0);
@@ -2383,37 +2391,34 @@ function telaLarga(){ return !!(MQ_LARGA && MQ_LARGA.matches); }
 const emLinhas = () => (central()||comercio()) && telaLarga();
 function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", emLinhas()); }
 if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
-const COLS_LINHA=["Situação","Hora","Pedido","Coleta","Cliente","Endereço","Telefone","Pagamento","Detalhes","Entregador","Taxa",""];
-function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"},...COLS_LINHA.map(c=>h("span",{text:comercio()&&c==="Taxa"?"":c}))); }
+const COLS_CEN=["Situação","Hora","Coleta","Cliente","Pagamento","Entregador","Taxa",""];
+const COLS_COM=["Situação","Hora","Pedido","Cliente","Pagamento","Entregador",""];
+function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" com":"")},...(comercio()?COLS_COM:COLS_CEN).map(c=>h("span",{text:c}))); }
+/* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
+function celCliente(p,extra){
+  const entregue=p.status==="entregue";
+  const marcas=[(p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"", ehTransf(p)?"🔁":"", p.pegarReceita?"℞":"",
+    (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0)?"🧭"+num(p.ordemEntrega)+"/"+num(p.ordemQtd):p.rotaOrdem?"Parada "+p.rotaOrdem:"", p.obs?"📝":"", extra||""].filter(Boolean).join(" ");
+  const nome=p.cliente||(ehTransf(p)?((p.transfDe||p.transfPara)?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência"):"—");
+  const baixo=[p.bairro||p.endereco||"",marcas].filter(Boolean).join(" · ");
+  return h("span",{class:"c",title:[nome,p.endereco,p.obs].filter(Boolean).join(" · ")},h("b",{text:nome}),baixo?h("span",{class:"sub",text:baixo}):null);
+}
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
   const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
-  const pag=(PAG[p.pagamento]||"—")+(valorACobrar(p)?" "+fmt(valorACobrar(p)):"")+(p.pagamento==="dinheiro"&&num(p.trocoPara)>0?" (troco p/ "+fmt(p.trocoPara)+")":"");
-  const det=[
-    (p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"",
-    ehTransf(p)?"🔁 "+((p.transfDe||p.transfPara)?(p.transfDe||"?")+"→"+(p.transfPara||"?"):"Transf."):"",
-    p.pegarReceita?"℞ receita":"",
-    num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":"",
-    (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0)?"🧭 "+num(p.ordemEntrega)+"/"+num(p.ordemQtd):p.rotaOrdem?"Parada "+p.rotaOrdem+"/"+(p.rotaQtd||"?"):"",
-    p.pagamentoAlterado?"pag. alterado":"",
-    p.obs?"📝 "+p.obs:"", (entregue&&p.obsFinalizacao)?"📝 "+p.obsFinalizacao:""].filter(Boolean).join(" · ");
+  const pag=(p.pagamento==="pix"?"Pago":PAG[p.pagamento]||"—")+(valorACobrar(p)&&p.pagamento!=="pix"?" "+fmt(valorACobrar(p)):"");
   const acoes=h("span",{class:"c acoes-l"});
   if(comercio()){
     if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
     const dest=destinoRecado(p);
     if(dest) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Mandar recado para o entregador",onclick:e=>{ e.stopPropagation(); abrirRecado(p,dest); }},"📣 Recado"));
-    return h("div",{class:"linha-ped"+(entregue?" fim":"")},
+    return h("div",{class:"linha-ped com"+(entregue?" fim":"")},
       h("span",{class:"c"},h("span",{class:"badge-l",style:"background:"+st.c+";display:inline-block",text:st.t})),
       cel(dataHoraCard(p),"num"),
       cel(p.numero?"#"+p.numero:"","num forte"),
-      cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
-      cel(p.cliente),
-      cel(p.endereco),
-      cel(p.telefone,"num"),
+      celCliente(p),
       cel(pag,p.pagamento==="dinheiro"?"din":""),
-      cel(det,"muted"),
       cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""),
-      h("span",{class:"c"}),
       acoes);
   }
   if(!entregue && !pedidoMorto(p)){
@@ -2426,13 +2431,9 @@ function linhaPedido(p){
   return h("div",{class:"linha-ped"+(entregue?" fim":"")},
     h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")),
     cel(dataHoraCard(p),"num"),
-    cel(p.numero?"#"+p.numero:"","num forte"),
-    cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
-    cel(p.cliente),
-    cel(p.endereco),
-    cel(p.telefone,"num"),
+    h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),p.numero?h("span",{class:"sub num",text:"#"+p.numero}):null),
+    celCliente(p,num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":""),
     (central()&&entregue&&dinPendCentral(p)!==null)?h("span",{class:"c"},botaoDinCentral(p,true)):cel(pag,p.pagamento==="dinheiro"?"din":""),
-    cel(det,"muted"),
     h("span",{class:"c"},h("button",{type:"button",class:"ent-l"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},(p.entregadorId?nomeEnt(p.entregadorId):"Sem entregador")+(entregue?"":" ▾"))),
     cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r"),
     acoes);
@@ -2595,13 +2596,10 @@ function cartaoSolicitacaoLoja(p){
     return h("div",{class:"linha-ped"},
       h("span",{class:"c"},h("span",{class:"badge-l",style:"background:var(--laranja);display:inline-block",text:p.publicado?"Aguardando":"Enviando…"})),
       cel((p.data!==hoje()?diaCurto(p.data)+" ":"")+hora,"num"),
-      cel(p.numero?"#"+p.numero:"","num forte"),
-      cel(p.coletaEmpresa||p.coletaEndereco,"forte"),
-      cel(rota?par.map(x=>x.cliente).filter(Boolean).join(", "):p.cliente),
-      cel(rota?par.map(x=>x.endereco).filter(Boolean).join(" · "):p.endereco),
-      cel(p.telefone,"num"),
+      h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),p.numero?h("span",{class:"sub num",text:"#"+p.numero}):null),
+      (()=>{ const nome=rota?par.map(x=>x.cliente).filter(Boolean).join(", "):(p.cliente||""), baixo=[rota?"":(p.bairro||p.endereco||""),det].filter(Boolean).join(" · ");
+        return h("span",{class:"c",title:[nome,rota?par.map(x=>x.endereco).filter(Boolean).join(" · "):p.endereco,det].filter(Boolean).join(" · ")},h("b",{text:nome||"—"}),baixo?h("span",{class:"sub",text:baixo}):null); })(),
       cel(pag,p.pagamento==="dinheiro"?"din":""),
-      cel(det,"muted"),
       h("span",{class:"c"},sel),
       cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"),
       acoes);
@@ -5492,7 +5490,6 @@ function abrirConfirmacao(p){
       h("div",{style:"background:var(--card,#fff);border-radius:20px;padding:20px 18px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
         h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)",text:"💵 Pedido em dinheiro"}),
         h("div",{style:"font-size:20px;font-weight:800;line-height:1.25",text:"O que fazer com "+fmt(v)+"?"}),
-        bt("Ficar com o dinheiro","Desconta "+fmt(v)+" na sua fatura · a central manda o Pix para "+emp,"var(--ok)",()=>{ escolhaDin="fatura"; ok.click(); }),
         bt("Devolver no comércio","Você leva o dinheiro em "+emp,"var(--royal)",()=>{ escolhaDin="loja"; ok.click(); }),
         bt("Entregar para a central","Você entrega "+fmt(v)+" na central","var(--laranja)",()=>{ escolhaDin="central"; ok.click(); }),
         h("button",{class:"btn sec full",type:"button",onclick:fecharCx},"Voltar")));
@@ -5601,7 +5598,10 @@ function abrirDetalhes(p){
   const L=[]; const add=(k,v,forte)=>{ if(v!==undefined&&v!==null&&v!=="") L.push([k,String(v),forte]); };
   add("Cliente",p.cliente,true);
   add("Endereço",p.endereco);
+  add("Bairro",p.bairro);
   add("Telefone",p.telefone);
+  add("Observação",p.obs);
+  if(!comercio()) add("Comércio",p.coletaEmpresa);
   add("Pagamento",p.pagamento==="dinheiro"?(p.status==="entregue"?"Recebido ":"Receber ")+fmt(dinheiroDoPedido(p))+" (dinheiro)":p.pagamento==="convenio"?"Convênio · assinar nota"+(num(p.valorNota)?" de "+fmt(p.valorNota):""):p.pagamento==="cartao"?"Cartão"+(num(p.valorCartao)?" · "+fmt(p.valorCartao):""):(PAG[p.pagamento]||""));
   add("Pedido",p.numero?"#"+p.numero:"");
   add("Data",p.data?diaCurto(p.data):"");
@@ -5920,9 +5920,6 @@ async function renderCarteira(box){
       toast(rotulo); renderCarteira(box); }
     catch(e){ bt.disabled=false; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); renderCarteira(box); } };
   const confirma=(bt,txt1,txt2,fn)=>{ let arm=false; bt.addEventListener("click",()=>{ if(!arm){ arm=true; bt.textContent=txt2; setTimeout(()=>{ if(arm){ arm=false; bt.textContent=txt1; } },4000); return; } arm=false; fn(); }); return bt; };
-  const tFicar="Ficar com o dinheiro (abater "+fmt(din)+" no saldo)";
-  const btFicar=din>0?confirma(h("button",{class:"btn full",type:"button",style:"background:var(--ok);border-color:var(--ok)"},tFicar),tFicar,"Confirmar: ficar com "+fmt(din),
-    ()=>marcar(btFicar,"Dinheiro abatido no seu saldo · a central vai repassar às lojas",(p,ag)=>({dinheiroCom:"fatura",dinheiroDevolvido:false,pixComercioPendente:true,pixComercioValor:dinheiroDoPedido(p),dinheiroFicouEm:ag}),avisarCentralPix)):null;
   const tDev="Devolvi às lojas", tCen="Repassei à central";
   const btDev=din>0?confirma(h("button",{class:"btn sec",type:"button"},tDev),tDev,"Confirmar devolução",()=>marcar(btDev,"Devolução registrada",(p,ag)=>({dinheiroDevolvido:true,devolvidoEm:ag,devolvidoPor:S.uid||""}))):null;
   const btCen=din>0?confirma(h("button",{class:"btn sec",type:"button"},tCen),tCen,"Confirmar repasse",()=>marcar(btCen,"Repasse para a central registrado",(p,ag)=>({dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:ag,dinheiroCentralPor:S.uid||""}))):null;
@@ -5939,8 +5936,6 @@ async function renderCarteira(box){
       h("span",{class:"muted",style:"font-size:13px",text:"Dinheiro que está com você"}),
       h("b",{class:"num",style:"font-size:28px;color:"+(din>0?"var(--laranja-ink)":"var(--muted)"),text:fmt(din)}),
       din>0?h("div",{style:"display:flex;flex-direction:column;gap:3px;font-size:13px"},...Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([e,v])=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},h("span",{text:e}),h("b",{class:"num",text:fmt(v)})))):h("span",{class:"muted",style:"font-size:12px",text:"Nenhum dinheiro com você"}),
-      btFicar,
-      din>0?h("span",{class:"muted",style:"font-size:12px",text:"Ficando com o dinheiro, o valor sai do seu saldo e a central faz o repasse para as lojas."}):null,
       din>0?h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btDev,btCen):null),
     h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
 }
