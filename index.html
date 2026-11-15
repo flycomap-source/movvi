@@ -3116,7 +3116,8 @@ function alerta(msg){ toast(msg); try{ document.title="(!) Movvi+ Entregas"; set
 /* ---------- sheets ---------- */
 function abrirSheet(titulo, corpo){
   const veu=h("div",{class:"veu",role:"dialog","aria-modal":"true","aria-label":titulo});
-  const fechar=()=>{ veu.remove(); document.removeEventListener("keydown",esc); };
+  const aoFechar=abrirSheet.aoFechar; abrirSheet.aoFechar=null; let fechado=false;
+  const fechar=()=>{ veu.remove(); document.removeEventListener("keydown",esc); if(!fechado){ fechado=true; if(aoFechar) try{ aoFechar(); }catch(e){} } };
   const esc=e=>{ if(e.key==="Escape") fechar(); };
   document.addEventListener("keydown",esc);
   veu.addEventListener("click",e=>{ if(e.target===veu) fechar(); });
@@ -4294,7 +4295,7 @@ function abrirEscanearOpcoes(){
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:desc})));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
   const fechar=abrirSheet("Escanear",[
-    item("📷","Escanear um pedido","Fotografa a comanda e lança o pedido",()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))),
+    botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))),
     item("🗺","Criar rota com várias comandas","Fotografa todas as comandas e o app monta a ordem das entregas",()=>abrirRotaPorFotos())]);
 }
 /* Rascunho da rota por fotos: cada comanda lida fica salva (no aparelho e na conta),
@@ -4570,11 +4571,81 @@ function abrirMenuMais(){
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
   const podeRota=central()||(S.modo==="entregador"&&!!S.sample);
   const fechar=abrirSheet("Lançar serviço",[
-    S.sample?item("📷","Escanear comanda","Fotografa a comanda e lança a entrega",()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),true):null,
+    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))):null,
     S.sample?item("🖼","Escanear foto da galeria","Usa uma foto da comanda que já está no celular",()=>escanearDaGaleria()):null,
     podeRota?item("🗺","Criar rota","Fotografa as comandas e monta a ordem das entregas",()=>{ if(central()) abrirRota({escanear:true}); else abrirRotaPorFotos(); },!S.sample):null,
     item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null)),
     item("🔁","Transferência / busca de receita","Levar mercadoria entre lojas ou buscar receita",()=>abrirPedido(null,null,{tipoServico:"transferencia",pagamento:"pix"}))]);
+}
+/* Lançar por demanda: várias comandas de empresas diferentes de uma vez.
+   Cada foto vira uma entrega separada (com a empresa daquela comanda), não uma rota. */
+function abrirPorDemanda(op){
+  garantirClientes();
+  const itens=[]; let fila=Promise.resolve(), andando=false;
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
+  const cam=h("input",{type:"file",accept:"image/*",capture:"environment",hidden:true});
+  const gal=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true});
+  const btCam=h("button",{class:"btn lar",type:"button"},"📷 Tirar fotos");
+  const btGal=h("button",{class:"btn sec",type:"button"},"🖼 Da galeria");
+  const btLancar=h("button",{class:"btn full",type:"button",hidden:true});
+  function resumoDe(r){
+    if(!r) return "";
+    const os=osDaComanda(r);
+    if(os && os.transf) return "🔁 Transferência"+(os.empresa?" · "+os.empresa:"");
+    const emp=comercio()?"":((os&&os.empresa)||acharEmpresa(r.empresa||"")||r.empresa||"");
+    const cli=(os&&os.destino)||r.cliente||"";
+    return [emp,cli,r.bairro].filter(Boolean).join(" · ");
+  }
+  function desenhar(){
+    lista.replaceChildren(...itens.map((it,i)=>{
+      const cor=it.estado==="lancada"?"var(--ok)":it.estado==="erro"?"var(--bad)":it.estado==="lendo"?"var(--muted)":"var(--royal)";
+      const txt=it.estado==="lendo"?"Lendo…":it.estado==="erro"?"Não deu para ler · preencha à mão":it.estado==="lancada"?"✅ Lançada":(it.resumo||"Lida");
+      const linha=h("div",{class:"painel",style:"flex-direction:row;align-items:center;gap:10px;padding:10px 12px;border-color:"+cor},
+        h("span",{class:"parada-n num",style:"background:"+cor,text:String(i+1)}),
+        h("span",{style:"flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere;"+(it.estado==="lancada"?"color:var(--muted)":""),text:txt}),
+        it.estado!=="lancada"?h("button",{class:"mini",type:"button","aria-label":"Tirar esta comanda",onclick:()=>{ itens.splice(i,1); desenhar(); }},"✕"):null);
+      if(it.estado!=="lancada" && it.estado!=="lendo"){ linha.style.cursor="pointer"; linha.addEventListener("click",e=>{ if(e.target.closest("button")) return; abrirItem(it); }); }
+      return linha; }));
+    const falta=itens.filter(it=>it.estado!=="lancada").length, feitas=itens.length-falta;
+    btLancar.hidden=!falta; btLancar.textContent="Conferir e lançar ("+falta+(falta>1?" entregas)":" entrega)");
+    info.textContent=itens.length?(feitas?feitas+" lançada"+(feitas>1?"s":"")+" · ":"")+falta+" para lançar":"Fotografe ou escolha as comandas. Cada comanda vira uma entrega separada, com a empresa dela.";
+  }
+  const info=h("p",{class:"muted",style:"margin:0;font-size:13px"});
+  function ler(f){
+    const it={estado:"lendo",resumo:""}; itens.push(it); desenhar();
+    let pronta=prepararImagem(f); f=null;
+    it.leitura=new Promise((ok,erro)=>{ fila=fila.then(async()=>{
+      try{ const img=await pronta; pronta=null; const r=await S.sample.json(PROMPT_COMANDA,{images:img})||{}; it.r=r; it.resumo=resumoDe(r); it.estado="lida"; ok(r); }
+      catch(e){ it.estado="erro"; erro(e); if(e&&e.code==="rate_limited") toast("Muitas leituras seguidas. Algumas comandas vão precisar ser preenchidas à mão."); }
+      desenhar(); }); });
+    it.leitura.catch(()=>{});
+  }
+  function abrirItem(it){
+    if(andando) return; andando=true;
+    const pend=itens.filter(x=>x.estado!=="lancada");
+    abrirPedido.dem={n:itens.indexOf(it)+1,total:itens.length,leitura:it.estado==="erro"?null:it.leitura,
+      fechou:salvou=>{ andando=false;
+        if(salvou){ it.estado="lancada"; desenhar(); const prox=itens.find(x=>x.estado!=="lancada"); if(prox) setTimeout(()=>abrirItem(prox),350); else { toast("Todas as entregas foram lançadas"); setTimeout(fechar,600); } }
+        else desenhar(); }};
+    abrirPedido(null);
+  }
+  btLancar.addEventListener("click",()=>{ const prox=itens.find(x=>x.estado!=="lancada"); if(prox) abrirItem(prox); });
+  btCam.addEventListener("click",()=>abrirCameraTraseira(cam,ler,{multi:true}));
+  cam.addEventListener("change",()=>{ const f=cam.files&&cam.files[0]; cam.value=""; if(f) ler(f); });
+  btGal.addEventListener("click",()=>{ gal.value=""; gal.click(); });
+  gal.addEventListener("change",()=>{ [...(gal.files||[])].forEach(ler); gal.value=""; });
+  desenhar();
+  const fechar=abrirSheet("Lançar por demanda",[info,h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btCam,btGal),cam,gal,lista,btLancar]);
+  if(op&&op.galeria) setTimeout(()=>btGal.click(),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
+}
+/* botão dividido: metade "Escanear comanda", metade "Lançar por demanda" */
+function botaoScanDemanda(fecharMenu,escanear,txtScan){
+  const est="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:12px 8px;text-align:center;line-height:1.2";
+  const a=h("button",{class:"btn",type:"button",style:est},h("span",{style:"font-size:24px",text:"📷"}),h("span",{text:txtScan||"Escanear comanda"}),h("span",{style:"font-size:11.5px;font-weight:500;opacity:.85",text:"Uma comanda"}));
+  const b=h("button",{class:"btn",type:"button",style:est+";background:var(--laranja);border-color:var(--laranja)"},h("span",{style:"font-size:24px",text:"📚"}),h("span",{text:"Lançar por demanda"}),h("span",{style:"font-size:11.5px;font-weight:500;opacity:.85",text:"Várias, de empresas diferentes"}));
+  a.addEventListener("click",()=>{ fecharMenu(); escanear(); });
+  b.addEventListener("click",()=>{ fecharMenu(); abrirPorDemanda(); });
+  return h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},a,b);
 }
 /* comércio de delivery (lanche, marmita…): "Chamar entregador" = foto da comanda ou só endereço e bairro */
 function abrirChamarEntregador(){
@@ -4583,7 +4654,7 @@ function abrirChamarEntregador(){
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{style:"font-size:17px",text:titulo}),h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc})));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
   const fechar=abrirSheet("Chamar entregador",[
-    S.sample?item("📷","Tirar foto da comanda","O app lê a comanda e registra o pedido",()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),true):null,
+    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)),"Foto da comanda"):null,
     item("📍","Digitar endereço e bairro","Só o endereço de entrega e o bairro",()=>abrirEntregaRapida(),!S.sample)]);
 }
 function abrirEntregaRapida(){
@@ -4771,6 +4842,7 @@ function importarCodigoDoPedido(d){
 }
 const TAXA_MIN_COMERCIO = 4;
 function abrirPedido(p,arquivoComanda,pre){
+  const dem=abrirPedido.dem||null; abrirPedido.dem=null; let salvouDem=false;
   // pedido lançado que ainda está esperando um entregador pegar (enviado a todos ou pedido de comércio)
   const aguardandoEnt = !!(p && p._path && central() && p.status==="solicitado" && /^(abertos|lojas)\//.test(p._path));
   // pedido finalizado não se edita: mostra só os detalhes
@@ -4920,6 +4992,10 @@ function abrirPedido(p,arquivoComanda,pre){
     }
     inp.addEventListener("change",()=>{ const f=inp.files&&inp.files[0]; inp.value=""; if(f) ler(f); });
     if(arquivoComanda){ const f0=arquivoComanda; arquivoComanda=null; setTimeout(()=>ler(f0),0); }
+    if(dem && dem.leitura) setTimeout(async()=>{
+      bt.textContent="Lendo a comanda…"; st.hidden=false; st.textContent="Lendo o papel. Pode levar alguns segundos.";
+      try{ const r=await dem.leitura; await preencherDaFoto(r||{}); st.hidden=true; bt.textContent="📷 Escanear de novo"; }
+      catch(e){ st.textContent="Não foi possível ler esta comanda. Preencha à mão."; bt.textContent=rot; } },0);
     return h("div",{style:"display:flex;flex-direction:column;gap:6px"},resumo,bt,inp,st);
   })() : null;
   async function preencherDaFoto(r){
@@ -5197,7 +5273,8 @@ function abrirPedido(p,arquivoComanda,pre){
     corpo.push(del);
   }
   atuServ();
-  const fechar=abrirSheet(novo?"Novo pedido":"Pedido "+(p.numero?"#"+p.numero:""),corpo);
+  if(dem) abrirSheet.aoFechar=()=>dem.fechou(salvouDem);
+  const fechar=abrirSheet(novo?(dem?"Comanda "+dem.n+" de "+dem.total:"Novo pedido"):"Pedido "+(p.numero?"#"+p.numero:""),corpo);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     const soMovvi = central() && fEnt.value==="__movvi";
@@ -5322,6 +5399,7 @@ function abrirPedido(p,arquivoComanda,pre){
         if(id && (!atual || (dados.coletaEndereco && atual.endereco!==dados.coletaEndereco)))
           S.db.doc("empresas/"+id).set({nome:dados.coletaEmpresa,endereco:dados.coletaEndereco||(atual&&atual.endereco)||"",telefone:(atual&&atual.telefone)||""}).catch(()=>{});
       }
+      salvouDem=true;
       fechar();
       if(dados.data!==S.dia) mudarDia(dados.data);
     }catch(e){
