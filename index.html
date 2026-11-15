@@ -1059,7 +1059,7 @@ function aplicarModo(){
 }
 function renderQuem(){
   const b=$("#btnQuem");
-  $("#wmResto").textContent = central() ? "Unaí - Central" : (S.modo==="entregador"||S.modo==="comercio") && S.euNome ? "Unaí - "+S.euNome : "Unaí";
+  $("#wmResto").textContent = central() ? "Unaí - Central" : S.modo==="comercio" && S.euNome ? "Unaí - "+S.euNome : "Unaí";
   if(central()||S.modo==="entregador"){
     b.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
     const rot=central()?"Menu e configurações":"Minha conta e configurações";
@@ -1942,7 +1942,7 @@ function renderPedidos(){
       h("span",{class:"grupo-qtd num",text:String(qtd)}),
       recolhivel?bt:null);
     if(extra) cab.style.margin="0";
-    const g=h("section",{class:"grupo"+(fechado?" fechado":"")},extra?h("div",{style:"display:flex;align-items:center;gap:8px;margin:2px 0 10px"},cab,extra):cab,corpo);
+    const g=h("section",{class:"grupo"+(fechado?" fechado":"")},extra?h("div",{style:"display:flex;align-items:center;gap:8px;margin:2px 0 10px;min-width:0"},cab,...[].concat(extra)):cab,corpo);
     const alterna=()=>{ fechado=!fechado; g.classList.toggle("fechado",fechado); const r=fechado?"Expandir":"Recolher"; bt.setAttribute("aria-label",r); bt.title=r; bt.setAttribute("aria-expanded",String(!fechado)); try{ localStorage.setItem("movvi.recolhido."+chave,fechado?"1":"0"); }catch(e){} };
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
     if(emLinhas()) corpo.append(cabecalhoLinhas());
@@ -1966,6 +1966,7 @@ function renderPedidos(){
     const btRota=h("button",{type:"button",title:"Editar rota",  "aria-label":"Editar rota",
       style:"width:42px;height:38px;flex:none;border:0;border-radius:8px;background:var(--laranja);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)"},"🧭");
     btRota.addEventListener("click",e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); });
+    const nomeEnt=h("span",{style:"min-width:0;font-weight:800;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:S.euNome||""});
     caixa("minhas","Minhas entregas",minhas.length,"var(--royal)",corpo=>{
       const g={};
       grupos.coletar.filter(p=>!p.rotaId).forEach(p=>{ const k=p.coletaEmpresa||p.coletaEndereco||"Mesmo local"; (g[k]=g[k]||[]).push(p); });
@@ -1982,7 +1983,7 @@ function renderPedidos(){
           h("span",{class:"muted",style:"font-size:13px",text:"Coletou todas no mesmo lugar? Saia em rota com todas de uma vez."}),b));
       });
       minhas.forEach(p=>poe(corpo,p));
-    },btRota);
+    },[btRota,nomeEnt]);
     // finalizadas dele só em Hoje, Ontem ou no dia do calendário (em Últimas 3h não aparecem, para não confundir com entrega em andamento)
     { const fim=S.periodo==="3h"?[]:grupos.fim.slice().sort((x,y)=>String(y.entregueEm||"").localeCompare(String(x.entregueEm||"")));
       const fimEnt=fim.filter(p=>!ehTransf(p)), fimTr=fim.filter(ehTransf);
