@@ -5774,14 +5774,34 @@ async function renderCarteira(box){
   const din=pend.reduce((s,p)=>s+dinheiroDoPedido(p),0);
   const porEmp={}; pend.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa"; porEmp[k]=(porEmp[k]||0)+dinheiroDoPedido(p); });
   const tile=(tit,val,cor,sub)=>h("div",{class:"painel",style:"gap:4px;border-color:"+cor},h("span",{class:"muted",style:"font-size:13px",text:tit}),h("b",{class:"num",style:"font-size:28px;color:"+cor,text:fmt(val)}),sub?h("span",{class:"muted",style:"font-size:12px",text:sub}):null);
+  // ações sobre o dinheiro que está com o entregador (todas as lojas de uma vez)
+  const marcar=async(bt,rotulo,upd,depois)=>{ bt.disabled=true; bt.textContent="Registrando…";
+    try{ const agora=new Date().toISOString();
+      for(const p of pend){ const u=upd(p,agora); await comRetry(()=>S.db.doc(p._path).update(u)); if(depois) await depois({...p,...u}).catch(()=>{}); }
+      toast(rotulo); renderCarteira(box); }
+    catch(e){ bt.disabled=false; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); renderCarteira(box); } };
+  const confirma=(bt,txt1,txt2,fn)=>{ let arm=false; bt.addEventListener("click",()=>{ if(!arm){ arm=true; bt.textContent=txt2; setTimeout(()=>{ if(arm){ arm=false; bt.textContent=txt1; } },4000); return; } arm=false; fn(); }); return bt; };
+  const tFicar="Ficar com o dinheiro (abater "+fmt(din)+" no saldo)";
+  const btFicar=din>0?confirma(h("button",{class:"btn full",type:"button",style:"background:var(--ok);border-color:var(--ok)"},tFicar),tFicar,"Confirmar: ficar com "+fmt(din),
+    ()=>marcar(btFicar,"Dinheiro abatido no seu saldo · a central vai repassar às lojas",(p,ag)=>({dinheiroCom:"fatura",dinheiroDevolvido:false,pixComercioPendente:true,pixComercioValor:dinheiroDoPedido(p),dinheiroFicouEm:ag}),avisarCentralPix)):null;
+  const tDev="Devolvi às lojas", tCen="Repassei à central";
+  const btDev=din>0?confirma(h("button",{class:"btn sec",type:"button"},tDev),tDev,"Confirmar devolução",()=>marcar(btDev,"Devolução registrada",(p,ag)=>({dinheiroDevolvido:true,devolvidoEm:ag,devolvidoPor:S.uid||""}))):null;
+  const btCen=din>0?confirma(h("button",{class:"btn sec",type:"button"},tCen),tCen,"Confirmar repasse",()=>marcar(btCen,"Repasse para a central registrado",(p,ag)=>({dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:ag,dinheiroCentralPor:S.uid||""}))):null;
   box.replaceChildren(
     h("h3",{style:"margin:0",text:"💼 Minha carteira"}),
     tile("Saldo das entregas que você já fez",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" neste mês"),
-    tile("Dinheiro que está com você",din,din>0?"var(--laranja-ink)":"var(--muted)",din>0?"Para devolver às lojas ou repassar à central (botão Dinheiro)":"Nenhum dinheiro para devolver"),
+    h("div",{class:"painel",style:"gap:8px;border-color:"+(din>0?"var(--laranja)":"var(--line)")},
+      h("span",{class:"muted",style:"font-size:13px",text:"Dinheiro que está com você"}),
+      h("b",{class:"num",style:"font-size:28px;color:"+(din>0?"var(--laranja-ink)":"var(--muted)"),text:fmt(din)}),
+      din>0?h("div",{style:"display:flex;flex-direction:column;gap:3px;font-size:13px"},...Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([e,v])=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},h("span",{text:e}),h("b",{class:"num",text:fmt(v)})))):h("span",{class:"muted",style:"font-size:12px",text:"Nenhum dinheiro com você"}),
+      btFicar,
+      din>0?h("span",{class:"muted",style:"font-size:12px",text:"Ficando com o dinheiro, o valor sai do seu saldo e a central faz o repasse para as lojas."}):null,
+      din>0?h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btDev,btCen):null),
     h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
 }
 function prepararFatura(){
-  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["dinheiro","Dinheiro"],["carteira","💼 Carteira"]];
+  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["carteira","💼 Carteira"]];
+  if(!central() && fatTipo==="dinheiro") fatTipo="carteira";   // entregador: o "Dinheiro" agora fica dentro da Carteira
   // carteira do entregador: saldo das entregas do mês + dinheiro que está com ele
   let cart=document.getElementById("carteiraBox"); if(!cart){ cart=h("div",{id:"carteiraBox",class:"view",style:"display:flex;flex-direction:column;gap:12px",hidden:true}); $("#fatPainel").after(cart); }
   $("#fatDica").hidden = fatTipo==="carteira";
