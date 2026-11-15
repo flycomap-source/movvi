@@ -755,12 +755,12 @@ function linhasGanhoEnt(p,grande){
 /* entregador, na tela de entregas: taxa normal, adicional (se tiver), bônus (se tiver) e o total — tudo no cantinho do cartão */
 function caixaValoresEnt(p){
   const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
-  const lin=(rot,v,cor)=>h("div",{style:"display:flex;justify-content:space-between;gap:10px;font-size:12.5px;font-weight:800;white-space:nowrap;color:"+(cor||"var(--ink)")},h("span",{text:rot}),h("span",{class:"num",text:fmt(v)}));
-  return h("div",{style:"display:flex;flex-direction:column;gap:1px;min-width:132px;border:1.5px solid var(--ok);background:var(--ok-bg);border-radius:10px;padding:5px 8px;margin-top:2px"},
-    lin("Taxa",g.base),
-    g.adic>0?lin("🔥 Adicional",g.adic,"var(--laranja-ink)"):null,
-    g.bonus>0?lin("🤩 Bônus"+pct,g.bonus,"var(--ok)"):null,
-    h("div",{style:"display:flex;justify-content:space-between;gap:10px;font-size:15px;font-weight:900;color:var(--ok);border-top:1px solid var(--ok);margin-top:2px;padding-top:2px;white-space:nowrap"},h("span",{text:"Total"}),h("span",{class:"num",text:fmt(g.total)})));
+  const it=(rot,v,cor)=>h("span",{style:"display:flex;flex-direction:column;align-items:center;line-height:1.15;font-weight:800;color:"+(cor||"var(--ink)")},h("span",{style:"font-size:11.5px",text:rot}),h("span",{class:"num",style:"font-size:13.5px;white-space:nowrap",text:fmt(v)}));
+  return h("div",{style:"flex-basis:100%;order:9;display:flex;align-items:center;justify-content:space-around;gap:6px;border:1.5px solid var(--ok);background:var(--ok-bg);border-radius:12px;padding:6px 10px"},
+    it("Taxa",g.base),
+    g.adic>0?it("🔥 ADD",g.adic,"var(--laranja-ink)"):null,
+    g.bonus>0?it("🤩"+pct,g.bonus,"var(--ok)"):null,
+    h("span",{style:"display:flex;flex-direction:column;align-items:center;line-height:1.15;font-weight:900;color:#fff;background:var(--ok);border-radius:10px;padding:3px 12px"},h("span",{style:"font-size:11.5px",text:"Total"}),h("span",{class:"num",style:"font-size:16px;white-space:nowrap",text:fmt(g.total)})));
 }
 /* põe a coluna de valores ao lado do "Coletar em" (o bloco cresce e a Entrega fica embaixo) */
 function colunaAoLado(bloco,col){
@@ -2419,10 +2419,11 @@ function rodapePag(p){
   const tit = p.pagamento==="pix" ? "Pedido pago" : p.pagamento==="convenio" ? (e?"Nota":"Cliente assina a nota") : (e?"Recebido do cliente":"Cobrar do cliente");
   const forma = p.pagamento==="pix" ? "Pago" : p.pagamento==="convenio" ? (e?(p.notaDevolvida?"Nota devolvida":"Nota a devolver"):"Assinar nota") : PAG[p.pagamento]||"—";
   const tr=!e?trocoDe(p):0;
-  return h("div",{class:"ped-pe"},
+  return h("div",{class:"ped-pe",style:"flex-wrap:wrap"},
     h("div",{style:"display:flex;flex-direction:column;gap:1px"},
       h("span",{class:"muted",style:"font-size:13px"},"Pedido ",h("b",{class:"ped-nro num",text:p.numero?"#"+p.numero:"—"})),
       h("div",{style:"display:flex;align-items:baseline;gap:6px"},h("span",{style:"font-weight:700;color:var(--ink)",text:"Total"}),h("b",{class:"ped-total num",text:v?fmt(v):"—"}))),
+    S.modo==="entregador" ? caixaValoresEnt(p) : null,
     h("div",{style:"display:flex;flex-direction:column;gap:1px;align-items:flex-end;text-align:right"},
       h("span",{class:"muted",style:"font-size:13px",text:tit}),
       (central()&&e&&dinPendCentral(p)!==null)?botaoDinCentral(p,false):h("b",{style:"color:"+(p.pagamento==="pix"?"var(--ok)":"var(--bad)"),text:forma}),
@@ -2500,7 +2501,7 @@ function cartaoPedidoBase(p){
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
     h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
     // entregador (depois de aceitar): só a taxa total dele, em verde
-    S.modo==="entregador" ? caixaValoresEnt(p)
+    S.modo==="entregador" ? null
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
@@ -7235,7 +7236,7 @@ function abrirChat(conv,chegou){
   const marcarLida=()=>{ if(soLer) return; S.db.doc("chats/"+conv).update(par?{["nl_"+S.uid]:false}:central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
   const fechar=()=>{ if(fechada) return; fechada=true; if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
   unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
-    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
+    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>!(m.lado==="sistema" && /^Conversa encerrada/.test(m.texto||""))).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
     lista.replaceChildren(...(ms.length?ms.map(m=>m.lado==="sistema"
         ? h("div",{style:"align-self:center;font-size:12px;color:var(--muted);text-align:center",text:m.texto+" · "+horaCurta(m.em)})
         : balao(m, soLer ? m.uid===(c0.participantes||[])[0] : m.lado===meuLado, soLer))
@@ -7260,15 +7261,13 @@ function abrirChat(conv,chegou){
     btFim.addEventListener("click",async()=>{
       if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
       const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador"), c=chatDoc(conv);
-      try{ await S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto:"Conversa encerrada "+quem,lado:"sistema",nome:"",uid:S.uid||"",em:ag});
-        await S.db.doc("chats/"+conv).set({uid:conv,nome:central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador"),aberto:false,ultima:"Conversa encerrada",ultimaDe:"sistema",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
-      window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} toast("Conversa encerrada");
+      try{ await S.db.doc("chats/"+conv).set({uid:conv,nome:central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador"),aberto:false,ultima:(c&&c.ultima)||"",ultimaDe:(c&&c.ultimaDe)||"",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
+      window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){}
     }); }
   S.chatJanelas[conv]={
     frente:()=>{ document.body.append(jan); },
     marcarLida,
-    encerrada:(quem)=>{ if(fechada) return; txt.disabled=true; env.disabled=true; chips.hidden=true;
-      toast("Conversa encerrada"+(quem?" "+quem:"")); setTimeout(fechar,2500); }};
+    encerrada:()=>{ if(fechada) return; window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} }};
   if(chegou){ marcarLida(); try{ bip(); }catch(e){} try{ if(navigator.vibrate) navigator.vibrate([200,80,200]); }catch(e){} }
   pintarDockChats();
   if(!chegou && !soLer) setTimeout(()=>{ try{ txt.focus(); }catch(e){} },100);
