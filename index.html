@@ -695,7 +695,7 @@ const EMPRESAS_DINHEIRO_NA_LOJA=["canaa"];
 const dinheiroFicaNaLoja = p => { const k=slug(p.coletaEmpresa||""); return EMPRESAS_DINHEIRO_NA_LOJA.some(e=>k.includes(e)); };
 const dinheiroRetivel = p => dinheiroDoPedido(p)>0 && !dinheiroFicaNaLoja(p);
 /* Dinheiro em espécie que o entregador recebe do cliente */
-function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor) : 0; }
+function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor) : num(p.dinheiroParcial); }   // dinheiroParcial: parte paga em dinheiro numa compra no cartão/pix/convênio
 /* Unidades pagas ao entregador: a entrega + adicionais */
 /* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional; os adicionais dos outros saem dos 25% da central */
 function semAdicional(entId){ if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
@@ -5448,6 +5448,15 @@ function abrirConfirmacao(p){
   const btDin=h("button",{class:"btn sec",type:"button",style:"border-color:var(--ok);color:var(--ok)"},"Pagou em dinheiro");
   // sem o botão "Pagou em dinheiro": a forma de pagamento muda lá em cima; se for dinheiro, a caixinha aparece ao finalizar
   const linhaOk=h("div",{style:"display:grid;grid-template-columns:1fr;gap:8px"},ok);
+  // perto do botão: valor total da compra + "Recebi em dinheiro" (parte paga em dinheiro numa compra no cartão, pix ou convênio)
+  const fDinParc=h("input",{class:"inp num",id:"fDinParc",inputmode:"decimal",placeholder:"0,00",style:"max-width:130px"});
+  const blocoDinParc=h("div",{class:"painel",style:"gap:6px"},
+    h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"},
+      h("div",null,h("span",{class:"muted",style:"font-size:13px;display:block",text:"Valor total da compra"}),h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)})),
+      h("label",{for:"fDinParc",style:"display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:700"},"Recebi em dinheiro (R$)",fDinParc)),
+    h("span",{class:"muted",style:"font-size:12px",text:"Se o cliente pagou uma parte em dinheiro, coloque aqui: o valor vai para a sua carteira para devolver à loja."}));
+  const atuDinParc=()=>{ blocoDinParc.hidden = formaRec==="dinheiro" || ehTransf(p); };
+  Object.values(btsPag).forEach(b=>b.addEventListener("click",()=>setTimeout(atuDinParc,0))); setTimeout(atuDinParc,0);
   // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
   let escolhaDin=null;
   // só o grupo "Outros" escolhe o que fazer com o dinheiro; o grupo Movvi+ finaliza como antes (dinheiro volta para a loja)
@@ -5495,7 +5504,7 @@ function abrirConfirmacao(p){
   if(transf){ ok.textContent="Finalizar transferência"; box.remove(); btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
   else atuBotoesDin();
   const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
-    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoObsFin,msg,linhaOk]);
+    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoObsFin,blocoDinParc,msg,linhaOk]);
   // se faltar alguma coisa, o aviso aparece e a tela rola até ele
   ok.addEventListener("click",()=>setTimeout(()=>{ if(!msg.hidden){ try{ msg.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} msg.style.outline="3px solid var(--bad)"; setTimeout(()=>msg.style.outline="",1500); } },30));
   ok.addEventListener("click",async()=>{
@@ -5536,6 +5545,7 @@ function abrirConfirmacao(p){
     Object.assign(upd,{pagamentoConfirmado:true,pagamentoAnunciado:anunc,valorAnunciado:valAnunc,pagamento:formaRec,valorDinheiro:valRec,pagamentoAlterado:alterado});
     if(formaRec==="dinheiro") upd.dinheiroCom = dinheiroFicaNaLoja(p) ? "loja" : escolhaDin==="fatura" ? "fatura" : escolhaDin==="central" ? "central" : "loja";
     if(fotoId) upd.fotoId=fotoId;
+    if(formaRec!=="dinheiro" && !transf && num(fDinParc.value)>0){ upd.dinheiroParcial=num(fDinParc.value); upd.dinheiroCom="loja"; upd.dinheiroDevolvido=false; }
     if(fObsFin.value.trim()) upd.obsFinalizacao=fObsFin.value.trim();
     if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
     Object.assign(upd,comRegistro(p,(transf?"Transferência finalizada: "+transfDe+" → "+transfPara:"Entrega finalizada")+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
@@ -5625,6 +5635,7 @@ function abrirDetalhes(p){
   const fecharDet=abrirSheet("Detalhes da entrega",[
     h("div",{style:"font-family:var(--f-display);font-weight:900;font-size:24px;line-height:1.15;color:var(--royal);overflow-wrap:anywhere",text:p.coletaEmpresa||"Entrega"}),
     destRecado?h("button",{class:"btn lar full",type:"button",onclick:()=>abrirRecado(p,destRecado)},"📣 Mandar recado para "+(destRecado.nome||"o entregador")):null,
+    botaoExcluirEntregador(p,()=>fecharDet()),
     tabelaDet,
     cliPerfil?h("button",{class:"btn sec full",type:"button",onclick:()=>abrirPerfilCliente(cliPerfil)},"Ver perfil do cliente"):null,
     (()=>{
@@ -5750,8 +5761,37 @@ function semanasDoMes(mes){
   for(let d=1; d<=ult; d++){ const iso=mes+"-"+String(d).padStart(2,"0"); if(deIso(iso).getDay()===0) out.push([somaDias(iso,-6),iso]); }
   return out;
 }
+async function renderCarteira(box){
+  box.replaceChildren(h("p",{class:"muted",text:"Calculando a sua carteira…"}));
+  const t=hoje(), ini=t.slice(0,8)+"01";
+  const d90=new Date(Date.now()-90*864e5).toISOString().slice(0,10);
+  let mes=[], recentes=[];
+  try{ [mes,recentes]=await Promise.all([buscarPeriodo(ini,t,S.eu),buscarPeriodo(d90<ini?d90:ini,t,S.eu)]); }
+  catch(e){ box.replaceChildren(h("div",{class:"aviso",text:"Não foi possível buscar os dados ("+(e&&e.code||"erro")+"). Tente de novo."})); return; }
+  const entMes=mes.filter(p=>p.status==="entregue");
+  const ganhos=somaGanho(entMes), saldo=valorFatEnt(entMes);
+  const pend=recentes.filter(p=>p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && !dinResolvidoFora(p));
+  const din=pend.reduce((s,p)=>s+dinheiroDoPedido(p),0);
+  const porEmp={}; pend.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa"; porEmp[k]=(porEmp[k]||0)+dinheiroDoPedido(p); });
+  const tile=(tit,val,cor,sub)=>h("div",{class:"painel",style:"gap:4px;border-color:"+cor},h("span",{class:"muted",style:"font-size:13px",text:tit}),h("b",{class:"num",style:"font-size:28px;color:"+cor,text:fmt(val)}),sub?h("span",{class:"muted",style:"font-size:12px",text:sub}):null);
+  box.replaceChildren(
+    h("h3",{style:"margin:0",text:"💼 Minha carteira · "+new Date(t+"T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}),
+    tile("Saldo das entregas do mês",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" · ganhos "+fmt(ganhos)+(saldo!==ganhos?" (já descontado o dinheiro que ficou com você)":"")),
+    tile("Dinheiro ainda com você",din,din>0?"var(--laranja-ink)":"var(--muted)",din>0?"Para devolver às lojas ou repassar à central":"Nenhum dinheiro para devolver"),
+    din>0?h("div",{style:"display:flex;flex-direction:column;gap:4px;font-size:14px"},...Object.entries(porEmp).sort((a,b)=>b[1]-a[1]).map(([e,v])=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},h("span",{text:e}),h("b",{class:"num",text:fmt(v)})))):null,
+    din>0?h("button",{class:"btn full",type:"button",onclick:()=>{ fatTipo="dinheiro"; prepararFatura(); }},"Devolver à empresa ou repassar à central"):null);
+}
 function prepararFatura(){
-  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["dinheiro","Dinheiro"]];
+  const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["dinheiro","Dinheiro"],["carteira","💼 Carteira"]];
+  // carteira do entregador: saldo das entregas do mês + dinheiro que está com ele
+  let cart=document.getElementById("carteiraBox"); if(!cart){ cart=h("div",{id:"carteiraBox",class:"view",style:"display:flex;flex-direction:column;gap:12px",hidden:true}); $("#fatTipo").after(cart); }
+  cart.hidden = fatTipo!=="carteira";
+  if(fatTipo==="carteira"){
+    const seg0=$("#fatTipo"); seg0.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg0.hidden=false;
+    seg0.replaceChildren(...tipos.map(([k,t])=>h("button",{type:"button","aria-pressed":String(fatTipo===k),onclick:()=>{ fatTipo=k; prepararFatura(); }},t)));
+    ["#acDinheiro","#fatResultado","#fatPainel","#fatCards","#fatQuemCampo","#fatModo","#fatMesCampo","#fatPeriodo"].forEach(sel=>{ const e=$(sel); if(e) e.hidden=true; });
+    $("#fatEyebrow").textContent="Carteira"; renderCarteira(cart); return;
+  }
   const seg=$("#fatTipo"); seg.style.gridTemplateColumns="repeat("+tipos.length+",1fr)"; seg.hidden=central();
   seg.replaceChildren(...tipos.map(([k,t])=>h("button",{type:"button","aria-pressed":String(fatTipo===k),onclick:()=>{ fatTipo=k; prepararFatura(); }},t)));
   if(!$("#fatMes").value) $("#fatMes").value=hoje().slice(0,7);
@@ -6111,7 +6151,18 @@ async function calcularAcerto(){
           toast("Devolução registrada para "+g.emp); calcularAcerto();
         }catch(e){ b.disabled=false; b.textContent=(souEu?"Devolvi ":"Marcar devolvido ")+fmt(g.valorPend)+" à empresa"; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
       });
-      card.append(b);
+      // ao lado: repassar o dinheiro para a central (ela devolve à loja ou abate na fatura do comércio)
+      const bc=h("button",{class:"btn sec full",type:"button",style:"border-color:var(--laranja);color:var(--laranja-ink)"},"Repassei "+fmt(g.valorPend)+" para a central");
+      let armC=false;
+      bc.addEventListener("click",async()=>{
+        if(!armC){ armC=true; bc.textContent="Confirmar: entreguei "+fmt(g.valorPend)+" na central"; setTimeout(()=>{ if(armC){ armC=false; bc.textContent="Repassei "+fmt(g.valorPend)+" para a central"; } },4000); return; }
+        armC=false; bc.disabled=true; bc.textContent="Registrando…";
+        try{ const agora=new Date().toISOString();
+          for(const p of g.pend){ await comRetry(()=>S.db.doc(p._path).update({dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:agora,dinheiroCentralPor:S.uid||""})); }
+          toast("Repasse para a central registrado"); calcularAcerto(); }
+        catch(e){ bc.disabled=false; bc.textContent="Repassei "+fmt(g.valorPend)+" para a central"; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); }
+      });
+      card.append(souEu?h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},b,bc):b);
     }
     return card;
   });
@@ -6120,7 +6171,6 @@ async function calcularAcerto(){
 
     h("div",{class:"totais"},
       h("div",{class:"tot destaque"},h("span",{text:souEu?"Dinheiro ainda com você (não devolvido às empresas)":"Dinheiro ainda com o entregador"}),h("b",{class:"num",text:fmt(totalPend)})),
-      h("div",{class:"tot"},h("span",{text:"Já devolvido às empresas"}),h("b",{class:"num",style:"color:var(--ok)",text:fmt(devolvidoTot)})),
       h("div",{class:"tot"},h("span",{text:"Empresas sem devolução"}),h("b",{class:"num",style:empPend.length?"color:var(--warn)":"",text:String(empPend.length)})),
       h("div",{class:"tot"},h("span",{text:"Entregas no período"}),h("b",{class:"num",text:String(entregues.length)})),
       h("div",{class:"tot"},h("span",{text:(souEu?"Seus ganhos":"Ganhos do entregador")+": "+entregues.length+" entregas + "+(somaUn(entregues)-entregues.length)+" adicionais"}),h("b",{class:"num",text:fmt(ganhos)}))
@@ -6599,6 +6649,22 @@ function renderRelatorio(ps,de,ate){
 /* ---------- RECADO PARA O ENTREGADOR ----------
    O comércio (ou a central) manda um recado para quem está com o pedido. Vai para recados/<id> = {para, paraNome, de, deUid,
    pedidoId, numero, cliente, endereco, texto, criadoEm, lidoEm}; o celular do entregador recebe aviso e a tela mostra o recado. */
+/* entregador do grupo Movvi+ pode excluir uma entrega que ele mesmo lançou (se lançou errado), enquanto não foi finalizada */
+function podeExcluirEntregador(p){
+  return S.modo==="entregador" && S.euGrupo!=="outros" && p && p._path && p.criadoPor && p.criadoPor===S.uid && p.status!=="entregue" && String(p._path).startsWith("entregas/");
+}
+function botaoExcluirEntregador(p,depois){
+  if(!podeExcluirEntregador(p)) return null;
+  const b=h("button",{class:"btn sec full",type:"button",style:"border-color:var(--bad);color:var(--bad)"},"🗑 Excluir esta entrega (lancei errado)");
+  let armado=false;
+  b.addEventListener("click",async()=>{
+    if(!armado){ armado=true; b.textContent="Tocar de novo para confirmar a exclusão"; setTimeout(()=>{ if(armado){ armado=false; b.textContent="🗑 Excluir esta entrega (lancei errado)"; } },4000); return; }
+    b.disabled=true; b.textContent="Excluindo…";
+    try{ await comRetry(()=>S.db.doc(p._path).delete()); toast("Entrega excluída"); if(depois) depois(); }
+    catch(e){ b.disabled=false; armado=false; b.textContent="🗑 Excluir esta entrega (lancei errado)"; toast("Não foi possível excluir ("+(e&&e.code||"erro")+")."); }
+  });
+  return b;
+}
 function destinoRecado(p){
   if(!p || ["entregue","cancelado","recusado"].includes(p.status)) return null;
   if(comercio()){ const o=(S.minhasOfertas||{})[p.id]; if(o && o.aceitoPor && o.status!=="entregue") return {uid:o.aceitoPor,nome:o.entregadorNome||""};
@@ -6835,8 +6901,12 @@ async function avisarCentralPix(p){
 function ouvirPixCentral(){
   S.pixAdiados=S.pixAdiados||new Set();
   S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
-    S.pixPend=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.tipo==="pix"&&!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
+    const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    S.pixPend=todos.filter(r=>r.tipo==="pix"&&!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
     const r=S.pixPend.find(x=>!S.pixAdiados.has(x.id)); if(r) mostrarPixCentral(r);
+    // respostas e recados dos entregadores para a central
+    todos.filter(x=>x.tipo!=="pix"&&!x.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm))).forEach(x=>mostrarRecado(x,S.recadoPrimeiraCentral));
+    S.recadoPrimeiraCentral=false;
   },()=>{});
 }
 function mostrarPixCentral(r){
@@ -6870,29 +6940,69 @@ function ouvirRecados(){
     S.uidsCentral=Array.isArray(d.uids)?d.uids.filter(Boolean):[];
     if(central() && !S.uidsCentral.includes(S.uid)) S.db.doc("config/avisoCentral").set({uids:[...S.uidsCentral,S.uid],atualizadoEm:new Date().toISOString()}).catch(()=>{});
   },()=>{});
-  if(central()){ ouvirPixCentral(); return; }
-  if(S.modo!=="entregador") return;
+  if(central()){ S.recadoPrimeiraCentral=true; ouvirPixCentral(); return; }
+  if(S.modo!=="entregador" && S.modo!=="comercio") return;
   S.recadoPrimeira=true;
   S.subRecados=S.db.collection("recados").where("para","==",S.uid).onSnapshot(snap=>{
     const novos=snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.lidoEm).sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm)));
-    if(novos.length) mostrarRecado(novos[0],S.recadoPrimeira);
+    novos.forEach(x=>mostrarRecado(x,S.recadoPrimeira));
     S.recadoPrimeira=false;
   },()=>{});
 }
+/* recado na tela: cartãozinho no topo por 5 segundos, sem travar a tela (dá para tocar no que está embaixo).
+   "Responder" abre uma janelinha para mandar resposta a quem enviou (central ou comércio). */
+S.recadosMostrados=S.recadosMostrados||new Set();
+function pilhaRecados(){ let p=document.getElementById("pilhaRecados"); if(!p){ p=h("div",{id:"pilhaRecados",style:"position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;z-index:9997;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 12px;pointer-events:none"}); document.body.append(p); } return p; }
 function mostrarRecado(r,semSom){
-  if(document.getElementById("recadoTela")) return;
-  const ok=h("button",{class:"btn full",type:"button",style:"font-size:18px;padding:14px"},"Entendi");
-  const caixa=h("div",{id:"recadoTela",role:"alertdialog","aria-modal":"true","aria-label":"Recado",style:"position:fixed;inset:0;z-index:9998;background:rgba(10,20,60,.6);display:grid;place-items:center;padding:16px"},
-    h("div",{style:"background:var(--card,#fff);border-radius:22px;padding:22px 20px;max-width:380px;width:100%;display:flex;flex-direction:column;gap:10px;border:3px solid var(--laranja);box-shadow:0 20px 60px rgba(0,0,0,.25)"},
-      h("div",{style:"font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--laranja-ink)",text:(r.tipo==="aviso"?"📢 Aviso da ":"📣 Recado de ")+(r.de||"Comércio")}),
-      h("div",{style:"font-size:21px;font-weight:800;line-height:1.3;overflow-wrap:anywhere",text:r.texto||""}),
-      h("div",{class:"muted",style:"font-size:14px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente,r.endereco].filter(Boolean).join(" · ")}),
-      h("div",{class:"muted",style:"font-size:12px",text:r.criadoEm?"Enviado às "+new Date(r.criadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""}),ok));
-  ok.addEventListener("click",async()=>{ ok.disabled=true; try{ await S.db.doc("recados/"+r.id).update({lidoEm:new Date().toISOString()}); }catch(e){} caixa.remove(); });
-  document.body.append(caixa);
+  if(!r || S.recadosMostrados.has(r.id)) return;
+  S.recadosMostrados.add(r.id);
+  S.db.doc("recados/"+r.id).update({lidoEm:new Date().toISOString()}).catch(()=>{});
+  const fechar=()=>{ card.style.opacity="0"; card.style.transform="translateY(-8px)"; setTimeout(()=>card.remove(),250); };
+  const resp=h("button",{class:"btn",type:"button",style:"padding:8px 14px;font-size:14px"},"↩ Responder");
+  const x=h("button",{class:"mini",type:"button","aria-label":"Fechar recado",style:"flex:none"},"✕");
+  const card=h("div",{role:"status",style:"pointer-events:auto;width:100%;max-width:440px;background:var(--card,#fff);border:2px solid var(--laranja);border-radius:16px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:6px;transition:opacity .25s,transform .25s"},
+    h("div",{style:"display:flex;gap:8px;align-items:flex-start"},
+      h("div",{style:"flex:1;min-width:0"},
+        h("div",{style:"font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--laranja-ink)",text:(r.tipo==="aviso"?"📢 Aviso da ":r.tipo==="resposta"?"↩ Resposta de ":"📣 Recado de ")+(r.de||"Central")}),
+        h("div",{style:"font-size:17px;font-weight:800;line-height:1.3;overflow-wrap:anywhere",text:r.texto||""}),
+        h("div",{class:"muted",style:"font-size:12px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente].filter(Boolean).join(" · ")})),x),
+    r.deUid?h("div",{style:"display:flex;justify-content:flex-end"},resp):null);
+  let timer=setTimeout(fechar,5000);
+  card.addEventListener("pointerenter",()=>{ clearTimeout(timer); });
+  card.addEventListener("pointerleave",()=>{ clearTimeout(timer); timer=setTimeout(fechar,2500); });
+  x.addEventListener("click",()=>{ clearTimeout(timer); fechar(); });
+  resp.addEventListener("click",()=>{ clearTimeout(timer); fechar(); abrirResposta(r); });
+  pilhaRecados().append(card);
   if(semSom) return;   // recado que chegou com o app fechado: só aparece, sem tocar
   try{ if(audioCtx && audioCtx.state==="running") bip(); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate([300,100,300]); }catch(e){}
+}
+function abrirResposta(r){
+  const meuNome = central()?"Central":(S.euNome||(comercio()?"Comércio":"Entregador"));
+  const destinos=[{k:"rem",nome:r.de||"quem enviou",uids:[r.deUid]}];
+  const uidsCentral=(S.uidsCentral||[]).filter(u=>u && u!==r.deUid && u!==S.uid);
+  if(!central() && uidsCentral.length && !/central/i.test(r.de||"")) destinos.push({k:"cen",nome:"Central",uids:uidsCentral});
+  let dest=destinos[0];
+  const seg=destinos.length>1?h("div",{class:"seg",role:"group","aria-label":"Responder para"},...destinos.map(d=>{ const b=h("button",{type:"button","aria-pressed":String(d===dest),onclick:()=>{ dest=d; [...seg.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b))); }},d.nome); return b; })):null;
+  const txt=h("textarea",{class:"inp",id:"respTxt",rows:"3",maxlength:"300",placeholder:"Escreva a resposta"});
+  const prontos=["Ok, entendido 👍","Já estou a caminho","Cliente não atende","Endereço não encontrado","Preciso falar com vocês"];
+  const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"↩ Enviar resposta");
+  ok.addEventListener("click",async()=>{
+    const texto=txt.value.trim(); msg.hidden=true;
+    if(!texto){ msg.hidden=false; msg.textContent="Escreva a resposta."; return; }
+    ok.disabled=true; ok.textContent="Enviando…";
+    try{ const agora=new Date().toISOString();
+      for(const uid of dest.uids){ const id="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"resposta",para:uid,de:meuNome,deUid:S.uid||"",respostaDe:r.id||"",
+          pedidoId:r.pedidoId||"",numero:r.numero||"",cliente:r.cliente||"",empresa:r.empresa||"",texto,criadoEm:agora})); }
+      fechar(); toast("Resposta enviada para "+dest.nome); }
+    catch(e){ ok.disabled=false; ok.textContent="↩ Enviar resposta"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Responder",[
+    h("div",{class:"painel",style:"gap:4px"},h("span",{class:"muted",style:"font-size:12px",text:"Recado de "+(r.de||"")}),h("b",{style:"overflow-wrap:anywhere",text:r.texto||""})),
+    seg?h("div",{class:"campo"},h("span",{class:"lbl",text:"Responder para"}),seg):null, chips, txt, msg, ok]);
 }
 
 /* ---------- FECHAMENTO NO FORMATO DA PLANILHA + VALES (só a central) ----------
