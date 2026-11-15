@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=9"></script></head><body>
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=10"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -419,7 +419,8 @@ body .solic-loja .loja{color:var(--ink)}
           <button type="button" data-t="comercio" aria-pressed="false">Comércio</button>
         </div>
       </div>
-      <div class="campo"><label for="acNome" id="acNomeLbl">Seu nome</label><input class="inp" id="acNome" autocomplete="name" placeholder="Como a central te conhece"></div>
+      <div class="campo"><label for="acNome" id="acNomeLbl">Seu nome</label><input class="inp" id="acNome" autocomplete="given-name" placeholder="Ex.: Melissa"></div>
+      <div class="campo" id="acSobCampo"><label for="acSob">Sobrenome</label><input class="inp" id="acSob" autocomplete="family-name" placeholder="Ex.: Gontijo"></div>
       <div class="campo" id="acEndCampo" hidden><label for="acEnd">Endereço de coleta</label><input class="inp" id="acEnd" placeholder="Rua, número, bairro"></div>
       <div class="campo" id="acTelCampo" hidden><label for="acTel">Telefone / WhatsApp</label><input class="inp" id="acTel" type="tel" inputmode="tel" placeholder="(38) 99999-9999"></div>
       <div class="campo" id="acPixCampo"><label for="acPix">Chave Pix (obrigatória, para receber os pagamentos)</label><input class="inp" id="acPix" autocomplete="off" placeholder="CPF, telefone, e-mail ou chave aleatória"></div>
@@ -1059,7 +1060,7 @@ function aplicarModo(){
 }
 function renderQuem(){
   const b=$("#btnQuem");
-  $("#wmResto").textContent = central() ? "Unaí - Central" : (S.modo==="entregador"||S.modo==="comercio") && S.euNome ? "Unaí - "+S.euNome : "Unaí";
+  $("#wmResto").textContent = central() ? "Unaí - Central" : S.modo==="entregador" && S.euNome ? "Unaí - "+String(S.euNome).trim().split(/\s+/)[0] : S.modo==="comercio" && S.euNome ? "Unaí - "+S.euNome : "Unaí";
   if(central()||S.modo==="entregador"){
     b.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
     const rot=central()?"Menu e configurações":"Minha conta e configurações";
@@ -1708,19 +1709,22 @@ document.querySelectorAll("#acTipo button").forEach(b=>b.addEventListener("click
   tipoAcesso=b.dataset.t;
   document.querySelectorAll("#acTipo button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
   $("#acNomeLbl").textContent = tipoAcesso==="comercio" ? "Nome do comércio" : "Seu nome";
-  $("#acNome").placeholder = tipoAcesso==="comercio" ? "Ex.: Farmácia Central" : "Como a central te conhece";
+  $("#acNome").placeholder = tipoAcesso==="comercio" ? "Ex.: Farmácia Central" : "Ex.: Melissa";
+  $("#acSobCampo").hidden = tipoAcesso==="comercio";
   $("#acEndCampo").hidden = tipoAcesso!=="comercio";
   $("#acTelCampo").hidden = tipoAcesso!=="comercio";
   $("#acPixCampo").hidden = tipoAcesso!=="entregador";
 }));
 $("#acPedir").addEventListener("click",async()=>{
-  const nome=$("#acNome").value.trim(), endereco=$("#acEnd").value.trim(), telefone=$("#acTel").value.trim(), pix=$("#acPix").value.trim();
-  if(!nome){ toast(tipoAcesso==="comercio"?"Informe o nome do comércio.":"Informe seu nome."); return; }
+  const primeiro=$("#acNome").value.trim().replace(/\s+/g," "), sob=tipoAcesso==="comercio"?"":$("#acSob").value.trim().replace(/\s+/g," ");
+  const nome=(primeiro+" "+sob).trim(), endereco=$("#acEnd").value.trim(), telefone=$("#acTel").value.trim(), pix=$("#acPix").value.trim();
+  if(!primeiro){ toast(tipoAcesso==="comercio"?"Informe o nome do comércio.":"Informe seu nome."); return; }
+  if(tipoAcesso==="entregador" && !sob){ toast("Informe seu sobrenome."); return; }
   if(tipoAcesso==="entregador" && pix.length<5){ toast("Informe sua chave Pix."); return; }
   if(tipoAcesso==="comercio" && !endereco){ toast("Informe o endereço do comércio."); return; }
   if(tipoAcesso==="comercio" && !telValido(telefone)){ toast("Informe o telefone do comércio."); return; }
   if(!S.db||!S.uid){ toast("Entre com seu usuário para pedir acesso."); return; }
-  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone,pix:tipoAcesso==="entregador"?pix:"",...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}));
+  try{ await comRetry(()=>S.db.doc("solicitacoes/"+S.uid).set({nome,...(tipoAcesso==="entregador"?{primeiroNome:primeiro,sobrenome:sob}:{}),tipo:tipoAcesso,endereco:tipoAcesso==="comercio"?endereco:"",telefone,pix:tipoAcesso==="entregador"?pix:"",...(S.meuUsuario?{usuario:S.meuUsuario}:{}),criadoEm:new Date().toISOString()}));
     S.db.doc("senhas/"+S.uid).update({tipo:tipoAcesso,nome}).catch(()=>{});
     toast("Pedido enviado à central"); }
   catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+"). Peça à central para te convidar por e-mail como Editor."); }
@@ -8194,7 +8198,9 @@ $("#comBusca").addEventListener("input",()=>renderComercios());
 /* editar entregador: tudo num lugar só (dados, senha, desativar, excluir) */
 function editarEntregador(e){
   const novo=!e; e=e||{};
-  const fN=h("input",{class:"inp",id:"eeN",value:e.nome||"",placeholder:"Nome do entregador"});
+  const partes=String(e.nome||"").trim().split(/\s+/);
+  const fN=h("input",{class:"inp",id:"eeN",value:e.primeiroNome||partes[0]||"",placeholder:"Ex.: Melissa",autocomplete:"off"});
+  const fSob=h("input",{class:"inp",id:"eeSob",value:e.sobrenome!==undefined?e.sobrenome:partes.slice(1).join(" "),placeholder:"Ex.: Gontijo",autocomplete:"off"});
   const fT=h("input",{class:"inp num",id:"eeT",inputmode:"decimal",value:novo?"":fmtInput(e.taxa),placeholder:"0,00"});
   const fG=h("select",{class:"inp",id:"eeG"},h("option",{value:"movvi",text:"Movvi+ (vê todos os pedidos)"}),h("option",{value:"outros",text:"Outros (só pedidos pagos e em dinheiro)"}));
   fG.value=grupoDe(e);
@@ -8207,7 +8213,9 @@ function editarEntregador(e){
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar entregador":"Salvar alterações");
   const corpo=[
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.equipe).get(e.id)||"")+" · "+(e.ativo===false?"bloqueado":e.uid?((S.usuarios||{})[e.uid]?"usuário: "+S.usuarios[e.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
-    h("div",{class:"campo"},h("label",{for:"eeN",text:"Nome"}),fN),
+    h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},
+      h("div",{class:"campo"},h("label",{for:"eeN",text:"Nome"}),fN),
+      h("div",{class:"campo"},h("label",{for:"eeSob",text:"Sobrenome"}),fSob)),
     h("div",{class:"campo"},h("label",{for:"eeT",text:"Mínimo por entrega (R$)"}),fT),
     h("div",{class:"campo"},h("label",{for:"eeG",text:"Grupo"}),fG),
     h("div",{class:"campo"},h("label",{for:"eeF",text:"Fatura"}),fF),
@@ -8232,11 +8240,13 @@ function editarEntregador(e){
   }
   const fechar=abrirSheet(novo?"Cadastrar entregador":"Editar "+e.nome,corpo);
   ok.addEventListener("click",async()=>{
-    const nome=fN.value.trim(), taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(), fechamento=fF.value==="mensal"?"mensal":"semanal"; msg.hidden=true;
-    if(!nome){ msg.hidden=false; msg.textContent="Informe o nome."; return; }
+    const primeiroNome=fN.value.trim().replace(/\s+/g," "), sobrenome=fSob.value.trim().replace(/\s+/g," "), nome=(primeiroNome+" "+sobrenome).trim();
+    const taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(), fechamento=fF.value==="mensal"?"mensal":"semanal"; msg.hidden=true;
+    if(!primeiroNome){ msg.hidden=false; msg.textContent="Informe o nome."; fN.focus(); return; }
+    if(!sobrenome){ msg.hidden=false; msg.textContent="Informe o sobrenome."; fSob.focus(); return; }
     ok.disabled=true;
     try{
-      const d={nome,taxa,grupo,semAdicional,pix,telefone,fechamento};
+      const d={nome,primeiroNome,sobrenome,taxa,grupo,semAdicional,pix,telefone,fechamento};
       if(novo) await comRetry(()=>S.db.collection("equipe").add({...d,ativo:true,criadoEm:new Date().toISOString()}));
       else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional,fechamento}); }
       fechar(); toast(novo?"Entregador cadastrado":"Entregador atualizado");

@@ -321,7 +321,8 @@
       <div class="lg">MOVVi<i>+</i></div>
       <p class="mt">${cad ? "Primeiro acesso: faça seu cadastro. Depois a central libera você." : "Entre com seu usuário e senha."}</p>
       ${cad ? `<div class="tp" role="group" aria-label="Você é"><button type="button" data-t="entregador" aria-pressed="true">Entregador</button><button type="button" data-t="comercio" aria-pressed="false">Comércio</button></div>
-      <label><span id="mlNomeLbl">Seu nome</span><input id="mlNome" autocomplete="name" required></label>
+      <label><span id="mlNomeLbl">Seu nome</span><input id="mlNome" autocomplete="given-name" required></label>
+      <label id="mlSobL">Sobrenome<input id="mlSob" autocomplete="family-name"></label>
       <label>Telefone / WhatsApp<input id="mlTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(38) 99999-9999" required></label>
       <label id="mlPixL">Chave Pix (para receber os pagamentos)<input id="mlPix" autocomplete="off" placeholder="CPF, telefone, e-mail ou chave aleatória"></label>
       <label id="mlEndL" style="display:none">Endereço de coleta<input id="mlEnd" autocomplete="street-address" placeholder="Rua, número, bairro"></label>` : ""}
@@ -342,6 +343,7 @@
       el.querySelectorAll(".tp button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
       el.querySelector("#mlNomeLbl").textContent = tipo === "comercio" ? "Nome do comércio" : "Seu nome";
       el.querySelector("#mlPixL").style.display = tipo === "entregador" ? "" : "none";
+      el.querySelector("#mlSobL").style.display = tipo === "entregador" ? "" : "none";
       el.querySelector("#mlEndL").style.display = tipo === "comercio" ? "" : "none";
     });
     f.onsubmit = async (ev) => {
@@ -350,9 +352,11 @@
       if (senha.length < 6) { er.hidden = false; er.textContent = "A senha precisa ter pelo menos 6 caracteres."; return; }
       if (cad && senha !== el.querySelector("#mlSenha2").value) { er.hidden = false; er.textContent = "As duas senhas não são iguais. Digite de novo."; return; }
       const v = id => (el.querySelector(id) ? el.querySelector(id).value.trim() : "");
-      const dados = cad ? { tipo, nome: v("#mlNome"), telefone: v("#mlTel"), pix: tipo === "entregador" ? v("#mlPix") : "", endereco: tipo === "comercio" ? v("#mlEnd") : "" } : null;
+      const pNome = v("#mlNome").replace(/\s+/g, " "), sNome = tipo === "entregador" ? v("#mlSob").replace(/\s+/g, " ") : "";
+      const dados = cad ? { tipo, nome: (pNome + " " + sNome).trim(), ...(tipo === "entregador" ? { primeiroNome: pNome, sobrenome: sNome } : {}), telefone: v("#mlTel"), pix: tipo === "entregador" ? v("#mlPix") : "", endereco: tipo === "comercio" ? v("#mlEnd") : "" } : null;
       if (cad) {
-        const falta = !dados.nome ? (tipo === "comercio" ? "Informe o nome do comércio." : "Informe seu nome.")
+        const falta = !pNome ? (tipo === "comercio" ? "Informe o nome do comércio." : "Informe seu nome.")
+          : (tipo === "entregador" && !sNome) ? "Informe seu sobrenome."
           : String(dados.telefone).replace(/\D/g, "").length < 10 ? "Informe o telefone com DDD."
           : (tipo === "entregador" && dados.pix.length < 5) ? "Informe sua chave Pix (obrigatória para receber os pagamentos)."
           : (tipo === "comercio" && !dados.endereco) ? "Informe o endereço de coleta." : "";
