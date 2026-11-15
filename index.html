@@ -1059,7 +1059,7 @@ function aplicarModo(){
 }
 function renderQuem(){
   const b=$("#btnQuem");
-  $("#wmResto").textContent = central() ? "Unaí - Central" : S.modo==="comercio" && S.euNome ? "Unaí - "+S.euNome : "Unaí";
+  $("#wmResto").textContent = central() ? "Unaí - Central" : (S.modo==="entregador"||S.modo==="comercio") && S.euNome ? "Unaí - "+S.euNome : "Unaí";
   if(central()||S.modo==="entregador"){
     b.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
     const rot=central()?"Menu e configurações":"Minha conta e configurações";
@@ -1867,9 +1867,12 @@ function renderPedidos(){
   aplicarTelaLarga();
   let ps=S.pedidosDia.slice();
   if(comercio()) ps=ps.map(comOferta);
-  // entregador: contador de entregas finalizadas hoje, no canto de cima
-  { const c=$("#contEnt"); if(c){ const vis=S.modo==="entregador"; c.hidden=!vis;
-      if(vis && S.dia===hoje()){ const n=S.pedidosDia.filter(p=>p.status==="entregue" && p.data===hoje()).length; const el=$("#contEntN");
+  // entregador: contador de entregas finalizadas hoje (ao lado do 🧭 em Minhas entregas; sem essa linha, fica no topo)
+  setTimeout(()=>{ const c=S.contEl||(S.contEl=$("#contEnt")), slot=document.getElementById("slotCont"); if(!c) return;
+    if(slot){ if(c.parentNode!==slot){ slot.append(c); c.style.border="1.5px solid var(--line)"; c.style.height="38px"; } }
+    else if(!c.closest("header")){ const dc=$("#dispCol"); if(dc) dc.before(c); c.style.border=""; c.style.height=""; } },0);
+  { const c=S.contEl||(S.contEl=$("#contEnt")); if(c){ const vis=S.modo==="entregador"; c.hidden=!vis;
+      if(vis && S.dia===hoje()){ const n=S.pedidosDia.filter(p=>p.status==="entregue" && p.data===hoje()).length; const el=c.querySelector("#contEntN");
         if(el.textContent!==String(n)){ el.textContent=String(n); c.animate&&c.animate([{transform:"scale(1.25)"},{transform:"scale(1)"}],{duration:350}); } } } }
   const buscaTxt=(($("#buscaPed")||{}).value||"").trim();
   if(buscaTxt) ps=ps.filter(p=>casaBusca(p,buscaTxt));
@@ -1966,7 +1969,7 @@ function renderPedidos(){
     const btRota=h("button",{type:"button",title:"Editar rota",  "aria-label":"Editar rota",
       style:"width:42px;height:38px;flex:none;border:0;border-radius:8px;background:var(--laranja);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)"},"🧭");
     btRota.addEventListener("click",e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); });
-    const nomeEnt=h("span",{style:"min-width:0;font-weight:800;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:S.euNome||""});
+    const nomeEnt=h("span",{id:"slotCont",style:"display:contents"});
     caixa("minhas","Minhas entregas",minhas.length,"var(--royal)",corpo=>{
       const g={};
       grupos.coletar.filter(p=>!p.rotaId).forEach(p=>{ const k=p.coletaEmpresa||p.coletaEndereco||"Mesmo local"; (g[k]=g[k]||[]).push(p); });
@@ -8272,7 +8275,7 @@ $("#eqAtivo").addEventListener("click",async()=>{
   try{ await comRetry(()=>S.db.doc("equipe/"+x.id).update({ativo})); await sincronizarVinculo(x,{ativo}); toast(ativo?"Reativado":"Desativado: ele não vê mais o app"); limparEq(); }
   catch(err){ toast("Não foi possível salvar."); }
 });
-$("#contEnt").addEventListener("click",()=>abrirMeusPedidosMes(hoje().slice(0,7)));
+(S.contEl||(S.contEl=$("#contEnt"))).addEventListener("click",()=>abrirMeusPedidosMes(hoje().slice(0,7)));
 $("#eqSalvar").addEventListener("click",async()=>{
   const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value), semAdicional=$("#eqSemAd").checked, grupo=$("#eqGrupo").value||"movvi";
   if(!nome){ toast("Informe o nome."); return; }
