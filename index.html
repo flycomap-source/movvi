@@ -1064,6 +1064,7 @@ function abrirMenuCentral(){
     item("▤","Relatórios","Entregadores, comércios e pedidos",()=>abrirEscolhaRelatorio()),
     item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
     item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
+    item("🔁","Transferências entre entregadores","Aprovar ou recusar envios de saldo",()=>abrirTransfCentral()),
     sec("Cadastros e acessos"),
     item("☺","Clientes","Cadastrar, editar e buscar clientes",()=>{ irPara("equipe"); mostrarCadastro("clientes"); }),
     item("🛵","Entregadores","Cadastrar, editar, senhas e pedidos de acesso",()=>{ irPara("equipe"); mostrarCadastro("entregadores"); }),
@@ -5775,6 +5776,120 @@ function semanasDoMes(mes){
   for(let d=1; d<=ult; d++){ const iso=mes+"-"+String(d).padStart(2,"0"); if(deIso(iso).getDay()===0) out.push([somaDias(iso,-6),iso]); }
   return out;
 }
+/* ---------- TRANSFERÊNCIA DE SALDO ENTRE ENTREGADORES ----------
+   Cada entregador tem uma chave (MV-XXXXXX) e um QR. Quem envia escolhe o valor (até o saldo disponível, nunca negativo);
+   a central aprova ou recusa. Aprovada: sai do saldo/fatura de quem enviou e entra no de quem recebeu (pela data da aprovação).
+   transfSaldo/<id> = {de, deNome, deUid, para, paraNome, paraUid, valor, motivo, status: pendente|aprovada|recusada, criadoEm, decididoEm, dataAprov} */
+S.transf=[];
+const chaveDe = id => "MV-"+String(id||"").replace(/[^a-z0-9]/gi,"").slice(0,6).toUpperCase();
+const QR_PREFIXO = "MOVVI-CHAVE:";
+function ouvirTransf(){
+  if(S.subTransf){ S.subTransf(); S.subTransf=null; }
+  if(!S.db || !(central()||S.modo==="entregador")) return;
+  S.subTransf=S.db.collection("transfSaldo").onSnapshot(snap=>{ S.transf=snap.docs.map(d=>({id:d.id,_path:"transfSaldo/"+d.id,...d.data()})); },()=>{});
+}
+function ajusteTransf(entId,de,ate){
+  let v=0; (S.transf||[]).forEach(x=>{ if(x.status!=="aprovada" || !x.dataAprov || x.dataAprov<de || x.dataAprov>ate) return;
+    if(x.para===entId) v+=num(x.valor); if(x.de===entId) v-=num(x.valor); });
+  return Math.round(v*100)/100;
+}
+const reservadoTransf = entId => (S.transf||[]).filter(x=>x.de===entId && x.status==="pendente").reduce((s,x)=>s+num(x.valor),0);
+async function equipeTodos(){ if(central() && S.equipe && S.equipe.length) return S.equipe; try{ const sn=await S.db.collection("equipe").get(); return sn.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); }catch(e){ return S.equipe||[]; } }
+function carregarQRLib(){ return new Promise((ok,err)=>{ if(window.QRCode) return ok(); const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"; sc.onload=()=>ok(); sc.onerror=()=>err(new Error("qr")); document.head.append(sc); }); }
+async function mostrarMeuQR(){
+  const ch=chaveDe(S.eu), alvo=h("div",{style:"display:grid;place-items:center;padding:12px;background:#fff;border-radius:16px"});
+  abrirSheet("Minha chave Movvi+",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Mostre este QR para outro entregador te enviar saldo, ou passe a chave."}),
+    alvo,
+    h("div",{style:"text-align:center"},h("span",{class:"muted",style:"font-size:12px;display:block",text:"Sua chave"}),h("b",{class:"num",style:"font-size:28px;letter-spacing:.08em",text:ch}),h("span",{style:"display:block;font-weight:700",text:S.euNome||""})),
+    h("button",{class:"btn sec full",type:"button",onclick:async()=>{ try{ await navigator.clipboard.writeText(ch); toast("Chave copiada"); }catch(e){ toast(ch); } }},"Copiar chave")]);
+  try{ await carregarQRLib(); new window.QRCode(alvo,{text:QR_PREFIXO+ch,width:220,height:220,correctLevel:window.QRCode.CorrectLevel.M}); }
+  catch(e){ alvo.append(h("p",{class:"muted",text:"Não foi possível desenhar o QR agora. Use a chave."})); }
+}
+/* lê o QR com a câmera (Chrome do Android); se não der, digita a chave */
+function lerQR(achou){
+  if(!("BarcodeDetector" in window) || !navigator.mediaDevices){ toast("Este celular não lê QR pelo app. Digite a chave."); return; }
+  const video=h("video",{playsinline:"",muted:"",style:"width:100%;border-radius:14px;background:#000;max-height:60vh;object-fit:cover"});
+  let stream=null, vivo=true;
+  const parar=()=>{ vivo=false; try{ stream&&stream.getTracks().forEach(t=>t.stop()); }catch(e){} };
+  const fechar=abrirSheet("Ler QR da chave",[video,h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aponte para o QR do outro entregador."}),h("button",{class:"btn sec full",type:"button",onclick:()=>{ parar(); fechar(); }},"Cancelar")]);
+  (async()=>{ try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}); video.srcObject=stream; await video.play();
+      const det=new window.BarcodeDetector({formats:["qr_code"]});
+      const loop=async()=>{ if(!vivo || !video.isConnected){ parar(); return; }
+        try{ const r=await det.detect(video); const v=r&&r[0]&&r[0].rawValue||""; if(v){ const ch=v.startsWith(QR_PREFIXO)?v.slice(QR_PREFIXO.length):v; parar(); fechar(); achou(ch.trim().toUpperCase()); return; } }catch(e){}
+        setTimeout(loop,300); };
+      loop();
+    }catch(e){ parar(); fechar(); toast("Não foi possível abrir a câmera. Digite a chave."); } })();
+}
+async function abrirEnviarSaldo(disponivel,depois){
+  const eq=(await equipeTodos()).filter(e=>e.ativo!==false && e.id!==S.eu);
+  const fCh=h("input",{class:"inp num",id:"trChave",placeholder:"MV-XXXXXX",autocomplete:"off",style:"text-transform:uppercase;letter-spacing:.06em"});
+  const quem=h("div",{class:"muted",style:"font-size:14px;min-height:20px"});
+  const fVal=h("input",{class:"inp num",id:"trVal",inputmode:"decimal",placeholder:"0,00"});
+  const fMot=h("input",{class:"inp",id:"trMot",placeholder:"Motivo (ex.: paguei um produto)"});
+  const msg=h("div",{class:"aviso",hidden:true});
+  let dest=null;
+  const achar=()=>{ const c=fCh.value.trim().toUpperCase(); dest=eq.find(e=>chaveDe(e.id)===c)||null;
+    quem.textContent = !c ? "" : dest ? "Para: "+dest.nome : "Nenhum entregador com essa chave";
+    quem.style.color = dest ? "var(--ok)" : c ? "var(--bad)" : ""; };
+  fCh.addEventListener("input",achar);
+  const btQR=h("button",{class:"btn sec",type:"button",onclick:()=>lerQR(ch=>{ fCh.value=ch; achar(); fVal.focus(); })},"📷 Ler QR");
+  const ok=h("button",{class:"btn full",type:"button"},"Pedir aprovação da transferência");
+  ok.addEventListener("click",async()=>{
+    msg.hidden=true; achar(); const v=Math.round(num(fVal.value)*100)/100;
+    if(!dest){ msg.hidden=false; msg.textContent="Digite ou leia a chave de quem vai receber."; return; }
+    if(!(v>0)){ msg.hidden=false; msg.textContent="Informe o valor."; return; }
+    if(v>disponivel+0.001){ msg.hidden=false; msg.textContent="Você só pode enviar até "+fmt(disponivel)+" (seu saldo disponível)."; return; }
+    ok.disabled=true; ok.textContent="Enviando…";
+    try{ const id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), agora=new Date().toISOString();
+      const d={de:S.eu,deNome:S.euNome||"",deUid:S.uid||"",para:dest.id,paraNome:dest.nome||"",paraUid:dest.uid||"",valor:v,motivo:fMot.value.trim(),status:"pendente",criadoEm:agora,data:hoje()};
+      await comRetry(()=>S.db.doc("transfSaldo/"+id).set(d));
+      for(const uid of (S.uidsCentral||[]).filter(Boolean)){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+        await S.db.doc("recados/"+rid).set({tipo:"transf",para:uid,de:S.euNome||"Entregador",deUid:S.uid||"",texto:"🔁 Quer enviar "+fmt(v)+" para "+dest.nome+(d.motivo?" ("+d.motivo+")":"")+". Aprove em Transferências entre entregadores.",criadoEm:agora}).catch(()=>{}); }
+      fechar(); toast("Pedido enviado: aguardando a central aprovar"); if(depois) depois(); }
+    catch(e){ ok.disabled=false; ok.textContent="Pedir aprovação da transferência"; msg.hidden=false; msg.textContent="Não foi possível enviar ("+(e&&e.code||"erro")+")."; }
+  });
+  const fechar=abrirSheet("Enviar saldo",[
+    h("div",{class:"painel",style:"gap:2px"},h("span",{class:"muted",style:"font-size:13px",text:"Saldo disponível para enviar"}),h("b",{class:"num",style:"font-size:24px;color:var(--ok)",text:fmt(disponivel)})),
+    h("div",{class:"campo"},h("label",{for:"trChave",text:"Chave de quem vai receber"}),h("div",{style:"display:flex;gap:8px"},h("div",{style:"flex:1;min-width:0"},fCh),btQR),quem),
+    h("div",{class:"campo"},h("label",{for:"trVal",text:"Valor (R$)"}),fVal),
+    h("div",{class:"campo"},h("label",{for:"trMot",text:"Motivo"}),fMot),
+    h("p",{class:"muted",style:"margin:0;font-size:12px",text:"A central precisa aprovar. Aprovada, o valor sai do seu saldo e entra no saldo de quem recebe."}),msg,ok]);
+}
+function listaTransf(itens,comAcoes){
+  const st={pendente:["pend","Aguardando a central"],aprovada:["ok","Aprovada"],recusada:["acert","Recusada"]};
+  return h("div",{style:"display:flex;flex-direction:column;gap:8px"},...itens.map(x=>{
+    const linha=h("div",{class:"painel",style:"gap:6px"},
+      h("div",{style:"display:flex;justify-content:space-between;gap:8px;align-items:baseline"},h("b",{text:(x.deNome||"?")+" → "+(x.paraNome||"?")}),h("b",{class:"num",text:fmt(num(x.valor))})),
+      h("div",{class:"meta",style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},h("span",{class:"pill "+(st[x.status]||st.pendente)[0],text:(st[x.status]||st.pendente)[1]}),h("span",{class:"quem-ped",text:new Date(x.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+(x.motivo?" · "+x.motivo:"")})));
+    if(comAcoes && x.status==="pendente"){
+      const decidir=async(aprovar,bt)=>{ bt.disabled=true; const agora=new Date().toISOString();
+        try{ await comRetry(()=>S.db.doc(x._path).update({status:aprovar?"aprovada":"recusada",decididoEm:agora,decididoPor:S.uid||"",...(aprovar?{dataAprov:hoje()}:{})}));
+          const av=(uid,texto)=>uid?S.db.doc("recados/r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)).set({tipo:"aviso",para:uid,de:"Central",deUid:S.uid||"",texto,criadoEm:agora}).catch(()=>{}):null;
+          await av(x.deUid,aprovar?"✅ Sua transferência de "+fmt(num(x.valor))+" para "+x.paraNome+" foi aprovada.":"❌ Sua transferência de "+fmt(num(x.valor))+" para "+x.paraNome+" foi recusada.");
+          if(aprovar) await av(x.paraUid,"💰 Você recebeu "+fmt(num(x.valor))+" de "+x.deNome+(x.motivo?" ("+x.motivo+")":"")+". Já está no seu saldo.");
+          toast(aprovar?"Transferência aprovada":"Transferência recusada"); }
+        catch(e){ bt.disabled=false; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); } };
+      const a=h("button",{class:"btn",type:"button",style:"background:var(--ok);border-color:var(--ok)"},"Aprovar"), r=h("button",{class:"btn sec",type:"button",style:"border-color:var(--bad);color:var(--bad)"},"Recusar");
+      a.addEventListener("click",()=>decidir(true,a)); r.addEventListener("click",()=>decidir(false,r));
+      linha.append(h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},a,r));
+    }
+    return linha; }));
+}
+function abrirTransfCentral(){
+  const corpo=h("div",{style:"display:flex;flex-direction:column;gap:12px"});
+  const desenhar=()=>{ const l=(S.transf||[]).slice().sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm)));
+    const pend=l.filter(x=>x.status==="pendente"), hist=l.filter(x=>x.status!=="pendente").slice(0,30);
+    corpo.replaceChildren(
+      h("h3",{style:"margin:0",text:"Aguardando aprovação ("+pend.length+")"}),
+      pend.length?listaTransf(pend,true):h("p",{class:"muted",style:"margin:0",text:"Nenhuma transferência para aprovar."}),
+      h("h3",{style:"margin:0",text:"Últimas decididas"}),
+      hist.length?listaTransf(hist,false):h("p",{class:"muted",style:"margin:0",text:"Nada por aqui ainda."})); };
+  desenhar();
+  const t=setInterval(()=>{ if(!corpo.isConnected){ clearInterval(t); return; } desenhar(); },3000);
+  abrirSheet("Transferências entre entregadores",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aprovada: sai da fatura de quem enviou e entra na de quem recebeu (pela data da aprovação)."}),corpo]);
+}
+
 async function renderCarteira(box){
   box.replaceChildren(h("p",{class:"muted",text:"Calculando a sua carteira…"}));
   const t=hoje(), ini=t.slice(0,8)+"01";
@@ -5783,7 +5898,9 @@ async function renderCarteira(box){
   try{ [mes,recentes]=await Promise.all([buscarPeriodo(ini,t,S.eu),buscarPeriodo(d90<ini?d90:ini,t,S.eu)]); }
   catch(e){ box.replaceChildren(h("div",{class:"aviso",text:"Não foi possível buscar os dados ("+(e&&e.code||"erro")+"). Tente de novo."})); return; }
   const entMes=mes.filter(p=>p.status==="entregue");
-  const ganhos=somaGanho(entMes), saldo=valorFatEnt(entMes);
+  const ganhos=somaGanho(entMes), aj=ajusteTransf(S.eu,ini,t), saldo=Math.round((valorFatEnt(entMes.filter(p=>!p.pagoEntregadorEm))+aj)*100)/100;
+  const disponivel=Math.max(0,Math.round((saldo-reservadoTransf(S.eu))*100)/100);
+  const minhas=(S.transf||[]).filter(x=>x.de===S.eu||x.para===S.eu).sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0,5);
   const pend=recentes.filter(p=>p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && !dinResolvidoFora(p));
   const din=pend.reduce((s,p)=>s+dinheiroDoPedido(p),0);
   const porEmp={}; pend.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa"; porEmp[k]=(porEmp[k]||0)+dinheiroDoPedido(p); });
@@ -5803,7 +5920,13 @@ async function renderCarteira(box){
   const btCen=din>0?confirma(h("button",{class:"btn sec",type:"button"},tCen),tCen,"Confirmar repasse",()=>marcar(btCen,"Repasse para a central registrado",(p,ag)=>({dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:ag,dinheiroCentralPor:S.uid||""}))):null;
   box.replaceChildren(
     h("h3",{style:"margin:0",text:"💼 Minha carteira"}),
-    tile("Saldo das entregas que você já fez",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" neste mês"),
+    tile("Saldo das entregas que você já fez",saldo,"var(--ok)",entMes.length+(entMes.length===1?" entrega":" entregas")+" neste mês"+(aj?" · transferências "+(aj>0?"+":"−")+fmt(Math.abs(aj)):"")+(disponivel<saldo?" · "+fmt(saldo-disponivel)+" aguardando aprovação":"")),
+    h("div",{class:"painel",style:"gap:8px"},
+      h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px"},h("span",{class:"muted",style:"font-size:13px",text:"Minha chave"}),h("b",{class:"num",style:"letter-spacing:.06em",text:chaveDe(S.eu)})),
+      h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},
+        h("button",{class:"btn sec",type:"button",onclick:()=>mostrarMeuQR()},"▦ Meu QR"),
+        h("button",{class:"btn",type:"button",disabled:!(disponivel>0),onclick:()=>abrirEnviarSaldo(disponivel,()=>renderCarteira(box))},"🔁 Enviar saldo")),
+      minhas.length?listaTransf(minhas,false):null),
     h("div",{class:"painel",style:"gap:8px;border-color:"+(din>0?"var(--laranja)":"var(--line)")},
       h("span",{class:"muted",style:"font-size:13px",text:"Dinheiro que está com você"}),
       h("b",{class:"num",style:"font-size:28px;color:"+(din>0?"var(--laranja-ink)":"var(--muted)"),text:fmt(din)}),
@@ -5897,7 +6020,8 @@ async function calcularFatura(){
   const linhas=semanas.filter(([a])=>a<=t).map(([a,f,rot])=>{
     const itens=ps.filter(p=>p.data>=a&&p.data<=f);
     const fechada=porSemana?f<t:true, pagos=itens.filter(p=>p[campo]), pago=itens.length>0&&pagos.length===itens.length;
-    return {a,f,rot,itens,fechada,pago,parcial:pagos.length>0&&!pago,valor:valorDe(itens),aberto:valorDe(itens.filter(p=>!p[campo])),
+    const aj=com?0:ajusteTransf(quem,a,f);
+    return {a,f,rot,itens,fechada,pago,parcial:pagos.length>0&&!pago,valor:valorDe(itens)+aj,aberto:valorDe(itens.filter(p=>!p[campo]))+aj,ajTransf:aj,
       pagoEm:pago?itens.map(p=>p[campo]).sort().pop():""};
   });
   if(fatModo==="dia") for(let i=linhas.length-1;i>=0;i--) if(!linhas[i].itens.length) linhas.splice(i,1);   // por dia: só os dias com entrega
@@ -6005,8 +6129,8 @@ async function calcularFaturaGeral(out,com,mes){
   const m=new Map(); ps.forEach(p=>{ const k=com?slug(p.coletaEmpresa||""):(p.entregadorId||""); if(!k) return; if(!m.has(k)) m.set(k,[]); m.get(k).push(p); });
   const sel=$("#fatQuem");
   const nomeDe=k=>{ if(!com) return nomeEnt(k); const o=[...sel.options].find(o=>o.value===k||slug(o.text)===k); return o?o.text:k; };
-  const linhas=[...m].map(([k,itens])=>({k,nome:nomeDe(k),n:itens.length,total:valorDe(itens),pago:valorDe(itens.filter(p=>p[campo])),
-    aPagar:valorDe(itens.filter(p=>!p[campo]&&fechado(p))),andamento:valorDe(itens.filter(p=>!p[campo]&&!fechado(p)))}))
+  const linhas=[...m].map(([k,itens])=>{ const aj=com?0:ajusteTransf(k,de,ate); return {k,nome:nomeDe(k),n:itens.length,total:valorDe(itens)+aj,pago:valorDe(itens.filter(p=>p[campo])),
+    aPagar:valorDe(itens.filter(p=>!p[campo]&&fechado(p)))+aj,andamento:valorDe(itens.filter(p=>!p[campo]&&!fechado(p)))}; })
     .sort((a,b)=>b.aPagar-a.aPagar||a.nome.localeCompare(b.nome));
   const soma=f=>linhas.reduce((s,l)=>s+l[f],0);
   const kpi=(rot,val,cls)=>h("div",{class:"kpi"+(cls?" "+cls:"")},h("span",{text:rot}),h("b",{class:"num",text:val}));
@@ -6971,6 +7095,7 @@ function ouvirRecados(){
   if(S.subRecados){ S.subRecados(); S.subRecados=null; }
   if(S.subAvisoCentral){ S.subAvisoCentral(); S.subAvisoCentral=null; }
   if(!S.db || !S.uid) return;
+  ouvirTransf();
   // quem é da central (para o aviso de Pix ao comércio chegar no celular dela)
   S.subAvisoCentral=S.db.doc("config/avisoCentral").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{};
     S.uidsCentral=Array.isArray(d.uids)?d.uids.filter(Boolean):[];
@@ -7064,7 +7189,7 @@ function fechamentoCentral(ent,de,ate){
     const ids=Object.keys(g).sort((a,b)=>nomeEnt(a).localeCompare(nomeEnt(b)));
     const fora=ids.filter(id=>!daCentral(id)), dentro=ids.filter(daCentral);
     const cobTotal=ids.reduce((s,id)=>s+g[id].cob,0), pagoFora=fora.reduce((s,id)=>s+g[id].valor,0);
-    const linhas=fora.map(id=>{ const x=g[id], vl=valesDe(id); return [nomeEnt(id),String(x.prin),String(x.outras),String(x.ad),String(x.prin+x.outras+x.ad),fmt(x.valor),vl?"− "+fmt(vl):"—",fmt(x.valor-vl)]; });
+    const linhas=fora.map(id=>{ const x=g[id], vl=valesDe(id), tr=ajusteTransf(id,de,ate); return [nomeEnt(id),String(x.prin),String(x.outras),String(x.ad),String(x.prin+x.outras+x.ad),fmt(x.valor),(vl?"− "+fmt(vl):"—")+(tr?" · transf. "+(tr>0?"+":"−")+fmt(Math.abs(tr)):""),fmt(x.valor-vl+tr)]; });
     const doCentral=dentro.reduce((s,id)=>s+g[id].prin+g[id].outras,0);
     const valorCentral=cobTotal-pagoFora;
     linhas.push(["Central"+(dentro.length?" ("+dentro.map(nomeEnt).join(", ")+")":""),String(dentro.reduce((s,id)=>s+g[id].prin,0)),String(dentro.reduce((s,id)=>s+g[id].outras,0)),"—",String(doCentral),fmt(valorCentral),"—",fmt(valorCentral)]);
