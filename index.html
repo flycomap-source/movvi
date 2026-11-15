@@ -6080,6 +6080,57 @@ async function renderCarteira(box){
       din>0?h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btDev,btCen):null),
     h("button",{class:"btn sec full",type:"button",onclick:()=>{ fatTipo="entregador"; prepararFatura(); }},"← Voltar"));
 }
+/* Entregador: dinheiro de clientes que está com ele (fica em Minha fatura, ao lado da semana em andamento) */
+async function dinheiroComigo(){
+  const t=hoje(), d90=new Date(Date.now()-90*864e5).toISOString().slice(0,10);
+  const ps=await buscarPeriodo(d90,t,S.eu);
+  const pend=ps.filter(p=>p.status==="entregue" && dinheiroRetivel(p) && !p.dinheiroDevolvido && !p.acertado && !dinResolvidoFora(p));
+  const porEmp={}; pend.forEach(p=>{ const k=p.coletaEmpresa||"Sem empresa"; (porEmp[k]=porEmp[k]||[]).push(p); });
+  return {pend,porEmp,total:Math.round(pend.reduce((s,p)=>s+dinheiroDoPedido(p),0)*100)/100};
+}
+function kpiDinheiroComigo(){
+  const val=h("b",{class:"num",text:"…"});
+  const bt=h("button",{class:"btn",type:"button",style:"padding:6px 12px;font-size:14px;background:var(--laranja);border-color:var(--laranja)",hidden:true},"Devolver");
+  const box=h("div",{class:"kpi",style:"border-color:var(--laranja)"},h("span",{text:"Dinheiro com você"}),
+    h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"},val,bt));
+  let info=null;
+  dinheiroComigo().then(r=>{ info=r; val.textContent=fmt(r.total); val.style.color=r.total>0?"var(--laranja-ink)":"var(--muted)"; bt.hidden=!(r.total>0); })
+    .catch(()=>{ val.textContent="—"; });
+  bt.addEventListener("click",()=>{ if(info) abrirDevolverDinheiro(info); });
+  return box;
+}
+function abrirDevolverDinheiro(info){
+  const marcar=async(bt,lista,upd,okTxt)=>{ bt.disabled=true; const txt=bt.textContent; bt.textContent="Registrando…";
+    try{ const ag=new Date().toISOString(); for(const p of lista) await comRetry(()=>S.db.doc(p._path).update(upd(ag)));
+      toast(okTxt); fechar(); if(typeof prepararFatura==="function") prepararFatura(); }
+    catch(e){ bt.disabled=false; bt.textContent=txt; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); } };
+  const aLoja=ag=>({dinheiroDevolvido:true,devolvidoEm:ag,devolvidoPor:S.uid||""});
+  const aCentral=ag=>({dinheiroCom:"central",dinheiroDevolvido:false,pixComercioPendente:false,pixComercioEnviadoEm:"",dinheiroCentralEm:ag,dinheiroCentralPor:S.uid||""});
+  const corpo=h("div",{style:"display:flex;flex-direction:column;gap:10px"});
+  const opcoes=()=>{
+    const bL=h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:14px;background:var(--royal)"},h("b",{style:"font-size:17px",text:"🏪 Devolver à loja / comércio"}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:"Você leva o dinheiro em cada loja"}));
+    const bC=h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:14px;background:var(--laranja);border-color:var(--laranja)"},h("b",{style:"font-size:17px",text:"🏢 Devolver à central"}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:"Você entrega "+fmt(info.total)+" na central"}));
+    bL.addEventListener("click",lojas);
+    bC.addEventListener("click",()=>{ const ok=h("button",{class:"btn full",type:"button",style:"background:var(--laranja);border-color:var(--laranja)"},"Confirmar: entreguei "+fmt(info.total)+" na central");
+      ok.addEventListener("click",()=>marcar(ok,info.pend,aCentral,"Repasse para a central registrado"));
+      corpo.replaceChildren(h("p",{style:"margin:0",text:"Confirme que você entregou o dinheiro na central:"}),resumo(),ok,h("button",{class:"btn sec full",type:"button",onclick:opcoes},"← Voltar")); });
+    corpo.replaceChildren(h("div",{class:"painel",style:"gap:2px"},h("span",{class:"muted",style:"font-size:13px",text:"Dinheiro com você"}),h("b",{class:"num",style:"font-size:26px;color:var(--laranja-ink)",text:fmt(info.total)})),bL,bC);
+  };
+  const resumo=()=>h("div",{style:"display:flex;flex-direction:column;gap:3px;font-size:14px"},...Object.entries(info.porEmp).map(([e,l])=>h("div",{style:"display:flex;justify-content:space-between;gap:8px"},h("span",{text:e}),h("b",{class:"num",text:fmt(l.reduce((s,p)=>s+dinheiroDoPedido(p),0))}))));
+  const lojas=()=>{
+    const linhas=Object.entries(info.porEmp).sort((a,b)=>a[0].localeCompare(b[0])).map(([e,l])=>{
+      const v=l.reduce((s,p)=>s+dinheiroDoPedido(p),0);
+      const b=h("button",{class:"btn",type:"button",style:"padding:8px 12px"},"Devolvi");
+      b.addEventListener("click",()=>marcar(b,l,aLoja,"Devolução registrada · "+e));
+      return h("div",{class:"painel",style:"flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px"},
+        h("span",{style:"display:flex;flex-direction:column;min-width:0"},h("b",{style:"overflow-wrap:anywhere",text:e}),h("span",{class:"num muted",style:"font-size:13px",text:fmt(v)+" · "+l.length+(l.length>1?" pedidos":" pedido")})),b); });
+    const todas=Object.keys(info.porEmp).length>1?h("button",{class:"btn sec full",type:"button"},"Devolvi em todas ("+fmt(info.total)+")"):null;
+    if(todas) todas.addEventListener("click",()=>marcar(todas,info.pend,aLoja,"Devoluções registradas"));
+    corpo.replaceChildren(h("p",{style:"margin:0",text:"Toque em Devolvi na loja onde você deixou o dinheiro:"}),...linhas,todas,h("button",{class:"btn sec full",type:"button",onclick:opcoes},"← Voltar"));
+  };
+  opcoes();
+  const fechar=abrirSheet("Devolver dinheiro",[corpo]);
+}
 function prepararFatura(){
   guardarTela();
   const tipos = central() ? [["entregador","Entregador"],["comercio","Comércio"],["dinheiro","Dinheiro"]] : [["entregador","Minha fatura"],["carteira","💼 Carteira"]];
@@ -6225,7 +6276,8 @@ async function calcularFatura(){
     kpi(fatModo==="periodo"?"Total do período":"Total do mês",fmt(total),"destaque"),
     kpi(porSemana?(com?"A receber (semanas fechadas)":central()?"A pagar (semanas fechadas)":"A receber (semanas fechadas)"):(com?"A receber":"A pagar"),fmt(aPagar)),
     kpi(com?"Já recebido":"Já pago",fmt(pagoTot)),
-    porSemana?kpi("Semana em andamento",fmt(emAndamento)):kpi("Entregas",String(linhas.reduce((s2,w)=>s2+w.itens.length,0)))]);
+    porSemana?kpi("Semana em andamento",fmt(emAndamento)):kpi("Entregas",String(linhas.reduce((s2,w)=>s2+w.itens.length,0))),
+    (S.modo==="entregador" && fatTipo==="entregador") ? kpiDinheiroComigo() : null].filter(Boolean));
   $("#fatCards").hidden=false;
   out.replaceChildren(h("h3",{style:"margin:0",text:nome}),...cards);
   // fatura do comércio: dinheiro dele que está com a central (ele tem a receber) e que pode ser abatido da fatura
