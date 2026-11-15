@@ -1937,7 +1937,7 @@ function renderPedidos(){
   const grupos={aguardando:[],aceite:[],coletar:[],rota:[],fim:finalizadas};
   ps.forEach(p=>grupos[estado(p)].push(p));
   const caixa=(chave,titulo,qtd,cor,preencher,extra)=>{
-    if(!qtd) return;
+    if(!qtd && chave!=="minhas") return;   // "Minhas entregas" fica sempre (com o 🧭 e o contador do dia)
     const recolhivel = S.modo!=="entregador";
     let fechado=false; if(recolhivel){ try{ fechado=localStorage.getItem("movvi.recolhido."+chave)==="1"; }catch(e){} }
     const corpo=h("div",{class:"grupo-corpo"});
@@ -1954,7 +1954,7 @@ function renderPedidos(){
     if(recolhivel){ cab.addEventListener("click",alterna); } else cab.style.cursor="default";
     if(emLinhas()) corpo.append(cabecalhoLinhas());
     preencher(corpo);
-    if(!qtd) corpo.append(h("p",{class:"muted",style:"margin:0 2px 4px;font-size:14px",text:chave==="disponiveis"?"Nenhuma entrega disponível agora. Quando chegar, o alerta toca.":"Você não tem entregas reservadas."}));
+    if(!qtd && chave!=="minhas") corpo.append(h("p",{class:"muted",style:"margin:0 2px 4px;font-size:14px",text:chave==="disponiveis"?"Nenhuma entrega disponível agora. Quando chegar, o alerta toca.":"Você não tem entregas reservadas."}));
     box.append(g);
   };
   caixa("disponiveis",central()?"Aguardando um entregador aceitar":"Entregas disponíveis",listaAbertas.length,"var(--laranja)",
