@@ -707,7 +707,7 @@ const EMPRESAS_DINHEIRO_NA_LOJA=["canaa"];
 const dinheiroFicaNaLoja = p => { const k=slug(p.coletaEmpresa||""); return EMPRESAS_DINHEIRO_NA_LOJA.some(e=>k.includes(e)); };
 const dinheiroRetivel = p => dinheiroDoPedido(p)>0 && !dinheiroFicaNaLoja(p);
 /* Dinheiro em espécie que o entregador recebe do cliente */
-function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor) : num(p.dinheiroParcial); }   // dinheiroParcial: parte paga em dinheiro numa compra no cartão/pix/convênio
+function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor)+num(p.trocoDevolver) : num(p.dinheiroParcial); }   // trocoDevolver: troco que o comércio deu ao entregador; volta junto para o comércio   // dinheiroParcial: parte paga em dinheiro numa compra no cartão/pix/convênio
 /* Unidades pagas ao entregador: a entrega + adicionais */
 /* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional; os adicionais dos outros saem dos 25% da central */
 function semAdicional(entId){ if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
@@ -1082,6 +1082,7 @@ function abrirMenuCentral(){
     item("▤","Relatórios","Entregadores, comércios e pedidos",()=>abrirEscolhaRelatorio()),
     item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
     item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
+    item("💬","Mensagens","Conversas com entregadores e histórico de todas as conversas",()=>abrirMensagens()),
     item("🔁","Transferências entre entregadores","Aprovar ou recusar envios de saldo",()=>abrirTransfCentral()),
     sec("Cadastros e acessos"),
     item("☺","Clientes","Cadastrar, editar e buscar clientes",()=>{ irPara("equipe"); mostrarCadastro("clientes"); }),
@@ -3121,6 +3122,7 @@ function abrirMeuMenu(){
     item("👤","Meus dados","Nome, usuário e senha",()=>abrirConta()),
     comercio()?null:item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
+    S.modo==="entregador"?item("💬","Mensagens","Conversas com a central e com colegas",()=>abrirMensagens()):null,
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
     window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular · toque para testar":"Receber aviso de entrega nova mesmo com o app fechado",async()=>{ if(await ativarAvisos()) testarAviso(); pintarAvisoPush(); }):null,
     item("⎋","Sair","Volta para a tela de login",sair)].filter(Boolean));
@@ -5633,7 +5635,7 @@ function abrirConfirmacao(p){
   }
   function abrirEscolhaDin(){
     const vr=num(fValRec.value), emp=p.coletaEmpresa||"o comércio";
-    const v=(!trocoBox.hidden && trocoEscolha==="dei") || (trocoBox.hidden && vr>valPedido+0.009 && num(p.trocoPara)>0 && vr<=num(p.trocoPara)+0.009) ? valPedido : vr;
+    const v=(!trocoBox.hidden && trocoEscolha==="dei") ? valPedido : vr;   // troco que o comércio mandou: volta tudo para o comércio
     const fecharCx=()=>cx.remove();
     const bt=(txt,sub,cor,fn)=>h("button",{class:"btn full",type:"button",style:"display:flex;flex-direction:column;gap:2px;padding:12px;line-height:1.2;background:"+cor+";border-color:"+cor,onclick:()=>{ fecharCx(); fn(); }},
       h("b",{style:"font-size:16px",text:txt}),h("span",{style:"font-size:12px;font-weight:600;opacity:.9",text:sub}));
@@ -5712,7 +5714,9 @@ function abrirConfirmacao(p){
     if(fObsFin.value.trim()) upd.obsFinalizacao=fObsFin.value.trim();
     if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
     Object.assign(upd,comRegistro(p,(transf?"Transferência finalizada: "+transfDe+" → "+transfPara:"Entrega finalizada")+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
-    if(formaRec==="dinheiro" && trocoBox.hidden && valRec>valPedido+0.009 && num(p.trocoPara)>0 && valRec<=num(p.trocoPara)+0.009) upd.valorDinheiro=valPedido; // deu o troco que já levava
+    if(formaRec==="dinheiro" && trocoBox.hidden && valRec>valPedido+0.009 && num(p.trocoPara)>0 && valRec<=num(p.trocoPara)+0.009){
+      // deu o troco que o comércio mandou: o pedido vale valPedido, e o troco volta para o comércio junto com o dinheiro
+      upd.valorDinheiro=valPedido; upd.trocoDevolver=Math.round((valRec-valPedido)*100)/100; }
     if(!trocoBox.hidden && trocoEscolha){
       const sobra=Math.round((valRec-valPedido)*100)/100;
       if(trocoEscolha==="dei") upd.valorDinheiro=valPedido;   // deu o troco: ficou só com o valor do pedido
@@ -5954,10 +5958,10 @@ function ajusteTransf(entId,de,ate){
 const reservadoTransf = entId => (S.transf||[]).filter(x=>x.de===entId && x.status==="pendente").reduce((s,x)=>s+num(x.valor),0);
 async function equipeTodos(){ if(central() && S.equipe && S.equipe.length) return S.equipe; try{ const sn=await S.db.collection("equipe").get(); return sn.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); }catch(e){ return S.equipe||[]; } }
 function carregarQRLib(){ return new Promise((ok,err)=>{ if(window.QRCode) return ok(); const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"; sc.onload=()=>ok(); sc.onerror=()=>err(new Error("qr")); document.head.append(sc); }); }
-async function mostrarMeuQR(){
+async function mostrarMeuQR(sub){
   const ch=chaveDe(S.eu), alvo=h("div",{style:"display:grid;place-items:center;padding:12px;background:#fff;border-radius:16px"});
-  abrirSheet("Minha chave Movvi+",[
-    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Mostre este QR para outro entregador te enviar saldo, ou passe a chave."}),
+  abrirSheet(sub?"Meu QR":"Minha chave Movvi+",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:typeof sub==="string"?sub:"Mostre este QR para outro entregador te enviar saldo, ou passe a chave."}),
     alvo,
     h("div",{style:"text-align:center"},h("span",{class:"muted",style:"font-size:12px;display:block",text:"Sua chave"}),h("b",{class:"num",style:"font-size:28px;letter-spacing:.08em",text:ch}),h("span",{style:"display:block;font-weight:700",text:S.euNome||""})),
     h("button",{class:"btn sec full",type:"button",onclick:async()=>{ try{ await navigator.clipboard.writeText(ch); toast("Chave copiada"); }catch(e){ toast(ch); } }},"Copiar chave")]);
@@ -5970,7 +5974,7 @@ function lerQR(achou){
   const video=h("video",{playsinline:"",muted:"",style:"width:100%;border-radius:14px;background:#000;max-height:60vh;object-fit:cover"});
   let stream=null, vivo=true;
   const parar=()=>{ vivo=false; try{ stream&&stream.getTracks().forEach(t=>t.stop()); }catch(e){} };
-  const fechar=abrirSheet("Ler QR da chave",[video,h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aponte para o QR do outro entregador."}),h("button",{class:"btn sec full",type:"button",onclick:()=>{ parar(); fechar(); }},"Cancelar")]);
+  const fechar=abrirSheet("Ler QR",[video,h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aponte para o QR do outro entregador."}),h("button",{class:"btn sec full",type:"button",onclick:()=>{ parar(); fechar(); }},"Cancelar")]);
   (async()=>{ try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}); video.srcObject=stream; await video.play();
       const det=new window.BarcodeDetector({formats:["qr_code"]});
       const loop=async()=>{ if(!vivo || !video.isConnected){ parar(); return; }
@@ -6054,7 +6058,47 @@ function abrirTransfCentral(){
       hist.length?listaTransf(hist,false):h("p",{class:"muted",style:"margin:0",text:"Nada por aqui ainda."})); };
   desenhar();
   const t=setInterval(()=>{ if(!corpo.isConnected){ clearInterval(t); return; } desenhar(); },3000);
-  abrirSheet("Transferências entre entregadores",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aprovada: sai da fatura de quem enviou e entra na de quem recebeu (pela data da aprovação)."}),corpo]);
+  abrirSheet("Transferências entre entregadores",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Aprovada: sai da fatura de quem enviou e entra na de quem recebeu (pela data da aprovação)."}),
+    h("button",{class:"btn full",type:"button",onclick:()=>abrirTransfPelaCentral()},"＋ Enviar saldo (bônus da central ou entre entregadores)"),corpo]);
+}
+/* a central lança na hora (já aprovada): de "Central" = bônus que sai da parte da central */
+async function abrirTransfPelaCentral(){
+  const eq=(await equipeTodos()).filter(e=>e.ativo!==false).sort((a,b)=>a.nome.localeCompare(b.nome));
+  const fDe=h("select",{class:"inp",id:"tcDe"},h("option",{value:"central"},"🏢 Central (bônus, sai da parte da central)"),...eq.map(e=>h("option",{value:e.id},e.nome)));
+  const fPara=h("select",{class:"inp",id:"tcPara"},h("option",{value:""},"Escolha o entregador"),...eq.map(e=>h("option",{value:e.id},e.nome)));
+  const fVal=h("input",{class:"inp num",id:"tcVal",inputmode:"decimal",placeholder:"0,00"});
+  const fMot=h("input",{class:"inp",id:"tcMot",placeholder:"Motivo (ex.: bônus da semana)"});
+  const msg=h("div",{class:"aviso",hidden:true});
+  const ok=h("button",{class:"btn full",type:"button"},"Enviar agora");
+  const atu=()=>{ ok.textContent=fDe.value==="central"?"Enviar bônus agora":"Transferir agora"; if(!fMot.value || fMot.dataset.auto){ fMot.value=fDe.value==="central"?"Bônus da central":""; fMot.dataset.auto=fMot.value?"1":""; } };
+  fDe.addEventListener("change",atu); fMot.addEventListener("input",()=>{ fMot.dataset.auto=""; }); atu();
+  ok.addEventListener("click",async()=>{
+    const v=Math.round(num(fVal.value)*100)/100, de=fDe.value, para=fPara.value; msg.hidden=true;
+    const erro=t=>{ msg.hidden=false; msg.textContent=t; };
+    if(!para) return erro("Escolha quem recebe.");
+    if(de===para) return erro("Quem envia e quem recebe são a mesma pessoa.");
+    if(!(v>0)) return erro("Digite o valor.");
+    const eDe=eq.find(e=>e.id===de), ePara=eq.find(e=>e.id===para);
+    ok.disabled=true; ok.textContent="Enviando…";
+    try{
+      const uidDe=async id=>{ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",id).get(); const d=sn.docs.find(x=>(x.data()||{}).ativo!==false); return d?d.id:""; }catch(e){ return ""; } };
+      const paraUid=await uidDe(para), deUid=de==="central"?"":await uidDe(de), agora=new Date().toISOString();
+      const id="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      await comRetry(()=>S.db.doc("transfSaldo/"+id).set({de,deNome:de==="central"?"Central":(eDe?eDe.nome:"?"),deUid,para,paraNome:ePara?ePara.nome:"?",paraUid,valor:v,motivo:fMot.value.trim(),
+        status:"aprovada",origem:"central",criadoEm:agora,data:hoje(),decididoEm:agora,decididoPor:S.uid||"",dataAprov:hoje()}));
+      const av=(uid,texto)=>uid?S.db.doc("recados/r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)).set({tipo:"aviso",para:uid,de:"Central",deUid:S.uid||"",texto,criadoEm:agora}).catch(()=>{}):null;
+      await av(paraUid,(de==="central"?"🎁 Você ganhou um bônus de ":"💰 Você recebeu ")+fmt(v)+(de==="central"?" da central":" de "+(eDe?eDe.nome:""))+(fMot.value.trim()&&de!=="central"?" ("+fMot.value.trim()+")":"")+". Já está no seu saldo.");
+      if(deUid) await av(deUid,"🔁 A central transferiu "+fmt(v)+" do seu saldo para "+(ePara?ePara.nome:"")+(fMot.value.trim()?" ("+fMot.value.trim()+")":"")+".");
+      fechar(); toast(de==="central"?"Bônus enviado para "+(ePara?ePara.nome:""):"Transferência feita");
+    }catch(e){ ok.disabled=false; atu(); erro("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
+  });
+  const fechar=abrirSheet("Enviar saldo",[
+    h("div",{class:"campo"},h("label",{for:"tcDe",text:"Sai de"}),fDe),
+    h("div",{class:"campo"},h("label",{for:"tcPara",text:"Vai para"}),fPara),
+    h("div",{class:"campo"},h("label",{for:"tcVal",text:"Valor (R$)"}),fVal),
+    h("div",{class:"campo"},h("label",{for:"tcMot",text:"Motivo"}),fMot),
+    h("p",{class:"muted",style:"margin:0;font-size:12px",text:"Feita pela central, a transferência já entra aprovada: soma na fatura de quem recebe e, se sair de um entregador, desconta da dele. Bônus da central sai da parte da central no fechamento."}),
+    msg,ok]);
 }
 
 async function renderCarteira(box){
@@ -7095,94 +7139,117 @@ async function uidsDaCentral(){
   if(l.length) S.uidsCentral=l;
   return l;
 }
-/* ===== Bate-papo entregador ↔ central =====
-   chats/<uid do entregador>              resumo da conversa {nome, aberto, ultima, naoLidaCentral, naoLidaEnt}
-   chat/<uid do entregador>/msgs/<id>     cada mensagem {texto, lado:"central"|"entregador", nome, em}
-   Cada mensagem também gera um recado (já marcado como lido) só para o celular tocar com o app fechado. */
+/* ===== Mensagens (bate-papo) =====
+   chats/<id>            resumo da conversa
+     · conversa com a central: id = uid do entregador {nome, aberto, ultima, naoLidaCentral, naoLidaEnt}
+     · entre dois entregadores: id = "dd_<uidA>_<uidB>" {tipo:"par", participantes, nomes, nl_<uid>: não lida}
+   chat/<id>/msgs/<id>   cada mensagem {texto, lado, nome, em}
+   Cada mensagem também gera um recado (já marcado como lido) só para o celular tocar com o app fechado.
+   A central lê todas as conversas (inclusive entre entregadores e entre comércio e entregador). */
 S.chatJanelas=S.chatJanelas||{};
+const ehPar=c=>!!(c && c.tipo==="par");
+const chatDoc=id=>(S.chats||[]).find(c=>c.id===id)||null;
 function ouvirChats(){
   if(S.subChats){ S.subChats(); S.subChats=null; }
-  if(!S.db || !S.uid) return;
-  if(central()){
-    S.subChats=S.db.collection("chats").onSnapshot(snap=>{
-      S.chats=snap.docs.map(d=>({id:d.id,...d.data()}));
-      S.chats.filter(c=>c.aberto && c.naoLidaCentral).forEach(c=>abrirChat(c.id,c.nome||"Entregador",true));
-      Object.keys(S.chatJanelas).forEach(k=>{ const c=S.chats.find(x=>x.id===k); if(c && !c.aberto) S.chatJanelas[k].encerrada(c.encerradoPor); });
-      pintarDockChats();
-    },()=>{});
-  } else if(S.modo==="entregador"){
-    S.subChats=S.db.doc("chats/"+S.uid).onSnapshot(sn=>{ const c=sn.exists?(sn.data()||{}):null; if(!c) return;
-      if(c.aberto && c.naoLidaEnt) abrirChat(S.uid,"Central",true);
-      if(!c.aberto && S.chatJanelas[S.uid]) S.chatJanelas[S.uid].encerrada(c.encerradoPor); },()=>{});
-  }
+  if(!S.db || !S.uid || !(central()||S.modo==="entregador")) return;
+  S.subChats=S.db.collection("chats").onSnapshot(snap=>{
+    const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
+    S.chats = central() ? todos : todos.filter(c=>c.id===S.uid || (Array.isArray(c.participantes) && c.participantes.includes(S.uid)));
+    if(central()) S.chats.filter(c=>!ehPar(c) && c.aberto && c.naoLidaCentral).forEach(c=>abrirChat(c.id,true));
+    else S.chats.forEach(c=>{ if(ehPar(c) ? c["nl_"+S.uid] : (c.aberto && c.naoLidaEnt)) abrirChat(c.id,true); });
+    Object.keys(S.chatJanelas).forEach(k=>{ const c=chatDoc(k); if(c && !ehPar(c) && !c.aberto) S.chatJanelas[k].encerrada(c.encerradoPor); });
+    pintarDockChats(); if(S.redesenharMensagens) S.redesenharMensagens();
+  },()=>{});
+}
+function tituloChat(id){
+  const c=chatDoc(id);
+  if(ehPar(c)){ const n=c.nomes||{}; if(central()) return (c.participantes||[]).map(u=>n[u]||"?").join(" ↔ "); return n[(c.participantes||[]).find(u=>u!==S.uid)]||"Entregador"; }
+  return central() ? ((c&&c.nome)||"Entregador") : "Central";
 }
 /* central: conversas abertas que foram minimizadas ficam num botãozinho no canto */
 function pintarDockChats(){
   let d=document.getElementById("chatDock");
-  const abertos=(S.chats||[]).filter(c=>c.aberto && !S.chatJanelas[c.id]);
-  if(!central() || !abertos.length){ if(d) d.remove(); return; }
+  const abertos=central()?(S.chats||[]).filter(c=>!ehPar(c) && c.aberto && !S.chatJanelas[c.id]):[];
+  if(!abertos.length){ if(d) d.remove(); return; }
   if(!d){ d=h("div",{id:"chatDock",style:"position:fixed;left:12px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:9990;display:flex;flex-direction:column;gap:6px"}); document.body.append(d); }
-  d.replaceChildren(...abertos.map(c=>h("button",{class:"btn",type:"button",style:"box-shadow:0 6px 18px rgba(0,0,0,.25);padding:8px 14px;font-size:14px",onclick:()=>abrirChat(c.id,c.nome||"Entregador",false)},"💬 "+(c.nome||"Entregador"))));
+  d.replaceChildren(...abertos.map(c=>h("button",{class:"btn",type:"button",style:"box-shadow:0 6px 18px rgba(0,0,0,.25);padding:8px 14px;font-size:14px",onclick:()=>abrirChat(c.id,false)},"💬 "+(c.nome||"Entregador"))));
 }
-async function enviarChat(conv,nomeEnt,texto){
-  const ag=new Date().toISOString(), id="m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const novoIdMsg=()=>"m"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function avisarCelular(uids,texto,conv){
+  const ag=new Date().toISOString();
+  uids.filter(Boolean).forEach(uid=>{ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    S.db.doc("recados/"+rid).set({tipo:"chat",para:uid,de:central()?"Central":(S.euNome||"Entregador"),deUid:S.uid||"",conv,texto,criadoEm:ag,lidoEm:ag}).catch(()=>{}); });
+}
+async function enviarChat(conv,texto){
+  const ag=new Date().toISOString(), c=chatDoc(conv);
+  if(ehPar(c)){
+    const outro=(c.participantes||[]).find(u=>u!==S.uid);
+    await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado:S.uid,nome:S.euNome||"Entregador",uid:S.uid||"",em:ag}));
+    await comRetry(()=>S.db.doc("chats/"+conv).update({ultima:texto,ultimaDe:S.uid,atualizadoEm:ag,["nl_"+outro]:true}));
+    avisarCelular([outro],texto,conv); return;
+  }
   const lado=central()?"central":"entregador";
-  await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+id).set({texto,lado,nome:central()?"Central":(S.euNome||"Entregador"),uid:S.uid||"",em:ag}));
+  const nomeEnt=central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador");
+  await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado,nome:central()?"Central":nomeEnt,uid:S.uid||"",em:ag}));
   await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:""}));
-  // aviso no celular (com o app fechado) para o outro lado
-  const destinos=lado==="central"?[conv]:await uidsDaCentral();
-  for(const uid of destinos){ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-    S.db.doc("recados/"+rid).set({tipo:"chat",para:uid,de:lado==="central"?"Central":(S.euNome||"Entregador"),deUid:S.uid||"",conv,texto,criadoEm:ag,lidoEm:ag}).catch(()=>{}); }
+  avisarCelular(lado==="central"?[conv]:await uidsDaCentral(),texto,conv);
 }
-function abrirChat(conv,nome,chegou){
+const horaCurta=iso=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+/* balão do tamanho da mensagem, com a hora pequena na frente */
+function balao(m,meu,comNome){
+  return h("div",{style:"max-width:85%;width:fit-content;align-self:"+(meu?"flex-end":"flex-start")+";background:"+(meu?"var(--royal)":"var(--card,#fff)")+";color:"+(meu?"#fff":"var(--ink)")+";border-radius:14px;padding:6px 10px;box-shadow:0 1px 2px rgba(0,0,0,.08)"},
+    comNome&&!meu?h("div",{style:"font-size:11.5px;font-weight:800;color:var(--royal)",text:m.nome||""}):null,
+    h("div",{style:"display:flex;align-items:flex-end;gap:8px"},
+      h("span",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.3",text:m.texto}),
+      h("span",{style:"font-size:10.5px;opacity:.7;white-space:nowrap;flex:none;line-height:1.6",text:horaCurta(m.em)})));
+}
+function abrirChat(conv,chegou){
   const ja=S.chatJanelas[conv];
   if(ja){ ja.frente(); if(chegou) ja.marcarLida(); return; }
-  const nomeEnt = central() ? nome : (S.euNome||"Entregador");
-  const lista=h("div",{style:"flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
+  const c0=chatDoc(conv), par=ehPar(c0), soLer=central()&&par;
+  const meuLado = par ? S.uid : (central()?"central":"entregador");
+  const lista=h("div",{style:"flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:5px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
   const txt=h("textarea",{class:"inp",rows:"2",maxlength:"500",placeholder:"Escreva a mensagem",style:"resize:none;flex:1;min-height:44px"});
   const env=h("button",{class:"btn",type:"button",style:"flex:none;padding:0 16px"},"Enviar");
-  const prontos = central() ? ["Ok, entendido 👍","Me liga, por favor"] : ["Cliente não atende","Me liga, por favor"];
+  const prontos = central() ? ["Ok, entendido 👍","Me liga, por favor"] : par ? ["Me liga, por favor"] : ["Cliente não atende","Me liga, por favor"];
   const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
   const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Minimizar",title:"Minimizar"},"—");
-  const btFim=h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
+  const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
-  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+nome,style:"position:fixed;z-index:9996;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(calc(-50% + "+(n*28)+"px));width:min(440px,calc(100vw - 24px));max-height:min(560px,78vh);background:var(--card,#fff);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px;padding:12px;border:2px solid var(--royal)"},
-    h("div",{style:"display:flex;align-items:center;gap:8px"},h("b",{style:"flex:1;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+(central()?nome:"Central")}),btFim,btMin),
-    lista,chips,h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env));
+  const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env);
+  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(calc(-50% + "+(n*28)+"px));width:min(440px,calc(100vw - 24px));max-height:min(560px,78vh);background:var(--card,#fff);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px;padding:12px;border:2px solid var(--royal)"},
+    h("div",{style:"display:flex;align-items:center;gap:8px"},h("b",{style:"flex:1;font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim,btMin),
+    lista,soLer?null:chips,rodape);
   document.body.append(jan);
   let unsub=null, primeira=true, fechada=false;
-  const marcarLida=()=>{ S.db.doc("chats/"+conv).update(central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
+  const marcarLida=()=>{ if(soLer) return; S.db.doc("chats/"+conv).update(par?{["nl_"+S.uid]:false}:central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
   const fechar=()=>{ if(fechada) return; fechada=true; if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
-  const hora=iso=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
   unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
-    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-60);
-    const meuLado=central()?"central":"entregador";
-    lista.replaceChildren(...(ms.length?ms.map(m=>{ const meu=m.lado===meuLado, sis=m.lado==="sistema";
-      return sis ? h("div",{style:"align-self:center;font-size:12px;color:var(--muted);text-align:center",text:m.texto+" · "+hora(m.em)})
-        : h("div",{style:"max-width:82%;align-self:"+(meu?"flex-end":"flex-start")+";background:"+(meu?"var(--royal)":"var(--card,#fff)")+";color:"+(meu?"#fff":"var(--ink)")+";border-radius:14px;padding:7px 11px;box-shadow:0 1px 2px rgba(0,0,0,.08)"},
-            h("div",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere",text:m.texto}),
-            h("div",{style:"font-size:11px;opacity:.75;text-align:right",text:(meu?"":m.nome+" · ")+hora(m.em)})); })
-      :[h("p",{class:"muted",style:"margin:auto;font-size:13px;text-align:center",text:central()?"Sem mensagens ainda.":"Escreva para a central. Ela recebe na hora."})]));
+    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
+    lista.replaceChildren(...(ms.length?ms.map(m=>m.lado==="sistema"
+        ? h("div",{style:"align-self:center;font-size:12px;color:var(--muted);text-align:center",text:m.texto+" · "+horaCurta(m.em)})
+        : balao(m, soLer ? m.uid===(c0.participantes||[])[0] : m.lado===meuLado, soLer))
+      :[h("p",{class:"muted",style:"margin:auto;font-size:13px;text-align:center",text:central()?"Sem mensagens ainda.":"Escreva a mensagem. Chega na hora."})]));
     lista.scrollTop=lista.scrollHeight;
     const ult=ms[ms.length-1];
-    if(ult && ult.lado!==meuLado && ult.lado!=="sistema"){ marcarLida(); if(!primeira) try{ bip(); }catch(e){} }
-    chips.hidden=ms.length>2;
+    if(ult && ult.lado!==meuLado && ult.lado!=="sistema" && !soLer){ marcarLida(); if(!primeira) try{ bip(); }catch(e){} }
+    chips.hidden=ms.filter(m=>m.lado!=="sistema").length>2;
     primeira=false;
   },()=>{});
   const mandar=async()=>{ const t=txt.value.trim(); if(!t) return; env.disabled=true;
-    try{ await enviarChat(conv,nomeEnt,t); txt.value=""; txt.focus(); }catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
+    try{ await enviarChat(conv,t); txt.value=""; txt.focus(); }catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
     env.disabled=false; };
   env.addEventListener("click",mandar);
   txt.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); mandar(); } });
   btMin.addEventListener("click",fechar);
-  let armado=false;
-  btFim.addEventListener("click",async()=>{
-    if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
-    const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador");
-    try{ await S.db.doc("chat/"+conv+"/msgs/m"+Date.now().toString(36)).set({texto:"Conversa encerrada "+quem,lado:"sistema",nome:"",uid:S.uid||"",em:ag});
-      await S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:false,ultima:"",ultimaDe:"sistema",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
-    fechar(); toast("Conversa encerrada");
-  });
+  if(btFim){ let armado=false;
+    btFim.addEventListener("click",async()=>{
+      if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
+      const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador"), c=chatDoc(conv);
+      try{ await S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto:"Conversa encerrada "+quem,lado:"sistema",nome:"",uid:S.uid||"",em:ag});
+        await S.db.doc("chats/"+conv).set({uid:conv,nome:central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador"),aberto:false,ultima:"Conversa encerrada",ultimaDe:"sistema",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
+      fechar(); toast("Conversa encerrada");
+    }); }
   S.chatJanelas[conv]={
     frente:()=>{ document.body.append(jan); },
     marcarLida,
@@ -7190,9 +7257,94 @@ function abrirChat(conv,nome,chegou){
       toast("Conversa encerrada"+(quem?" "+quem:"")); setTimeout(fechar,2500); }};
   if(chegou){ marcarLida(); try{ bip(); }catch(e){} try{ if(navigator.vibrate) navigator.vibrate([200,80,200]); }catch(e){} }
   pintarDockChats();
-  if(!chegou) setTimeout(()=>{ try{ txt.focus(); }catch(e){} },100);
+  if(!chegou && !soLer) setTimeout(()=>{ try{ txt.focus(); }catch(e){} },100);
 }
-function abrirFaleCentral(){ abrirChat(S.uid,"Central",false); }
+function abrirFaleCentral(){ abrirChat(S.uid,false); }
+
+/* conversa nova entre dois entregadores: só pelo QR (a chave MV-… de cada um) */
+async function iniciarConversaPorChave(ch){
+  const eq=await equipeTodos(), dest=eq.find(e=>chaveDe(e.id)===String(ch||"").trim().toUpperCase());
+  if(!dest){ toast("QR não reconhecido. Peça para o colega abrir Mensagens › Nova conversa › Mostrar meu QR."); return; }
+  if(dest.id===S.eu){ toast("Esse QR é o seu."); return; }
+  if(!dest.uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",dest.id).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false); if(v) dest.uid=v.id; }catch(e){} }
+  if(!dest.uid){ toast(dest.nome+" ainda não entra pelo app."); return; }
+  const conv="dd_"+[S.uid,dest.uid].sort().join("_");
+  if(chatDoc(conv)){ abrirChat(conv,false); return; }
+  const ag=new Date().toISOString();
+  const d={tipo:"par",participantes:[S.uid,dest.uid],nomes:{[S.uid]:S.euNome||"Entregador",[dest.uid]:dest.nome||"Entregador"},iniciadoPor:S.uid,criadoEm:ag,ultima:"Conversa iniciada",ultimaDe:"sistema",atualizadoEm:ag,["nl_"+dest.uid]:true,["nl_"+S.uid]:false};
+  try{ await comRetry(()=>S.db.doc("chats/"+conv).set(d));
+    await S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto:(S.euNome||"Entregador")+" iniciou a conversa",lado:"sistema",nome:"",uid:S.uid||"",em:ag});
+    avisarCelular([dest.uid],(S.euNome||"Um colega")+" iniciou uma conversa com você",conv);
+    S.chats=[...(S.chats||[]),{id:conv,...d}]; toast("Conversa com "+dest.nome+" iniciada"); abrirChat(conv,false); }
+  catch(e){ toast("Não foi possível iniciar ("+(e&&e.code||"erro")+")."); }
+}
+function abrirNovaConversa(){
+  const item=(ic,t,d,fn)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:ic}),h("span",{style:"display:flex;flex-direction:column;gap:2px"},h("span",{text:t}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:d})));
+    b.addEventListener("click",()=>{ fechar(); fn(); }); return b; };
+  const semLeitor=!("BarcodeDetector" in window);
+  const fCh=h("input",{class:"inp num",placeholder:"MV-XXXXXX",style:"text-transform:uppercase;letter-spacing:.06em"});
+  const fechar=abrirSheet("Nova conversa",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Conversa entre entregadores começa pelo QR: um mostra, o outro lê. Depois o contato fica salvo em Mensagens. A central acompanha as conversas."}),
+    item("▦","Mostrar meu QR","Para o colega ler com o celular dele",()=>mostrarMeuQR("Mostre para o colega ler em Mensagens › Nova conversa › Ler QR.")),
+    item("📷","Ler QR do colega","Aponte a câmera para o QR dele",()=>lerQR(ch=>iniciarConversaPorChave(ch))),
+    semLeitor?h("div",{class:"campo"},h("label",{text:"Este celular não lê QR: digite a chave que aparece embaixo do QR do colega"}),h("div",{style:"display:flex;gap:8px"},fCh,h("button",{class:"btn",type:"button",onclick:()=>{ fechar(); iniciarConversaPorChave(fCh.value); }},"Iniciar"))):null]);
+}
+/* menu › Mensagens: lista das conversas (central, colegas; na central também as dos comércios) */
+function abrirMensagens(){
+  const corpo=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
+  const quando=iso=>{ if(!iso) return ""; const d=new Date(iso); return isoDia(d)===hoje()?horaCurta(iso):d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}); };
+  const linha=(titulo,prev,iso,naoLida,fn,ic)=>{ const b=h("button",{class:"painel",type:"button",style:"flex-direction:row;align-items:center;gap:10px;padding:10px 12px;text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit"+(naoLida?";border-color:var(--laranja)":"")},
+      h("span",{style:"font-size:22px;flex:none",text:ic||"💬"}),
+      h("span",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},h("b",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:titulo}),h("span",{class:"muted",style:"font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:prev||""})),
+      h("span",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none"},h("span",{class:"muted num",style:"font-size:11.5px",text:quando(iso)}),naoLida?h("span",{style:"width:10px;height:10px;border-radius:50%;background:var(--laranja)"}):null));
+    b.addEventListener("click",fn); return b; };
+  const sec=t=>h("div",{class:"eyebrow",style:"margin-top:6px",text:t});
+  let recadosCom=null;
+  const desenhar=()=>{
+    if(!corpo.isConnected && recadosCom!==null){ S.redesenharMensagens=null; return; }
+    const cs=(S.chats||[]).slice().sort((a,b)=>String(b.atualizadoEm||"").localeCompare(String(a.atualizadoEm||"")));
+    const itens=[];
+    if(central()){
+      const cen=cs.filter(c=>!ehPar(c)), par=cs.filter(ehPar);
+      itens.push(sec("Entregadores ↔ Central"));
+      itens.push(...(cen.length?cen.map(c=>linha(c.nome||"Entregador",c.ultima,c.atualizadoEm,c.naoLidaCentral,()=>abrirChat(c.id,false),"🛵")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa ainda."})]));
+      itens.push(sec("Entre entregadores"));
+      itens.push(...(par.length?par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,false,()=>abrirChat(c.id,false),"👥")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa entre entregadores."})]));
+      itens.push(sec("Comércios ↔ entregadores"));
+      if(recadosCom===null) itens.push(h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Carregando…"}));
+      else itens.push(...(recadosCom.length?recadosCom.map(t=>linha(t.titulo,t.ultima,t.em,false,()=>verConversaRecados(t),"🏪")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhum recado entre comércio e entregador."})]));
+    }else{
+      const cen=chatDoc(S.uid);
+      itens.push(linha("Central",cen?cen.ultima:"Fale com a central",cen&&cen.atualizadoEm,!!(cen&&cen.aberto&&cen.naoLidaEnt),()=>abrirChat(S.uid,false),"🏢"));
+      const par=cs.filter(ehPar);
+      if(par.length) itens.push(sec("Colegas"));
+      itens.push(...par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,!!c["nl_"+S.uid],()=>abrirChat(c.id,false),"🛵")));
+      itens.push(h("button",{class:"btn full",type:"button",style:"margin-top:6px",onclick:()=>abrirNovaConversa()},"＋ Nova conversa"));
+    }
+    corpo.replaceChildren(...itens);
+  };
+  S.redesenharMensagens=desenhar;
+  abrirSheet("Mensagens",[corpo]);
+  desenhar();
+  if(central()) carregarRecadosComercio().then(l=>{ recadosCom=l; desenhar(); }).catch(()=>{ recadosCom=[]; desenhar(); });
+}
+/* central: recados entre comércio e entregador, juntados por par */
+async function carregarRecadosComercio(){
+  const cen=new Set(await uidsDaCentral());
+  const sn=await S.db.collection("recados").get();
+  const rs=sn.docs.map(d=>({id:d.id,...d.data()})).filter(r=>(!r.tipo || r.tipo==="resposta") && r.deUid && r.para && !cen.has(r.deUid) && !cen.has(r.para) && r.deUid!==r.para);
+  const nomes={}, grupos={};
+  rs.forEach(r=>{ if(r.de) nomes[r.deUid]=r.de; if(r.paraNome) nomes[r.para]=nomes[r.para]||r.paraNome;
+    const k=[r.deUid,r.para].sort().join("|"); (grupos[k]=grupos[k]||[]).push(r); });
+  return Object.entries(grupos).map(([k,l])=>{ l.sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm))); const [a,b]=k.split("|"), u=l[l.length-1];
+    return {titulo:(nomes[a]||"?")+" ↔ "+(nomes[b]||"?"),ultima:u.texto,em:u.criadoEm,msgs:l,primeiro:l[0].deUid}; })
+    .sort((x,y)=>String(y.em).localeCompare(String(x.em)));
+}
+function verConversaRecados(t){
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:5px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"},
+    ...t.msgs.map(r=>balao({texto:r.texto+(r.numero?" · #"+r.numero:""),em:r.criadoEm,nome:r.de},r.deUid!==t.primeiro,true)));
+  abrirSheet(t.titulo,[h("p",{class:"muted",style:"margin:0;font-size:12px",text:"Só leitura: recados entre comércio e entregador."}),lista]);
+}
 $("#btnFaleCentral").addEventListener("click",()=>abrirFaleCentral());
 /* ---------- COMÉRCIO: CONFIRMAR O ACERTO DO DINHEIRO ----------
    Pedido em dinheiro finalizado aparece num aviso vermelho na tela do comércio até ele confirmar que recebeu o dinheiro
@@ -7533,7 +7685,8 @@ function fechamentoCentral(ent,de,ate){
     const cobTotal=ids.reduce((s,id)=>s+g[id].cob,0), pagoFora=fora.reduce((s,id)=>s+g[id].valor,0);
     const linhas=fora.map(id=>{ const x=g[id], vl=valesDe(id), tr=ajusteTransf(id,de,ate); return [nomeEnt(id),String(x.prin),String(x.outras),String(x.ad),String(x.prin+x.outras+x.ad),fmt(x.valor),(vl?"− "+fmt(vl):"—")+(tr?" · transf. "+(tr>0?"+":"−")+fmt(Math.abs(tr)):""),fmt(x.valor-vl+tr)]; });
     const doCentral=dentro.reduce((s,id)=>s+g[id].prin+g[id].outras,0);
-    const valorCentral=cobTotal-pagoFora;
+    const bonusCentral=(S.transf||[]).filter(x=>x.status==="aprovada" && x.de==="central" && x.dataAprov>=de && x.dataAprov<=ate).reduce((s2,x)=>s2+num(x.valor),0);
+    const valorCentral=cobTotal-pagoFora-bonusCentral;
     linhas.push(["Central"+(dentro.length?" ("+dentro.map(nomeEnt).join(", ")+")":""),String(dentro.reduce((s,id)=>s+g[id].prin,0)),String(dentro.reduce((s,id)=>s+g[id].outras,0)),"—",String(doCentral),fmt(valorCentral),"—",fmt(valorCentral)]);
     const totPrin=ids.reduce((s,id)=>s+g[id].prin,0), totOut=ids.reduce((s,id)=>s+g[id].outras,0);
     const btVale=h("button",{class:"btn sec",type:"button"},"＋ Lançar vale (adiantamento)");
