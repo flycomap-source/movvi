@@ -7141,7 +7141,7 @@ function abrirChat(conv,nome,chegou){
   const lista=h("div",{style:"flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
   const txt=h("textarea",{class:"inp",rows:"2",maxlength:"500",placeholder:"Escreva a mensagem",style:"resize:none;flex:1;min-height:44px"});
   const env=h("button",{class:"btn",type:"button",style:"flex:none;padding:0 16px"},"Enviar");
-  const prontos = central() ? ["Ok, entendido 👍","Já resolvo","Me liga, por favor","Pode seguir"] : ["Cliente não atende","Endereço não encontrado","Preciso de troco","Estou indo para a central","Me liga, por favor"];
+  const prontos = central() ? ["Ok, entendido 👍","Me liga, por favor"] : ["Cliente não atende","Me liga, por favor"];
   const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
   const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Minimizar",title:"Minimizar"},"—");
   const btFim=h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
@@ -8139,6 +8139,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
   db.collection("empresas").onSnapshot(snap=>{ S.empresas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome).sort((a,b)=>a.nome.localeCompare(b.nome)); },()=>{});
   if(S.admin){
     S.modo="central"; aplicarModo();
+    ouvirRecados();   // recados, avisos de Pix, transferências e bate-papo com os entregadores
     exigirSenha("central");
     db.collection("equipe").onSnapshot(snap=>{
       S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome);
