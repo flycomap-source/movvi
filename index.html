@@ -3690,7 +3690,18 @@ async function abrirNotasPendentes(){
     const res=await Promise.all(fontes().map(col=>S.db.collection(col).where("pagamento","==","convenio").limit(500).get()
       .then(sn=>sn.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}))).catch(()=>[])));
     const ps=[].concat(...res).filter(p=>p.status==="entregue" && !p.notaDevolvida).sort((a,b)=>String(a.entregueEm||a.data).localeCompare(String(b.entregueEm||b.data)));
-    const desenhar=()=>lista.replaceChildren(...(ps.length?ps.map(p=>{
+    // "Devolvi todas": marca todas as notas da lista de uma vez (toque duas vezes para confirmar)
+    const btTodas=()=>{ if(ps.length<2) return null;
+      const b=h("button",{class:"btn full",type:"button",style:"font-size:16px"},"✅ Devolvi todas as notas ("+ps.length+")");
+      let armado=false;
+      b.addEventListener("click",async()=>{
+        if(!armado){ armado=true; b.textContent="Confirmar: marcar as "+ps.length+" notas como devolvidas"; setTimeout(()=>{ if(armado&&b.isConnected){ armado=false; b.textContent="✅ Devolvi todas as notas ("+ps.length+")"; } },4000); return; }
+        b.disabled=true; b.textContent="Marcando…"; let ok=0;
+        for(const p of ps.slice()){ try{ await marcarNotaDevolvida(p,true); ps.splice(ps.indexOf(p),1); ok++; }catch(e){} }
+        desenhar(); toast(ok+(ok===1?" nota marcada como devolvida":" notas marcadas como devolvidas")+(ps.length?" · "+ps.length+" não deu, tente de novo":""));
+      });
+      return b; };
+    const desenhar=()=>lista.replaceChildren(...[btTodas()].filter(Boolean),...(ps.length?ps.map(p=>{
       const bt=h("button",{class:"btn sec",type:"button",style:"flex:none"},"Devolvida");
       bt.addEventListener("click",async()=>{ bt.disabled=true; try{ await marcarNotaDevolvida(p,true); ps.splice(ps.indexOf(p),1); desenhar(); toast("Nota marcada como devolvida"); }catch(e){ bt.disabled=false; toast("Não foi possível marcar ("+(e&&e.code||"erro")+")."); } });
       return h("div",{class:"painel",style:"flex-direction:row;align-items:center;gap:10px"},
@@ -6203,6 +6214,19 @@ function kpiDinheiroComigo(){
   bt.addEventListener("click",()=>{ if(info) abrirDevolverDinheiro(info); });
   return box;
 }
+/* entregador: notas de convênio assinadas que ele ainda precisa levar de volta (só aparece quando tem) */
+function kpiNotasDevolver(){
+  const val=h("b",{class:"num"});
+  const bt=h("button",{class:"btn",type:"button",style:"padding:6px 12px;font-size:14px"},"Devolver");
+  const box=h("div",{class:"kpi",style:"border-color:var(--royal)",hidden:true},h("span",{text:"✍ Notas a devolver"}),
+    h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"},val,bt));
+  Promise.all(fontes().map(col=>S.db.collection(col).where("pagamento","==","convenio").limit(500).get()
+      .then(sn=>sn.docs.map(d=>d.data())).catch(()=>[])))
+    .then(res=>{ const n=[].concat(...res).filter(p=>p.status==="entregue" && !p.notaDevolvida).length;
+      if(n>0){ val.textContent=n+(n===1?" nota":" notas"); box.hidden=false; } });
+  bt.addEventListener("click",()=>abrirNotasPendentes());
+  return box;
+}
 function abrirDevolverDinheiro(info){
   const marcar=async(bt,lista,upd,okTxt)=>{ bt.disabled=true; const txt=bt.textContent; bt.textContent="Registrando…";
     try{ const ag=new Date().toISOString(); for(const p of lista) await comRetry(()=>S.db.doc(p._path).update(upd(ag)));
@@ -6381,7 +6405,8 @@ async function calcularFatura(){
     kpi(porSemana?(com?"A receber (semanas fechadas)":central()?"A pagar (semanas fechadas)":"A receber (semanas fechadas)"):(com?"A receber":"A pagar"),fmt(aPagar)),
     kpi(com?"Já recebido":"Já pago",fmt(pagoTot)),
     porSemana?kpi("Semana em andamento",fmt(emAndamento)):kpi("Entregas",String(linhas.reduce((s2,w)=>s2+w.itens.length,0))),
-    (S.modo==="entregador" && fatTipo==="entregador") ? kpiDinheiroComigo() : null].filter(Boolean));
+    (S.modo==="entregador" && fatTipo==="entregador") ? kpiDinheiroComigo() : null,
+    (S.modo==="entregador" && fatTipo==="entregador") ? kpiNotasDevolver() : null].filter(Boolean));
   $("#fatCards").hidden=false;
   out.replaceChildren(h("h3",{style:"margin:0",text:nome}),...cards);
   // fatura do comércio: dinheiro dele que está com a central (ele tem a receber) e que pode ser abatido da fatura
