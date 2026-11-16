@@ -4578,8 +4578,12 @@ function montarRotaPorFotos(restaurar){
     desenhar();
   }
   btOrdem.addEventListener("click",organizar);
+  // ao lado: "Lançar por demanda" (comandas de empresas diferentes, cada uma vira entrega separada)
+  const btDem=h("button",{class:"btn lar",type:"button",style:"background:var(--laranja);border-color:var(--laranja)"},"📚 Lançar por demanda");
+  btDem.addEventListener("click",()=>{ if(paradas.length && !confirm("Sair da rota? As comandas já lidas ficam salvas no rascunho.")) return; fechar(); abrirPorDemanda(); });
+  btCam.classList.remove("full");
   const fechar=abrirSheet("Criar rota",[
-    h("div",{style:"display:flex;flex-direction:column;gap:8px"},btCam,btGal,inpCam,inpGal),
+    h("div",{style:"display:flex;flex-direction:column;gap:8px"},h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btCam,btDem),btGal,inpCam,inpGal),
     vazio, caixa, btOrdem, infoOrdem, totAdic, msg, salvar]);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
