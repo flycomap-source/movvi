@@ -7269,18 +7269,72 @@ function situacaoEnt(equipeId){
   return {txt:[rota?"Em rota · "+rota+(rota>1?" entregas":" entrega"):"",col?"Indo coletar · "+col:""].filter(Boolean).join(" · "),n:ps.length};
 }
 const haQuanto=iso=>{ const s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000)); return s<60?"agora":s<3600?"há "+Math.round(s/60)+" min":"há "+Math.floor(s/3600)+" h"; };
+
+/* pontos de coleta (comércio ou endereço) com pedido em aberto hoje */
+const FECHADOS=["entregue","cancelado","recusado","excluido"];
+function pontosEmAberto(){
+  const g={};
+  (S.pedidosDia||[]).filter(p=>!FECHADOS.includes(p.status) && !p.acertado).forEach(p=>{
+    const nome=p.coletaEmpresa||p.coletaEndereco||""; if(!nome) return;
+    const k=slug(nome); const c=(S.comercios||[]).find(x=>slug(x.nome)===slug(p.coletaEmpresa||""));
+    (g[k]=g[k]||{chave:k,nome,endereco:(c&&c.endereco)||p.coletaEndereco||"",ehComercio:!!(c||p.coletaEmpresa),pedidos:[]}).pedidos.push(p); });
+  return Object.values(g);
+}
+S.geo=S.geo||{};
+let geoFila=Promise.resolve();
+/* procura o endereço no OpenStreetMap (1 por segundo), só dentro de Unaí; guarda em geo/<chave> */
+function geocodificar(pt){
+  if(S.geo[pt.chave] || !pt.endereco) return Promise.resolve(S.geo[pt.chave]||null);
+  geoFila=geoFila.then(async()=>{
+    if(S.geo[pt.chave]) return;
+    const tenta=async q=>{ const u="https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&viewbox=-47.10,-16.20,-46.70,-16.55&bounded=1&q="+encodeURIComponent(q);
+      const r=await fetch(u,{headers:{"Accept-Language":"pt-BR"}}); const j=await r.json(); return j&&j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null; };
+    let res=null;
+    try{ res=await tenta(pt.endereco+", Unaí - MG"); if(!res){ await new Promise(r=>setTimeout(r,1100)); res=await tenta(pt.endereco.replace(/,?\s*\d+.*$/,"")+", Unaí - MG"); } }catch(e){}
+    if(res){ S.geo[pt.chave]={...res,endereco:pt.endereco,nome:pt.nome,manual:false}; S.db.doc("geo/"+pt.chave).set({...S.geo[pt.chave],em:new Date().toISOString()}).catch(()=>{}); }
+    else S.geo[pt.chave]={semLocal:true};
+    await new Promise(r=>setTimeout(r,1100));
+  });
+  return geoFila.then(()=>S.geo[pt.chave]);
+}
 function abrirMapaEntregadores(){
   const area=h("div",{style:"flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative"},h("p",{class:"muted",style:"margin:auto;padding:20px;text-align:center",text:"Carregando o mapa…"}));
   const lista=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:none"});
   const info=h("span",{class:"muted",style:"font-size:12px",text:""});
+  const resumoLoj=h("span",{style:"font-size:12.5px;font-weight:800;color:var(--royal)"});
+  const avisoLocal=h("span",{class:"muted",style:"font-size:11.5px",hidden:true});
   const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
   const jan=h("div",{role:"dialog","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
-    lista,area,
-    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"Aparece quem está disponível com o app aberto. Cinza = sem posição nova há mais de 5 minutos (app fechado ou sem sinal)."}));
+    lista,resumoLoj,area,avisoLocal,
+    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores disponíveis com o app aberto (⚪ = sem posição há mais de 5 min). 🏪 locais com pedido em aberto e a quantidade; somem quando os pedidos são finalizados."}));
   document.body.append(jan);
-  let mapa=null, marcas={}, unsub=null, tic=null, primeira=true, pos=[];
-  const fechar=()=>{ if(unsub) unsub(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapa) history.back(); }catch(e){} };
+  let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];
+  const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
+  const situacaoPed=p=>p.emRotaEm?"🛵 Em rota"+(p.entregadorId?" · "+nomeEnt(p.entregadorId):""):p.entregadorId?"⏳ Indo coletar · "+nomeEnt(p.entregadorId):"🕐 Aguardando entregador";
+  const iconeLoja=(pt)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;background:#004AAD;color:#fff;font:800 12px system-ui;padding:4px 8px 4px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap">'+(pt.ehComercio?"🏪":"📦")+' '+String(pt.nome).replace(/^farm[aá]cia\s+/i,"").replace(/[<>&]/g,"").slice(0,22)+' <span style="background:#E67E22;border-radius:999px;padding:0 6px;margin-left:2px">'+pt.pedidos.length+'</span></div>'});
+  const desenharLojas=()=>{
+    if(!mapa) return;
+    const pts=pontosEmAberto(), vivos=new Set();
+    pts.forEach(pt=>{
+      const g=S.geo[pt.chave];
+      if(!g){ geocodificar(pt).then(()=>desenharLojas()); return; }
+      if(g.semLocal||!g.lat) return;
+      vivos.add(pt.chave);
+      const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br><small>"+String(pt.endereco||"").replace(/[<>&]/g,"")+"</small><br>"+pt.pedidos.map(p=>(p.numero?"#"+p.numero+" ":"")+String(p.cliente||"").replace(/[<>&]/g,"").slice(0,24)+" — "+situacaoPed(p)).join("<br>")+"<br><small style='color:#888'>Ponto errado? Arraste o ícone para o lugar certo.</small>";
+      if(lojas[pt.chave]){ lojas[pt.chave].setLatLng([g.lat,g.lng]).setIcon(iconeLoja(pt)); lojas[pt.chave].setPopupContent(pop); }
+      else { const m=window.L.marker([g.lat,g.lng],{icon:iconeLoja(pt),draggable:true,zIndexOffset:-100}).addTo(mapa).bindPopup(pop);
+        m.on("dragend",()=>{ const ll=m.getLatLng(); S.geo[pt.chave]={lat:ll.lat,lng:ll.lng,endereco:pt.endereco,nome:pt.nome,manual:true};
+          S.db.doc("geo/"+pt.chave).set({...S.geo[pt.chave],em:new Date().toISOString()}).then(()=>toast("Local de "+pt.nome+" salvo")).catch(()=>{}); });
+        lojas[pt.chave]=m; } });
+    Object.keys(lojas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(lojas[k]); delete lojas[k]; } });
+    const semLocal=pts.filter(pt=>S.geo[pt.chave]&&S.geo[pt.chave].semLocal);
+    avisoLocal.hidden=!semLocal.length;
+    if(semLocal.length) avisoLocal.textContent="Sem localização no mapa: "+semLocal.map(pt=>pt.nome+" ("+pt.pedidos.length+")").join(", ")+". Endereço não encontrado.";
+    const nLoj=pts.reduce((a,pt)=>a+pt.pedidos.length,0);
+    resumoLoj.textContent=pts.length?"🏪 "+pts.length+(pts.length===1?" local":" locais")+" com "+nLoj+(nLoj===1?" pedido em aberto":" pedidos em aberto"):"Nenhum pedido em aberto";
+  };
+  const fechar=()=>{ if(unsub) unsub(); if(unsubGeo) unsubGeo(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapa) history.back(); }catch(e){} };
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
   try{ history.pushState({mapa:1},""); window.addEventListener("popstate",fechar,{once:true}); }catch(e){}
   const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
@@ -7298,17 +7352,19 @@ function abrirMapaEntregadores(){
       if(marcas[x.id]){ marcas[x.id].setLatLng([x.lat,x.lng]).setIcon(icone(x,velho)); marcas[x.id].setPopupContent(pop); }
       else marcas[x.id]=window.L.marker([x.lat,x.lng],{icon:icone(x,velho)}).addTo(mapa).bindPopup(pop); });
     Object.keys(marcas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(marcas[k]); delete marcas[k]; } });
+    if(primeira && !vis.length && Object.keys(lojas).length){ primeira=false; const b=Object.values(lojas).map(m=>{ const ll=m.getLatLng(); return [ll.lat,ll.lng]; }); if(b.length===1) mapa.setView(b[0],15); else mapa.fitBounds(b,{padding:[40,40],maxZoom:16}); }
     if(primeira && vis.length){ primeira=false; if(vis.length===1) mapa.setView([vis[0].lat,vis[0].lng],15); else mapa.fitBounds(vis.map(x=>[x.lat,x.lng]),{padding:[40,40],maxZoom:16}); }
   };
   unsub=S.db.collection("posicoes").onSnapshot(snap=>{ pos=snap.docs.map(d=>({id:d.id,...d.data()})); desenhar(); },()=>{});
-  tic=setInterval(desenhar,30000);
+  unsubGeo=S.db.collection("geo").onSnapshot(snap=>{ snap.docs.forEach(d=>{ const g=d.data()||{}; if(g.lat) S.geo[d.id]={...g}; }); desenharLojas(); },()=>{});
+  tic=setInterval(()=>{ desenhar(); desenharLojas(); },10000);
   carregarLeaflet().then(L=>{
     if(!jan.isConnected) return;
     area.replaceChildren(); const div=h("div",{style:"position:absolute;inset:0"}); area.append(div);
     mapa=L.map(div,{zoomControl:true}).setView([UNAI.lat,UNAI.lng],13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
-    desenhar();
+    desenhar(); desenharLojas();
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
 }
 
