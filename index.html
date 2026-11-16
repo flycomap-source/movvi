@@ -5995,7 +5995,8 @@ async function mostrarMeuQR(sub){
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:typeof sub==="string"?sub:"Mostre este QR para outro entregador te enviar saldo, ou passe a chave."}),
     alvo,
     h("div",{style:"text-align:center"},h("span",{class:"muted",style:"font-size:12px;display:block",text:"Sua chave"}),h("b",{class:"num",style:"font-size:28px;letter-spacing:.08em",text:ch}),h("span",{style:"display:block;font-weight:700",text:S.euNome||""})),
-    h("button",{class:"btn sec full",type:"button",onclick:async()=>{ try{ await navigator.clipboard.writeText(ch); toast("Chave copiada"); }catch(e){ toast(ch); } }},"Copiar chave")]);
+    h("button",{class:"btn sec full",type:"button",onclick:async()=>{ const t=typeof sub==="string"?"Meu código no Movvi+ para conversar: "+ch+" (Mensagens › Nova conversa › Colar código)":ch;
+      try{ await navigator.clipboard.writeText(t); toast(typeof sub==="string"?"Código copiado: é só colar no WhatsApp":"Chave copiada"); }catch(e){ toast(ch); } }},typeof sub==="string"?"📋 Copiar código para mandar no WhatsApp":"Copiar chave")]);
   try{ await carregarQRLib(); new window.QRCode(alvo,{text:QR_PREFIXO+ch,width:220,height:220,correctLevel:window.QRCode.CorrectLevel.M}); }
   catch(e){ alvo.append(h("p",{class:"muted",text:"Não foi possível desenhar o QR agora. Use a chave."})); }
 }
@@ -7330,13 +7331,23 @@ async function iniciarConversaPorChave(ch){
 function abrirNovaConversa(){
   const item=(ic,t,d,fn)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:ic}),h("span",{style:"display:flex;flex-direction:column;gap:2px"},h("span",{text:t}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:d})));
     b.addEventListener("click",()=>{ fechar(); fn(); }); return b; };
-  const semLeitor=!("BarcodeDetector" in window);
-  const fCh=h("input",{class:"inp num",placeholder:"MV-XXXXXX",style:"text-transform:uppercase;letter-spacing:.06em"});
+  const fCh=h("input",{class:"inp num",id:"ncCod",placeholder:"MV-XXXXXX",autocomplete:"off",style:"text-transform:uppercase;letter-spacing:.06em;flex:1;min-width:0"});
+  // aceita o código puro ou a mensagem inteira colada do WhatsApp (pega o MV-XXXXXX de dentro)
+  const extrair=t=>{ const m=String(t||"").toUpperCase().match(/MV-[A-Z0-9]{6}/); return m?m[0]:String(t||"").trim().toUpperCase(); };
+  const iniciar=()=>{ const c=extrair(fCh.value); if(!/^MV-[A-Z0-9]{6}$/.test(c)){ toast("Código inválido. Ele começa com MV- e tem 6 letras/números depois."); fCh.focus(); return; } fechar(); iniciarConversaPorChave(c); };
+  const btColar=h("button",{class:"btn sec",type:"button",style:"flex:none"},"📋 Colar");
+  btColar.addEventListener("click",async()=>{ try{ const t=await navigator.clipboard.readText(); fCh.value=extrair(t); if(/^MV-/.test(fCh.value)) iniciar(); }catch(e){ fCh.focus(); toast("Segure no campo e escolha Colar."); } });
+  fCh.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); iniciar(); } });
+  fCh.addEventListener("paste",()=>setTimeout(()=>{ fCh.value=extrair(fCh.value); },0));
   const fechar=abrirSheet("Nova conversa",[
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Conversa entre entregadores começa pelo QR: um mostra, o outro lê. Depois o contato fica salvo em Mensagens. A central acompanha as conversas."}),
     item("▦","Mostrar meu QR","Para o colega ler com o celular dele",()=>mostrarMeuQR("Mostre para o colega ler em Mensagens › Nova conversa › Ler QR.")),
     item("📷","Ler QR do colega","Aponte a câmera para o QR dele",()=>lerQR(ch=>iniciarConversaPorChave(ch))),
-    semLeitor?h("div",{class:"campo"},h("label",{text:"Este celular não lê QR: digite a chave que aparece embaixo do QR do colega"}),h("div",{style:"display:flex;gap:8px"},fCh,h("button",{class:"btn",type:"button",onclick:()=>{ fechar(); iniciarConversaPorChave(fCh.value); }},"Iniciar"))):null]);
+    h("div",{class:"painel",style:"gap:8px"},
+      h("b",{text:"🔗 Colar código do colega"}),
+      h("span",{class:"muted",style:"font-size:12.5px",text:"Recebeu o código pelo WhatsApp? Copie e cole aqui (pode colar a mensagem inteira)."}),
+      h("div",{style:"display:flex;gap:8px"},fCh,btColar),
+      h("button",{class:"btn full",type:"button",onclick:iniciar},"Iniciar conversa"))]);
 }
 /* menu › Mensagens: lista das conversas (central, colegas; na central também as dos comércios) */
 function abrirMensagens(){
