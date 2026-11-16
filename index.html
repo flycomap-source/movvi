@@ -7321,7 +7321,7 @@ function abrirMapaEntregadores(){
   const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
     lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
-    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · 🧍 clientes com entrega em aberto (ponto vermelho = aguardando, laranja = em rota). Toque no cliente para ver e editar."}));
+    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · bonequinho de camisa vermelha = cliente com entrega em aberto. Toque no cliente para ver e editar."}));
   document.body.append(jan);
   let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];
   const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
@@ -7329,7 +7329,9 @@ function abrirMapaEntregadores(){
   const iconeLoja=(pt)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;background:#004AAD;color:#fff;font:800 12px system-ui;padding:4px 8px 4px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap">'+(pt.ehComercio?"🏪":"📦")+' '+String(pt.nome).replace(/^farm[aá]cia\s+/i,"").replace(/[<>&]/g,"").slice(0,22)+' <span style="background:#E67E22;border-radius:999px;padding:0 6px;margin-left:2px">'+pt.pedidos.length+'</span></div>'});
   // 🧍 clientes com entrega em aberto: bonequinho no endereço; tocar mostra os dados e o ✏️ para editar
   const clis={}, cliLoc={};
-  const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);font-size:26px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))">'+(p.emRotaEm?"🧍‍♂️":"🧍")+'</div><div style="transform:translate(-50%,-4px);width:8px;height:8px;border-radius:50%;background:'+(p.emRotaEm?"#E67E22":"#dc2626")+';border:2px solid #fff"></div>'});
+  // bonequinho padrão (todos iguais, camisa vermelha)
+  const SVG_BONECO='<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="6.5" r="5" fill="#F2C29B" stroke="#7a4a2a" stroke-width="1"/><path d="M5 13.5c0-1.7 1.3-3 3-3h10c1.7 0 3 1.3 3 3V22h-3.2v-6.5h-.6V22H8.8v-6.5h-.6V22H5z" fill="#dc2626" stroke="#7f1d1d" stroke-width="1"/><path d="M8.6 22h8.8v9.5a1.4 1.4 0 0 1-2.8 0V26h-.4v5.5a1.4 1.4 0 0 1-2.8 0V22z" fill="#1f2937" transform="translate(-0.1 0)"/></svg>';
+  const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 2px 2px rgba(0,0,0,.45));line-height:0">'+SVG_BONECO+'</div>'});
   const popCli=p=>{ const div=h("div",{style:"display:flex;flex-direction:column;gap:4px;min-width:180px;font:13px system-ui"},
       h("b",{style:"font-size:14px",text:p.cliente||"Cliente"}),
       h("span",{text:p.endereco||""}),
