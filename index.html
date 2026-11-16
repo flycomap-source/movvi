@@ -6783,6 +6783,7 @@ function pintarRelTipo(){
   $("#relTit").textContent=central()?(relTipo?"Relatório de "+REL_TIPOS.find(t=>t[0]===relTipo)[1].toLowerCase():"Qual relatório?"):$("#relTit").textContent;
 }
 function escolherRelTipo(k){ setTimeout(guardarTela,0);
+  if(k && !REL_TIPOS.some(([x])=>x===k)) k="";   // tipo antigo/inexistente (ex.: tela salva de versão anterior) não trava a tela
   relTipo=k; RF.forEach(id=>{ $("#"+id).value=""; }); $("#relFiltros").hidden=true; atuBotaoFiltros(); pintarRelTipo();
   limparRel(); return;
   if(S.relCache) renderRelatorio(filtrarRel(S.relCache.ps),S.relCache.de,S.relCache.ate);
