@@ -3186,6 +3186,7 @@ function alerta(msg){ toast(msg); try{ document.title="(!) Movvi+ Entregas"; set
 /* ---------- sheets ---------- */
 function abrirSheet(titulo, corpo){
   const veu=h("div",{class:"veu",role:"dialog","aria-modal":"true","aria-label":titulo});
+  if(document.querySelector("[data-tela-cheia]")) veu.style.zIndex="10000";   // por cima do mapa / da conversa
   const aoFechar=abrirSheet.aoFechar; abrirSheet.aoFechar=null; let fechado=false;
   const fechar=()=>{ veu.remove(); document.removeEventListener("keydown",esc); if(!fechado){ fechado=true; if(aoFechar) try{ aoFechar(); }catch(e){} } };
   const esc=e=>{ if(e.key==="Escape") fechar(); };
@@ -7314,17 +7315,44 @@ function abrirMapaEntregadores(){
   const lista=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:none"});
   const info=h("span",{class:"muted",style:"font-size:12px",text:""});
   const resumoLoj=h("span",{style:"font-size:12.5px;font-weight:800;color:var(--royal)"});
+  const resumoCli=h("span",{style:"font-size:12.5px;font-weight:800;color:#dc2626"});
   const avisoLocal=h("span",{class:"muted",style:"font-size:11.5px",hidden:true});
   const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
-  const jan=h("div",{role:"dialog","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
-    lista,resumoLoj,area,avisoLocal,
-    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores disponíveis com o app aberto (⚪ = sem posição há mais de 5 min). 🏪 locais com pedido em aberto e a quantidade; somem quando os pedidos são finalizados. O ponto de cada comércio é marcado no cadastro dele."}));
+    lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
+    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · 🧍 clientes com entrega em aberto (ponto vermelho = aguardando, laranja = em rota). Toque no cliente para ver e editar."}));
   document.body.append(jan);
   let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];
   const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
   const situacaoPed=p=>p.emRotaEm?"🛵 Em rota"+(p.entregadorId?" · "+nomeEnt(p.entregadorId):""):p.entregadorId?"⏳ Indo coletar · "+nomeEnt(p.entregadorId):"🕐 Aguardando entregador";
   const iconeLoja=(pt)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;background:#004AAD;color:#fff;font:800 12px system-ui;padding:4px 8px 4px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap">'+(pt.ehComercio?"🏪":"📦")+' '+String(pt.nome).replace(/^farm[aá]cia\s+/i,"").replace(/[<>&]/g,"").slice(0,22)+' <span style="background:#E67E22;border-radius:999px;padding:0 6px;margin-left:2px">'+pt.pedidos.length+'</span></div>'});
+  // 🧍 clientes com entrega em aberto: bonequinho no endereço; tocar mostra os dados e o ✏️ para editar
+  const clis={}, cliLoc={};
+  const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);font-size:26px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.4))">'+(p.emRotaEm?"🧍‍♂️":"🧍")+'</div><div style="transform:translate(-50%,-4px);width:8px;height:8px;border-radius:50%;background:'+(p.emRotaEm?"#E67E22":"#dc2626")+';border:2px solid #fff"></div>'});
+  const popCli=p=>{ const div=h("div",{style:"display:flex;flex-direction:column;gap:4px;min-width:180px;font:13px system-ui"},
+      h("b",{style:"font-size:14px",text:p.cliente||"Cliente"}),
+      h("span",{text:p.endereco||""}),
+      p.telefone?h("span",{class:"num",text:p.telefone}):null,
+      h("span",{style:"color:#555",text:(p.numero?"#"+p.numero+" · ":"")+(p.coletaEmpresa||"")+" · "+situacaoPed(p)}),
+      h("button",{type:"button",style:"margin-top:4px;border:0;border-radius:8px;background:#004AAD;color:#fff;font:700 13px system-ui;padding:7px 10px;cursor:pointer",onclick:()=>{
+        const cad=(p.clienteCodigo&&(S.clientes||[]).find(c=>c.codigo===p.clienteCodigo))||(telValido(p.telefone)&&cliPorTel(p.telefone));
+        try{ mapa.closePopup(); }catch(e){}
+        if(cad) editarCliente(cad); else abrirPedido(p); }},"✏️ Editar cliente"));
+    return div; };
+  const desenharClientes=()=>{
+    if(!mapa) return;
+    const abertos=(S.pedidosDia||[]).filter(p=>!FECHADOS.includes(p.status) && !p.acertado && p.endereco && !ehTransf(p)), vivos=new Set();
+    abertos.forEach(p=>{
+      const loc=cliLoc[p.id];
+      if(loc===undefined){ cliLoc[p.id]=null; localDoCliente(p).then(l=>{ cliLoc[p.id]=l||false; desenharClientes(); }); return; }
+      if(!loc) return;
+      vivos.add(p.id);
+      if(clis[p.id]){ clis[p.id].setLatLng([loc.lat,loc.lng]).setIcon(iconeCli(p)); clis[p.id].setPopupContent(popCli(p)); }
+      else clis[p.id]=window.L.marker([loc.lat,loc.lng],{icon:iconeCli(p),zIndexOffset:200}).addTo(mapa).bindPopup(popCli(p)); });
+    Object.keys(clis).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(clis[k]); delete clis[k]; } });
+    const nCli=Object.keys(clis).length; resumoCli.textContent=nCli?"🧍 "+nCli+(nCli===1?" cliente":" clientes")+" no mapa":"";
+  };
   const desenharLojas=()=>{
     if(!mapa) return;
     const pts=pontosEmAberto(), vivos=new Set();
@@ -7333,7 +7361,7 @@ function abrirMapaEntregadores(){
       if(!g){ geocodificar(pt).then(()=>desenharLojas()); return; }
       if(g.semLocal||!g.lat) return;
       vivos.add(pt.chave);
-      const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br><small>"+String(pt.endereco||"").replace(/[<>&]/g,"")+"</small><br>"+pt.pedidos.map(p=>(p.numero?"#"+p.numero+" ":"")+String(p.cliente||"").replace(/[<>&]/g,"").slice(0,24)+" — "+situacaoPed(p)).join("<br>")+(pt.ehComercio?"<br><small style='color:#888'>Ponto errado? Corrija em Equipe › Comércios › editar › Localização no mapa.</small>":"");
+      const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br>"+pt.pedidos.length+(pt.pedidos.length===1?" pedido em aberto":" pedidos em aberto")+(pt.ehComercio?"<br><small style='color:#888'>Ponto errado? Corrija em Equipe › Comércios › editar › Localização no mapa.</small>":"");
       if(lojas[pt.chave]){ lojas[pt.chave].setLatLng([g.lat,g.lng]).setIcon(iconeLoja(pt)); lojas[pt.chave].setPopupContent(pop); }
       else lojas[pt.chave]=window.L.marker([g.lat,g.lng],{icon:iconeLoja(pt),zIndexOffset:-100}).addTo(mapa).bindPopup(pop); });
     Object.keys(lojas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(lojas[k]); delete lojas[k]; } });
@@ -7366,14 +7394,14 @@ function abrirMapaEntregadores(){
   };
   unsub=S.db.collection("posicoes").onSnapshot(snap=>{ pos=snap.docs.map(d=>({id:d.id,...d.data()})); desenhar(); },()=>{});
   unsubGeo=S.db.collection("geo").onSnapshot(snap=>{ snap.docs.forEach(d=>{ const g=d.data()||{}; if(g.lat) S.geo[d.id]={...g}; }); desenharLojas(); },()=>{});
-  tic=setInterval(()=>{ desenhar(); desenharLojas(); },10000);
+  tic=setInterval(()=>{ desenhar(); desenharLojas(); desenharClientes(); },10000);
   carregarLeaflet().then(L=>{
     if(!jan.isConnected) return;
     area.replaceChildren(); const div=h("div",{style:"position:absolute;inset:0"}); area.append(div);
     mapa=L.map(div,{zoomControl:true}).setView([UNAI.lat,UNAI.lng],13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
-    desenhar(); desenharLojas();
+    desenhar(); desenharLojas(); desenharClientes();
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
 }
 
@@ -7406,7 +7434,7 @@ function abrirMapaEntrega(p){
   const url=linkMaps(p.endereco,p.localizacao);
   const btG=url?h("a",{class:"btn sec",href:url,target:"_blank",rel:"noopener",style:"flex:1;text-align:center"},"🧭 Ir com Google Maps"):null;
   const btEu=h("button",{class:"btn sec",type:"button",style:"flex:1"},"📍 Onde estou");
-  const jan=h("div",{role:"dialog","aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,
       h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},h("b",{style:"font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"🏠 "+(p.cliente||"Cliente")}),
         h("span",{class:"muted",style:"font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:p.endereco||""}))),
@@ -7525,7 +7553,7 @@ function abrirChat(conv,chegou){
   const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
   const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env);
-  const jan=h("div",{role:"dialog","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btMin,h("b",{style:"flex:1;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim),
     lista,soLer?null:chips,rodape);
   document.body.append(jan);
