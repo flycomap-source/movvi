@@ -2319,7 +2319,11 @@ function blocoRota(p){
           if(!cad) return h("span",{class:"emp",text:p.cliente});
           return h("button",{type:"button",class:"emp",title:"Abrir o cadastro do cliente",style:"all:unset;cursor:pointer;font-size:17px;font-weight:800;text-decoration:underline dotted;text-underline-offset:4px",
             onclick:e=>{ e.stopPropagation(); editarCliente(cad); }},p.cliente); })():null,
-        p.endereco?(mapa?(()=>{ const a=h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no mapa",style:"display:flex;align-self:stretch;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()});
+        p.endereco&&S.modo==="entregador"?(()=>{ const b=h("button",{type:"button",class:p.cliente?"end":"emp",title:"Ver no mapa do app",style:"all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-self:stretch;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal);text-decoration:underline;text-underline-offset:3px;font-weight:700;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>{ e.stopPropagation(); abrirMapaEntrega(p); }});
+            b.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" "); b.append(p.endereco);
+            const g=mapa?h("a",{href:mapa,target:"_blank",rel:"noopener",onclick:e=>e.stopPropagation(),style:"align-self:flex-start;font-size:12.5px;font-weight:700;color:var(--muted)!important;text-decoration:underline;text-underline-offset:3px"},"🧭 Ir com Google Maps"):null;
+            return h("div",{style:"display:flex;flex-direction:column;gap:2px;align-self:stretch"},b,g); })()
+        :p.endereco?(mapa?(()=>{ const a=h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no mapa",style:"display:flex;align-self:stretch;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()});
             a.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" "); a.append(p.endereco); return a; })()
           :h("span",{class:p.cliente?"end":"emp",text:p.endereco})):null,
         zap?(()=>{ const d=digTel(p.telefone), celular=d.length===11&&d[2]==="9";
@@ -5773,6 +5777,10 @@ function abrirConfirmacao(p){
     if(p.pegarReceita){ if(pegouReceita===true) Object.assign(upd,{receitaRecolhida:true,receitaPendente:false});
       else Object.assign(upd,{receitaRecolhida:false,receitaPendente:true,receitaResolvida:false,receitaMotivo:motivoRec,receitaObs:motivoRec==="buscar"?recObs.value.trim():"",receitaBuscarEm:motivoRec==="buscar"?recObs.value.trim():""}); }
     if(upd.dinheiroCom==="fatura") Object.assign(upd,{pixComercioPendente:true,pixComercioValor:num(upd.valorDinheiro)});
+    // ponto exato onde a entrega foi feita (GPS do celular): o mapa do app aprende o local do cliente
+    if(S.modo==="entregador" && !ehTransf(p)){ try{ const me=await Promise.race([minhaPosicao(),new Promise(r=>setTimeout(()=>r(null),2500))]);
+      if(me && (!me.prec || me.prec<=80)){ upd.entregaLat=Math.round(me.lat*1e6)/1e6; upd.entregaLng=Math.round(me.lng*1e6)/1e6;
+        const k=chaveLocCli(p); if(k) S.db.doc("locCli/"+k).set({lat:upd.entregaLat,lng:upd.entregaLng,prec:me.prec||0,endereco:p.endereco||"",cliente:p.cliente||"",em:new Date().toISOString()}).catch(()=>{}); } }catch(e){} }
     try{
       await comRetry(()=>S.db.doc(p._path).update(upd));
       if(p.viaOferta) S.db.doc("aceites/"+p.id).update({status:"entregue",entregueEm:upd.entregueEm}).catch(()=>{});
@@ -7363,6 +7371,76 @@ function abrirMapaEntregadores(){
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
     desenhar(); desenharLojas();
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
+}
+
+
+/* ===== Mapa da entrega (entregador) =====
+   O ponto do cliente vem, nesta ordem: localização salva no pedido → ponto aprendido em entregas anteriores
+   (locCli/<telefone ou endereço>, gravado ao finalizar) → busca do endereço. */
+const chaveLocCli=p=>{ const d=digTel(p.telefone||""); if(d.length>=10) return "t"+d.slice(-11); const e=slug(p.endereco||""); return e?"e"+e:""; };
+const coordDeTexto=t=>{ const m=String(t||"").match(/(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/); return m?{lat:+m[1],lng:+m[2]}:null; };
+async function localDoCliente(p){
+  const c=coordDeTexto(p.localizacao); if(c) return {...c,fonte:"localização enviada"};
+  if(num(p.entregaLat)&&num(p.entregaLng)) return {lat:p.entregaLat,lng:p.entregaLng,fonte:"ponto desta entrega"};
+  const k=chaveLocCli(p);
+  if(k){ try{ const sn=await S.db.doc("locCli/"+k).get(); const d=sn.exists?(sn.data()||{}):null;
+    if(d&&d.lat&&(k[0]==="e"||!d.endereco||slug(d.endereco)===slug(p.endereco||""))) return {lat:d.lat,lng:d.lng,fonte:"entrega anterior"}; }catch(e){} }
+  if(!p.endereco) return null;
+  const g=await geocodificar({chave:"cli-"+slug(p.endereco),endereco:p.endereco+(p.bairro&&!new RegExp(p.bairro,"i").test(p.endereco)?", "+p.bairro:""),nome:p.cliente||""});
+  return g&&g.lat?{lat:g.lat,lng:g.lng,fonte:"busca pelo endereço (aproximado)"}:null;
+}
+/* posição atual do entregador (usa a última do GPS ou pede uma agora) */
+function minhaPosicao(){
+  if(gps.ult && Date.now()-gps.ultEnvio<120000) return Promise.resolve({...gps.ult});
+  return new Promise(ok=>{ if(!("geolocation" in navigator)) return ok(null);
+    navigator.geolocation.getCurrentPosition(pos=>ok({lat:pos.coords.latitude,lng:pos.coords.longitude,prec:Math.round(pos.coords.accuracy||0)}),()=>ok(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000}); });
+}
+function abrirMapaEntrega(p){
+  const txt=h("span",{class:"muted",style:"font-size:12px"});
+  const area=h("div",{style:"flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative"},h("p",{class:"muted",style:"margin:auto;padding:20px;text-align:center",text:"Carregando o mapa…"}));
+  const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
+  const url=linkMaps(p.endereco,p.localizacao);
+  const btG=url?h("a",{class:"btn sec",href:url,target:"_blank",rel:"noopener",style:"flex:1;text-align:center"},"🧭 Ir com Google Maps"):null;
+  const btEu=h("button",{class:"btn sec",type:"button",style:"flex:1"},"📍 Onde estou");
+  const jan=h("div",{role:"dialog","aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+    h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,
+      h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},h("b",{style:"font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"🏠 "+(p.cliente||"Cliente")}),
+        h("span",{class:"muted",style:"font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:p.endereco||""}))),
+    area,txt,h("div",{style:"display:flex;gap:8px"},btEu,btG));
+  document.body.append(jan);
+  let mapa=null, eu=null, cli=null;
+  const fechar=()=>{ try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapaEnt) history.back(); }catch(e){} };
+  btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
+  try{ history.pushState({mapaEnt:1},""); window.addEventListener("popstate",fechar,{once:true}); }catch(e){}
+  const pinoHtml=(t,cor)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+cor+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+t+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+cor+'"></div></div>'});
+  const esc=t=>String(t||"").replace(/[<>&]/g,"");
+  carregarLeaflet().then(async L=>{
+    if(!jan.isConnected) return;
+    area.replaceChildren(); const d=h("div",{style:"position:absolute;inset:0"}); area.append(d);
+    mapa=L.map(d,{zoomControl:true}).setView([UNAI.lat,UNAI.lng],13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
+    setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
+    const pts=[];
+    // as outras paradas da rota dele (numeradas), para ver a ordem
+    const outras=(S.pedidosDia||[]).filter(x=>x.id!==p.id && x.entregadorId===p.entregadorId && !FECHADOS.includes(x.status) && x.endereco);
+    const [lc,me]=await Promise.all([localDoCliente(p),minhaPosicao()]);
+    if(!jan.isConnected) return;
+    if(lc){ cli=L.marker([lc.lat,lc.lng],{icon:pinoHtml("🏠 "+esc((p.cliente||"Cliente").split(/\s+/)[0])+(num(p.ordemEntrega)?" · "+num(p.ordemEntrega):""),"#dc2626"),zIndexOffset:500}).addTo(mapa)
+        .bindPopup("<b>"+esc(p.cliente)+"</b><br>"+esc(p.endereco)+"<br><small>Ponto: "+lc.fonte+"</small>"); pts.push([lc.lat,lc.lng]); }
+    if(me){ eu=L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa); pts.push([me.lat,me.lng]); }
+    const temColeta=!p.emRotaEm && (p.coletaEmpresa||p.coletaEndereco);
+    if(temColeta){ const k=slug(p.coletaEmpresa||p.coletaEndereco), c=(S.comercios||[]).find(x=>slug(x.nome)===slug(p.coletaEmpresa||""));
+      const g=c&&c.lat?{lat:c.lat,lng:c.lng}:(S.geo&&S.geo[k]&&S.geo[k].lat?S.geo[k]:await geocodificar({chave:k,endereco:(c&&c.endereco)||p.coletaEndereco||"",nome:p.coletaEmpresa||""}));
+      if(g&&g.lat&&jan.isConnected){ L.marker([g.lat,g.lng],{icon:pinoHtml("🏪 Coleta","#E67E22")}).addTo(mapa); pts.push([g.lat,g.lng]); } }
+    for(const x of outras.slice(0,8)){ const c=coordDeTexto(x.localizacao); const k=chaveLocCli(x); let g=c;
+      if(!g && k){ try{ const sn=await S.db.doc("locCli/"+k).get(); const dd=sn.exists?sn.data():null; if(dd&&dd.lat) g=dd; }catch(e){} }
+      if(g&&jan.isConnected) L.marker([g.lat,g.lng],{icon:pinoHtml((num(x.ordemEntrega)?num(x.ordemEntrega)+" · ":"")+esc((x.cliente||"").split(/\s+/)[0]),"#6b7280")}).addTo(mapa).bindPopup("<b>"+esc(x.cliente)+"</b><br>"+esc(x.endereco)); }
+    if(pts.length>1) mapa.fitBounds(pts,{padding:[50,50],maxZoom:17}); else if(pts.length===1) mapa.setView(pts[0],17);
+    txt.textContent = lc ? (lc.fonte.includes("aproximado")?"⚠️ Ponto aproximado (busca pelo endereço). Se não bater, use o Google Maps.":"✓ Ponto do cliente: "+lc.fonte+".")
+      : "Não achei este endereço no mapa do app. Use o Google Maps.";
+  }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Sem internet para carregar o mapa. Use o Google Maps."})); });
+  btEu.addEventListener("click",async()=>{ const me=await minhaPosicao(); if(!me){ toast("Não consegui sua localização. Libere a localização do app."); return; }
+    if(mapa){ if(eu) eu.setLatLng([me.lat,me.lng]); else eu=window.L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD")}).addTo(mapa); mapa.setView([me.lat,me.lng],17); } });
 }
 
 /* ===== Mensagens (bate-papo) =====
