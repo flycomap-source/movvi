@@ -7277,7 +7277,7 @@ function pontosEmAberto(){
   (S.pedidosDia||[]).filter(p=>!FECHADOS.includes(p.status) && !p.acertado).forEach(p=>{
     const nome=p.coletaEmpresa||p.coletaEndereco||""; if(!nome) return;
     const k=slug(nome); const c=(S.comercios||[]).find(x=>slug(x.nome)===slug(p.coletaEmpresa||""));
-    (g[k]=g[k]||{chave:k,nome,endereco:(c&&c.endereco)||p.coletaEndereco||"",ehComercio:!!(c||p.coletaEmpresa),pedidos:[]}).pedidos.push(p); });
+    (g[k]=g[k]||{chave:k,nome,endereco:(c&&c.endereco)||p.coletaEndereco||"",ehComercio:!!(c||p.coletaEmpresa),lat:c&&c.lat,lng:c&&c.lng,pedidos:[]}).pedidos.push(p); });
   return Object.values(g);
 }
 S.geo=S.geo||{};
@@ -7307,7 +7307,7 @@ function abrirMapaEntregadores(){
   const jan=h("div",{role:"dialog","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
     lista,resumoLoj,area,avisoLocal,
-    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores disponíveis com o app aberto (⚪ = sem posição há mais de 5 min). 🏪 locais com pedido em aberto e a quantidade; somem quando os pedidos são finalizados."}));
+    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores disponíveis com o app aberto (⚪ = sem posição há mais de 5 min). 🏪 locais com pedido em aberto e a quantidade; somem quando os pedidos são finalizados. O ponto de cada comércio é marcado no cadastro dele."}));
   document.body.append(jan);
   let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];
   const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
@@ -7317,20 +7317,17 @@ function abrirMapaEntregadores(){
     if(!mapa) return;
     const pts=pontosEmAberto(), vivos=new Set();
     pts.forEach(pt=>{
-      const g=S.geo[pt.chave];
+      const g = pt.lat&&pt.lng ? {lat:pt.lat,lng:pt.lng} : S.geo[pt.chave];   // 1º a localização marcada no cadastro do comércio
       if(!g){ geocodificar(pt).then(()=>desenharLojas()); return; }
       if(g.semLocal||!g.lat) return;
       vivos.add(pt.chave);
-      const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br><small>"+String(pt.endereco||"").replace(/[<>&]/g,"")+"</small><br>"+pt.pedidos.map(p=>(p.numero?"#"+p.numero+" ":"")+String(p.cliente||"").replace(/[<>&]/g,"").slice(0,24)+" — "+situacaoPed(p)).join("<br>")+"<br><small style='color:#888'>Ponto errado? Arraste o ícone para o lugar certo.</small>";
+      const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br><small>"+String(pt.endereco||"").replace(/[<>&]/g,"")+"</small><br>"+pt.pedidos.map(p=>(p.numero?"#"+p.numero+" ":"")+String(p.cliente||"").replace(/[<>&]/g,"").slice(0,24)+" — "+situacaoPed(p)).join("<br>")+(pt.ehComercio?"<br><small style='color:#888'>Ponto errado? Corrija em Equipe › Comércios › editar › Localização no mapa.</small>":"");
       if(lojas[pt.chave]){ lojas[pt.chave].setLatLng([g.lat,g.lng]).setIcon(iconeLoja(pt)); lojas[pt.chave].setPopupContent(pop); }
-      else { const m=window.L.marker([g.lat,g.lng],{icon:iconeLoja(pt),draggable:true,zIndexOffset:-100}).addTo(mapa).bindPopup(pop);
-        m.on("dragend",()=>{ const ll=m.getLatLng(); S.geo[pt.chave]={lat:ll.lat,lng:ll.lng,endereco:pt.endereco,nome:pt.nome,manual:true};
-          S.db.doc("geo/"+pt.chave).set({...S.geo[pt.chave],em:new Date().toISOString()}).then(()=>toast("Local de "+pt.nome+" salvo")).catch(()=>{}); });
-        lojas[pt.chave]=m; } });
+      else lojas[pt.chave]=window.L.marker([g.lat,g.lng],{icon:iconeLoja(pt),zIndexOffset:-100}).addTo(mapa).bindPopup(pop); });
     Object.keys(lojas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(lojas[k]); delete lojas[k]; } });
     const semLocal=pts.filter(pt=>S.geo[pt.chave]&&S.geo[pt.chave].semLocal);
     avisoLocal.hidden=!semLocal.length;
-    if(semLocal.length) avisoLocal.textContent="Sem localização no mapa: "+semLocal.map(pt=>pt.nome+" ("+pt.pedidos.length+")").join(", ")+". Endereço não encontrado.";
+    if(semLocal.length) avisoLocal.textContent="Sem localização no mapa: "+semLocal.map(pt=>pt.nome+" ("+pt.pedidos.length+")").join(", ")+". Marque no cadastro do comércio (Localização no mapa).";
     const nLoj=pts.reduce((a,pt)=>a+pt.pedidos.length,0);
     resumoLoj.textContent=pts.length?"🏪 "+pts.length+(pts.length===1?" local":" locais")+" com "+nLoj+(nLoj===1?" pedido em aberto":" pedidos em aberto"):"Nenhum pedido em aberto";
   };
@@ -8360,10 +8357,33 @@ function editarComercio(c){
   const fF=h("select",{class:"inp",id:"ecF"},h("option",{value:"semanal",text:"Fechamento semanal (fecha todo domingo)"}),h("option",{value:"mensal",text:"Fechamento mensal (fecha no último dia do mês)"}));
   fF.value=c.fechamento==="mensal"?"mensal":"semanal";
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar comércio":"Salvar");
+  // localização no mapa: acha pelo endereço e o pino pode ser arrastado para o ponto exato
+  let loc = c.lat&&c.lng ? {lat:c.lat,lng:c.lng} : (S.geo&&S.geo[slug(c.nome||"")]&&S.geo[slug(c.nome||"")].lat ? {lat:S.geo[slug(c.nome||"")].lat,lng:S.geo[slug(c.nome||"")].lng} : null);
+  let locMudou=false, miniMapa=null, pino=null;
+  const caixaMapa=h("div",{style:"height:230px;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative;border:1px solid var(--line)"},h("p",{class:"muted",style:"margin:auto;padding:14px;text-align:center;font-size:13px",text:"Carregando o mapa…"}));
+  const locTxt=h("span",{class:"muted",style:"font-size:12px"});
+  const pintarLoc=()=>{ locTxt.textContent = loc ? "📍 Marcado"+(locMudou?" (será salvo ao tocar em Salvar)":"")+" · arraste o pino para ajustar" : "Sem localização ainda: toque em \"Achar pelo endereço\" ou toque no mapa para marcar."; };
+  const porPino=(lat,lng,centralizar)=>{ loc={lat,lng}; locMudou=true; if(miniMapa){ if(pino) pino.setLatLng([lat,lng]); else { pino=window.L.marker([lat,lng],{draggable:true}).addTo(miniMapa); pino.on("dragend",()=>{ const ll=pino.getLatLng(); loc={lat:ll.lat,lng:ll.lng}; locMudou=true; pintarLoc(); }); } if(centralizar) miniMapa.setView([lat,lng],17); } pintarLoc(); };
+  const btAchar=h("button",{class:"btn sec",type:"button",style:"padding:8px 12px"},"🔎 Achar pelo endereço");
+  btAchar.addEventListener("click",async()=>{ const end=fE.value.trim(); if(!end){ toast("Digite o endereço primeiro."); fE.focus(); return; }
+    btAchar.disabled=true; btAchar.textContent="Procurando…";
+    const k="__form-"+Date.now(); const g=await geocodificar({chave:k,endereco:end,nome:fN.value.trim()}); delete S.geo[k];
+    btAchar.disabled=false; btAchar.textContent="🔎 Achar pelo endereço";
+    if(g&&g.lat){ porPino(g.lat,g.lng,true); toast("Achei. Confira e arraste o pino se precisar."); } else toast("Endereço não encontrado. Toque no mapa no lugar do comércio."); });
+  const blocoMapa=h("div",{class:"campo",style:"gap:6px"},h("label",{text:"Localização no mapa"}),caixaMapa,h("div",{style:"display:flex;gap:8px;align-items:center;flex-wrap:wrap"},btAchar,locTxt));
+  pintarLoc();
+  setTimeout(()=>carregarLeaflet().then(L=>{ if(!caixaMapa.isConnected) return; caixaMapa.replaceChildren(); const d=h("div",{style:"position:absolute;inset:0"}); caixaMapa.append(d);
+    miniMapa=L.map(d,{zoomControl:true}).setView(loc?[loc.lat,loc.lng]:[UNAI.lat,UNAI.lng],loc?17:13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(miniMapa);
+    if(loc){ const l=loc, m=locMudou; porPino(l.lat,l.lng,false); locMudou=m; pintarLoc(); }
+    miniMapa.on("click",ev=>porPino(ev.latlng.lat,ev.latlng.lng,false));
+    setTimeout(()=>{ try{ miniMapa.invalidateSize(); }catch(e){} },250);
+  }).catch(()=>{ caixaMapa.replaceChildren(h("p",{class:"muted",style:"margin:auto;padding:14px;text-align:center;font-size:13px",text:"Sem internet para carregar o mapa agora."})); }),150);
   const fechar=abrirSheet(novo?"Cadastrar comércio":"Editar "+c.nome,[
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.comercios).get(c.id)||"")+" · "+(c.ativo===false?"bloqueado":c.uid?((S.usuarios||{})[c.uid]?"usuário: "+S.usuarios[c.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
     h("div",{class:"campo"},h("label",{for:"ecN",text:"Nome do comércio"}),fN),
     h("div",{class:"campo"},h("label",{for:"ecE",text:"Endereço de coleta"}),fE),
+    blocoMapa,
     h("div",{class:"campo"},h("label",{for:"ecTel",text:"Telefone / WhatsApp"}),fTel),
     h("div",{class:"campo"},h("label",{for:"ecTel2",text:"Telefone 2 (opcional)"}),fTel2),
     h("div",{class:"campo"},h("label",{for:"ecCat",text:"Categoria"}),fCat),
@@ -8391,7 +8411,8 @@ function editarComercio(c){
       });
       return bt; })()]);
   ok.addEventListener("click",async()=>{
-    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),telefone2:fTel2.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia",fechamento:fF.value==="mensal"?"mensal":"semanal"};
+    const d={nome:fN.value.trim()||c.nome||"",endereco:fE.value.trim(),telefone:fTel.value.trim(),telefone2:fTel2.value.trim(),taxa:num(fT.value),categoria:fCat.value||"farmacia",fechamento:fF.value==="mensal"?"mensal":"semanal",
+      ...(loc?{lat:Math.round(loc.lat*1e6)/1e6,lng:Math.round(loc.lng*1e6)/1e6}:{})};
     if(!d.nome){ toast("Informe o nome do comércio."); return; }
     if(novo && S.comercios.some(x=>slug(x.nome)===slug(d.nome))){ toast("Já existe um comércio com esse nome."); return; }
     if(!d.endereco){ toast("Informe o endereço do comércio."); return; }
@@ -8401,6 +8422,7 @@ function editarComercio(c){
       if(novo) await comRetry(()=>S.db.collection("comercios").add({...d,ativo:true,criadoEm:new Date().toISOString()}));
       else await comRetry(()=>S.db.doc("comercios/"+c.id).update(d));
       const eid=slug(d.nome); if(eid) S.db.doc("empresas/"+eid).set({nome:d.nome,endereco:d.endereco,telefone:d.telefone}).catch(()=>{});
+      if(eid && loc){ S.geo[eid]={lat:d.lat,lng:d.lng,endereco:d.endereco,nome:d.nome,manual:true}; S.db.doc("geo/"+eid).set({...S.geo[eid],em:new Date().toISOString()}).catch(()=>{}); }
       if(novo){ fechar(); toast("Comércio cadastrado"); return; }
       if(c.uid) await comRetry(()=>S.db.doc("vinculos/"+c.uid).set({tipo:"comercio",comercioId:c.id,...d,ativo:c.ativo!==false}));
       fechar(); toast("Comércio atualizado");
