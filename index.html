@@ -1094,6 +1094,7 @@ function abrirMenuCentral(){
     item("▤","Relatórios","Entregadores, comércios e pedidos",()=>abrirEscolhaRelatorio()),
     item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
     item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
+    item("🗺️","Mapa dos entregadores","Onde cada entregador disponível está agora",()=>abrirMapaEntregadores()),
     item("💬","Mensagens","Conversas com entregadores e histórico de todas as conversas",()=>abrirMensagens()),
     item("🔁","Transferências entre entregadores","Aprovar ou recusar envios de saldo",()=>abrirTransfCentral()),
     sec("Cadastros e acessos"),
@@ -1118,7 +1119,7 @@ function abrirMenuCentral(){
    bloqueado: a central desativa o acesso (vínculo inativo)            */
 S.online=new Set(); S.disp={}; S.disponivel=true;
 function chip(cls,txt){ return h("span",{class:"chip-st "+cls},h("span",{class:"ponto"}),txt); }
-function pintarDisp(){ const b=$("#btnDisp"); b.setAttribute("aria-checked",String(!!S.disponivel)); $("#dispTxt").textContent=S.disponivel?"Disponível":"Indisponível"; b.title=S.disponivel?"Disponível":"Indisponível"; }
+function pintarDisp(){ const b=$("#btnDisp"); b.setAttribute("aria-checked",String(!!S.disponivel)); $("#dispTxt").textContent=S.disponivel?"Disponível":"Indisponível"; b.title=S.disponivel?"Disponível":"Indisponível"; if(typeof gpsAtualizar==="function") gpsAtualizar(); }
 $("#btnDisp").addEventListener("click",async()=>{
   const novo=!S.disponivel;
   try{ await comRetry(()=>S.db.doc("status/"+S.uid).set({disponivel:novo,alteradoEm:new Date().toISOString(),nome:S.euNome||""})); S.disponivel=novo; pintarDisp(); renderPedidos();
@@ -2431,7 +2432,12 @@ function rodapePag(p){
   return h("div",{class:"ped-pe",style:"flex-wrap:wrap"},
     h("div",{style:"display:flex;flex-direction:column;gap:1px"},
       h("span",{class:"muted",style:"font-size:13px"},"Pedido ",h("b",{class:"ped-nro num",text:p.numero?"#"+p.numero:"—"})),
-      h("div",{style:"display:flex;align-items:baseline;gap:6px"},h("span",{style:"font-weight:700;color:var(--ink)",text:"Total"}),h("b",{class:"ped-total num",text:v?fmt(v):"—"}))),
+      (()=>{ // pedido com troco: mostra o valor cheio (o que o cliente paga em dinheiro) para facilitar a conferência
+        const cheio = p.pagamento==="dinheiro" ? Math.max(num(p.trocoPara), e && num(p.trocoDevolver)>0 ? dinheiroDoPedido(p) : 0) : 0;
+        const temTroco = cheio>v+0.009;
+        return h("div",{style:"display:flex;flex-direction:column;gap:0"},
+          h("div",{style:"display:flex;align-items:baseline;gap:6px"},h("span",{style:"font-weight:700;color:var(--ink)",text:temTroco?"Total com troco":"Total"}),h("b",{class:"ped-total num",text:temTroco?fmt(cheio):(v?fmt(v):"—")})),
+          temTroco?h("span",{class:"muted num",style:"font-size:12px",text:"pedido "+fmt(v)+" + troco "+fmt(cheio-v)}):null); })()),
     S.modo==="entregador" && aguardaAceiteEnt(p) ? caixaValoresEnt(p) : null,
     h("div",{style:"display:flex;flex-direction:column;gap:1px;align-items:flex-end;text-align:right"},
       h("span",{class:"muted",style:"font-size:13px",text:tit}),
@@ -5566,8 +5572,13 @@ function abrirConfirmacao(p){
     lblValor.textContent = valorEditado!==null ? "Valor recebido" : "Valor a receber"; avisoEd.hidden = valorEditado===null;
     if(valorEditado!==null && formaRec==="dinheiro") fValRec.value=fmtInput(valorEditado);
     try{ atPag(); }catch(e){} });
+  const cheioTroco = p.pagamento==="dinheiro" && num(p.trocoPara)>valPedido+0.009 ? num(p.trocoPara) : 0;
+  const linhaCheio = cheioTroco ? h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px dashed var(--line);padding-top:6px"},
+      h("span",{style:"font-weight:800",text:"Total com troco"}),
+      h("span",{style:"display:flex;flex-direction:column;align-items:flex-end"},h("b",{class:"num",style:"font-size:20px;color:var(--bad)",text:fmt(cheioTroco)}),
+        h("span",{class:"muted num",style:"font-size:12px",text:"pedido "+fmt(valPedido)+" + troco "+fmt(cheioTroco-valPedido)}))) : null;
   const infoValor = (anunc!=="pix" && valPedido>0) ? h("div",{class:"painel",style:"gap:4px;padding:10px 14px"},
-      h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},lblValor,h("div",{style:"display:flex;align-items:center;gap:8px"},txValor,fValEd,btEdVal)),avisoEd) : null;
+      h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},lblValor,h("div",{style:"display:flex;align-items:center;gap:8px"},txValor,fValEd,btEdVal)),avisoEd,linhaCheio) : null;
   const trocoTxt=h("b",{style:"color:var(--bad)"});
   const btDeiTroco=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"Dei o troco");
   const btSemTroco=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"Não tinha troco");
@@ -7188,6 +7199,119 @@ async function uidsDaCentral(){
   if(l.length) S.uidsCentral=l;
   return l;
 }
+/* ===== Localização dos entregadores (versão 1: com o app aberto) =====
+   posicoes/<uid do entregador> = {lat, lng, prec, em, nome, equipeId, disponivel}
+   O entregador só envia com a chave em "disponível" e o app aberto na tela. A central vê tudo no mapa. */
+const GPS_INTERVALO=20000, GPS_DIST=30;   // manda a cada 20 s ou quando andou 30 m
+const gps={watch:null,ult:null,ultEnvio:0,negado:false};
+const distM=(a,b)=>{ const R=6371000,r=x=>x*Math.PI/180, dLa=r(b.lat-a.lat), dLo=r(b.lng-a.lng);
+  const h1=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h1)); };
+function gpsDeveLigar(){ return S.modo==="entregador" && !!S.uid && !!S.db && S.disponivel!==false && document.visibilityState==="visible" && "geolocation" in navigator; }
+function gpsAtualizar(){
+  if(gpsDeveLigar()){ gps.offEnviado=false; if(gps.watch===null) gpsLigar(); }
+  else {
+    if(gps.watch!==null) gpsDesligar(false);
+    // desligou a chave: tira do mapa na hora
+    if(S.modo==="entregador" && S.disponivel===false && !gps.offEnviado && S.db && S.uid){ gps.offEnviado=true; S.db.doc("posicoes/"+S.uid).update({disponivel:false,em:new Date().toISOString()}).catch(()=>{}); }
+  }
+  pintarGps();
+}
+function gpsLigar(){
+  try{
+    gps.watch=navigator.geolocation.watchPosition(pos=>{
+      gps.negado=false;
+      const p={lat:pos.coords.latitude,lng:pos.coords.longitude,prec:Math.round(pos.coords.accuracy||0)};
+      const agora=Date.now(), andou=gps.ult?distM(gps.ult,p):1e9;
+      if(agora-gps.ultEnvio<GPS_INTERVALO && andou<GPS_DIST) return;
+      gps.ult=p; gps.ultEnvio=agora;
+      S.db.doc("posicoes/"+S.uid).set({...p,em:new Date().toISOString(),nome:S.euNome||"",equipeId:S.eu||"",disponivel:true}).catch(()=>{});
+      pintarGps();
+    },err=>{ if(err && err.code===1){ gps.negado=true; gpsDesligar(false); } pintarGps(); },{enableHighAccuracy:true,maximumAge:15000,timeout:30000});
+  }catch(e){ gps.watch=null; }
+}
+function gpsDesligar(avisarIndisponivel){
+  if(gps.watch!==null){ try{ navigator.geolocation.clearWatch(gps.watch); }catch(e){} }
+  gps.watch=null;
+  if(avisarIndisponivel && S.db && S.uid) S.db.doc("posicoes/"+S.uid).update({disponivel:false,em:new Date().toISOString()}).catch(()=>{});
+}
+/* aviso para o entregador: localização ligada / bloqueada */
+function pintarGps(){
+  let pill=document.getElementById("gpsPill");
+  const ligado=gps.watch!==null && S.modo==="entregador" && S.disponivel!==false;
+  if(!pill){ pill=h("div",{id:"gpsPill",style:"position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:50;background:rgba(15,23,42,.78);color:#fff;font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:999px;pointer-events:none"}); document.body.append(pill); }
+  pill.hidden=!ligado; pill.textContent="📍 Localização ligada";
+  let av=document.getElementById("avisoGps");
+  const mostrar=gps.negado && S.modo==="entregador" && S.disponivel!==false;
+  if(!av && mostrar){ av=h("div",{id:"avisoGps",class:"painel",style:"border:2px solid var(--laranja);gap:6px;margin-bottom:10px"}); const ap=$("#avisoPush"); if(ap) ap.after(av); else $("main").prepend(av); }
+  if(av){ av.hidden=!mostrar; if(mostrar) av.replaceChildren(h("b",{text:"📍 Localização bloqueada"}),
+    h("span",{style:"font-size:13px",text:"A central acompanha os entregadores no mapa enquanto estão disponíveis. Libere a localização em Configurações › Apps › Movvi+ (ou Chrome) › Permissões › Localização e volte aqui."}),
+    h("button",{class:"btn sec",type:"button",onclick:()=>{ gps.negado=false; gpsAtualizar(); }},"Tentar de novo")); }
+}
+document.addEventListener("visibilitychange",()=>gpsAtualizar());
+setInterval(()=>{ if(gpsDeveLigar() && gps.watch===null) gpsAtualizar(); },30000);
+
+/* ===== Central: mapa dos entregadores ===== */
+const UNAI={lat:-16.3575,lng:-46.9028};
+let leafletProm=null;
+function carregarLeaflet(){
+  if(window.L && window.L.map) return Promise.resolve(window.L);
+  if(leafletProm) return leafletProm;
+  leafletProm=new Promise((ok,erro)=>{
+    const css=document.createElement("link"); css.rel="stylesheet"; css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.append(css);
+    const js=document.createElement("script"); js.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; js.onload=()=>ok(window.L); js.onerror=()=>{ leafletProm=null; erro(new Error("mapa")); }; document.head.append(js);
+  });
+  return leafletProm;
+}
+function situacaoEnt(equipeId){
+  const ps=(S.pedidosDia||[]).filter(p=>p.entregadorId===equipeId && !["entregue","cancelado","recusado","excluido"].includes(p.status));
+  if(!ps.length) return {txt:"Sem entrega",n:0};
+  const rota=ps.filter(p=>p.emRotaEm).length, col=ps.length-rota;
+  return {txt:[rota?"Em rota · "+rota+(rota>1?" entregas":" entrega"):"",col?"Indo coletar · "+col:""].filter(Boolean).join(" · "),n:ps.length};
+}
+const haQuanto=iso=>{ const s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000)); return s<60?"agora":s<3600?"há "+Math.round(s/60)+" min":"há "+Math.floor(s/3600)+" h"; };
+function abrirMapaEntregadores(){
+  const area=h("div",{style:"flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative"},h("p",{class:"muted",style:"margin:auto;padding:20px;text-align:center",text:"Carregando o mapa…"}));
+  const lista=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:none"});
+  const info=h("span",{class:"muted",style:"font-size:12px",text:""});
+  const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
+  const jan=h("div",{role:"dialog","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+    h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
+    lista,area,
+    h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"Aparece quem está disponível com o app aberto. Cinza = sem posição nova há mais de 5 minutos (app fechado ou sem sinal)."}));
+  document.body.append(jan);
+  let mapa=null, marcas={}, unsub=null, tic=null, primeira=true, pos=[];
+  const fechar=()=>{ if(unsub) unsub(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapa) history.back(); }catch(e){} };
+  btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
+  try{ history.pushState({mapa:1},""); window.addEventListener("popstate",fechar,{once:true}); }catch(e){}
+  const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
+  const desenhar=()=>{
+    const vis=pos.filter(x=>x.disponivel!==false && x.lat && x.lng && (Date.now()-new Date(x.em).getTime())<3*3600e3);
+    info.textContent=vis.length+(vis.length===1?" entregador":" entregadores");
+    lista.replaceChildren(...(vis.length?vis.map(x=>{ const velho=(Date.now()-new Date(x.em).getTime())>5*60e3, st=situacaoEnt(x.equipeId);
+      return h("button",{class:"chip",type:"button",style:"flex:none;"+(velho?"opacity:.6":""),onclick:()=>{ if(mapa){ mapa.setView([x.lat,x.lng],16); marcas[x.id]&&marcas[x.id].openPopup(); } }},
+        (velho?"⚪ ":st.n?"🟠 ":"🟢 ")+String(x.nome||"?").split(/\s+/)[0]+" · "+haQuanto(x.em)); })
+      :[h("span",{class:"muted",style:"font-size:13px",text:"Nenhum entregador disponível com o app aberto agora."})]));
+    if(!mapa) return;
+    const vivos=new Set();
+    vis.forEach(x=>{ vivos.add(x.id); const velho=(Date.now()-new Date(x.em).getTime())>5*60e3, st=situacaoEnt(x.equipeId);
+      const pop="<b>"+String(x.nome||"").replace(/[<>&]/g,"")+"</b><br>"+st.txt+"<br><small>Posição "+haQuanto(x.em)+(x.prec?" · ±"+x.prec+" m":"")+"</small>";
+      if(marcas[x.id]){ marcas[x.id].setLatLng([x.lat,x.lng]).setIcon(icone(x,velho)); marcas[x.id].setPopupContent(pop); }
+      else marcas[x.id]=window.L.marker([x.lat,x.lng],{icon:icone(x,velho)}).addTo(mapa).bindPopup(pop); });
+    Object.keys(marcas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(marcas[k]); delete marcas[k]; } });
+    if(primeira && vis.length){ primeira=false; if(vis.length===1) mapa.setView([vis[0].lat,vis[0].lng],15); else mapa.fitBounds(vis.map(x=>[x.lat,x.lng]),{padding:[40,40],maxZoom:16}); }
+  };
+  unsub=S.db.collection("posicoes").onSnapshot(snap=>{ pos=snap.docs.map(d=>({id:d.id,...d.data()})); desenhar(); },()=>{});
+  tic=setInterval(desenhar,30000);
+  carregarLeaflet().then(L=>{
+    if(!jan.isConnected) return;
+    area.replaceChildren(); const div=h("div",{style:"position:absolute;inset:0"}); area.append(div);
+    mapa=L.map(div,{zoomControl:true}).setView([UNAI.lat,UNAI.lng],13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
+    setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
+    desenhar();
+  }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
+}
+
 /* ===== Mensagens (bate-papo) =====
    chats/<id>            resumo da conversa
      · conversa com a central: id = uid do entregador {nome, aberto, ultima, naoLidaCentral, naoLidaEnt}
