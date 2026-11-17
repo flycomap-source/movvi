@@ -2543,10 +2543,10 @@ function cartaoPedidoBase(p){
         const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
         return h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
           h("span",{class:"num",style:"font-size:15px;font-weight:900;color:var(--ink)",text:"Taxa "+fmt(g.base)}),
-          g.adic>0?h("span",{class:"num",style:"font-size:13px;font-weight:800;color:var(--laranja-ink)",text:"🔥 ADD "+fmt(g.adic)}):null,
-          g.bonus>0?h("span",{class:"num",style:"font-size:13px;font-weight:800;color:var(--ok)",text:"🤩"+pct+" "+fmt(g.bonus)}):null,
+          g.adic>0?h("span",{class:"num",style:"font-size:9px;font-weight:800;color:var(--laranja-ink)",text:"🔥 ADD "+fmt(g.adic)}):null,
+          g.bonus>0?h("span",{class:"num",style:"font-size:9px;font-weight:800;color:var(--ok)",text:"🤩"+pct+" "+fmt(g.bonus)}):null,
           // com ADD e/ou bônus: o total logo embaixo, em caixinha verde
-          (g.adic>0||g.bonus>0)?h("span",{class:"num",style:"margin-top:3px;font-size:15px;font-weight:900;background:var(--ok);color:#fff;border-radius:8px;padding:2px 10px;white-space:nowrap;box-shadow:0 2px 6px rgba(23,132,90,.3)",text:"Total "+fmt(g.total)}):null); })()
+          (g.adic>0||g.bonus>0)?h("span",{class:"num",style:"margin-top:3px;font-size:12px;font-weight:900;background:var(--ok);color:#fff;border-radius:7px;padding:2px 8px;white-space:nowrap;box-shadow:0 2px 6px rgba(23,132,90,.3)",text:"Total "+fmt(g.total)}):null); })()
       : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(ganhoPedido(p))}))
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
