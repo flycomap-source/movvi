@@ -5594,7 +5594,7 @@ function abrirConfirmacao(p){
   fValEd.removeAttribute("hidden"); fValEd.placeholder="0,00"; fValEd.id="fQuantoRecebi";
   fValEd.setAttribute("style","width:130px;flex:none;font-size:18px;font-weight:800;text-align:right");
   // dinheiro ou cartão: se recebeu um valor diferente, digita aqui e explica nas observações
-  const blocoQuanto=(anunc!=="pix") ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
+  const blocoQuanto=(anunc==="dinheiro") ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
       h("div",{style:"display:flex;align-items:center;justify-content:flex-end;gap:8px"},
         h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Valor recebido?"}),fValEd),avisoEd) : null;
   fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
@@ -5607,7 +5607,7 @@ function abrirConfirmacao(p){
   const linhaCheio = cheioTroco ? h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px dashed var(--line);padding-top:6px"},
       h("span",{style:"font-weight:800",text:"Total com troco"}),
       h("b",{class:"num",style:"font-size:20px;color:var(--bad)",text:fmt(cheioTroco)})) : null;
-  const infoValor = (anunc!=="pix" && valPedido>0) ? h("div",{class:"painel",style:"gap:4px;padding:10px 14px"},
+  const infoValor = (anunc==="dinheiro" && valPedido>0) ? h("div",{class:"painel",style:"gap:4px;padding:10px 14px"},
       h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},lblValor,h("div",{style:"display:flex;align-items:center;gap:8px"},txValor)),linhaCheio) : null;
   const trocoTxt=h("b",{style:"color:var(--bad)"});
   const btDeiTroco=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"Dei o troco");
@@ -5691,9 +5691,8 @@ function abrirConfirmacao(p){
   const blocoDinParc=h("div",{class:"painel",style:"gap:6px"},
     h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"},
       h("div",null,h("span",{class:"muted",style:"font-size:13px;display:block",text:"Valor total da compra"}),h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)})),
-      h("label",{for:"fDinParc",style:"display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:700"},"Recebi em dinheiro (R$)",fDinParc)),
-    h("span",{class:"muted",style:"font-size:12px",text:"Se o cliente pagou uma parte em dinheiro, coloque aqui: o valor vai para a sua carteira para devolver à loja."}));
-  const atuDinParc=()=>{ blocoDinParc.hidden = formaRec==="dinheiro" || ehTransf(p); };
+      h("label",{for:"fDinParc",style:"display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:700"},"Valor recebido (R$)",fDinParc)));
+  const atuDinParc=()=>{ blocoDinParc.hidden = formaRec==="dinheiro" || formaRec==="pix" || ehTransf(p); };
   Object.values(btsPag).forEach(b=>b.addEventListener("click",()=>setTimeout(atuDinParc,0))); setTimeout(atuDinParc,0);
   // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
   let escolhaDin=null;
