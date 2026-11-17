@@ -577,7 +577,7 @@ body .solic-loja .loja{color:var(--ink)}
       <h3 id="eqFormTit">Novo entregador</h3>
       <div class="linha">
         <div class="campo"><label for="eqNome">Nome</label><input class="inp" id="eqNome" autocomplete="off" placeholder="Nome do entregador"></div>
-        <label class="manter" style="justify-content:flex-start;grid-column:1/-1"><input type="checkbox" id="eqSemAd"> Faz parte da central (não recebe adicionais)</label>
+        <label class="manter" style="justify-content:flex-start;grid-column:1/-1"><input type="checkbox" id="eqSemAd"> Faz parte da central (não recebe adicionais nem bônus)</label>
         <div class="campo" style="grid-column:1/-1"><label for="eqGrupo">Grupo</label><select class="inp" id="eqGrupo"><option value="movvi">Movvi+ (vê todos os pedidos)</option><option value="outros">Outros (só pedidos pagos e em dinheiro)</option></select></div>
         <div class="campo"><label for="eqTaxa">Mínimo por entrega (R$)</label><input class="inp num" id="eqTaxa" inputmode="decimal" placeholder="0,00"></div>
       </div>
@@ -711,7 +711,7 @@ const dinheiroRetivel = p => dinheiroDoPedido(p)>0 && !dinheiroFicaNaLoja(p);
 /* Dinheiro em espécie que o entregador recebe do cliente */
 function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor)+num(p.trocoDevolver) : num(p.dinheiroParcial); }   // trocoDevolver: troco que o comércio deu ao entregador; volta junto para o comércio   // dinheiroParcial: parte paga em dinheiro numa compra no cartão/pix/convênio
 /* Unidades pagas ao entregador: a entrega + adicionais */
-/* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional; os adicionais dos outros saem dos 25% da central */
+/* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional nem bônus; os adicionais dos outros saem dos 25% da central */
 function semAdicional(entId){ if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
 const unidades = p => 1 + (semAdicional(p.entregadorId) ? 0 : Math.max(0, Math.round(num(p.adicionais))));
 const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
@@ -725,6 +725,8 @@ const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="con
 function ganhoUnit(p){
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
   if(p && p.taxaFixaCentral) return min;
+  // quem faz parte da central não recebe bônus nem adicional (a entrega conta, mas paga só a taxa dele)
+  if(semAdicional(p&&p.entregadorId)) return min;
   if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));   // valorEntrega já vem com o bônus
   // bônus da central para o entregador (ex.: entrega longe): +X% em cima do valor dele
   return Math.round(Math.max(min, num(p.taxaCobrada)*PCT_ENTREGADOR)*(1+Math.max(0,num(p.bonusPct))/100)*100)/100;
@@ -8671,7 +8673,7 @@ function editarEntregador(e){
     h("div",{class:"campo"},h("label",{for:"eeT",text:"Mínimo por entrega (R$)"}),fT),
     h("div",{class:"campo"},h("label",{for:"eeG",text:"Grupo"}),fG),
     h("div",{class:"campo"},h("label",{for:"eeF",text:"Fatura"}),fF),
-    h("label",{class:"manter",style:"justify-content:flex-start"},fSA," Faz parte da central (não recebe adicionais)"),
+    h("label",{class:"manter",style:"justify-content:flex-start"},fSA," Faz parte da central (não recebe adicionais nem bônus)"),
     h("div",{class:"campo"},h("label",{for:"eeP",text:"Chave Pix (para pagamento)"}),fP),
     h("div",{class:"campo"},h("label",{for:"eeTel",text:"Telefone / WhatsApp"}),fTel),
     msg,ok];
