@@ -4242,7 +4242,9 @@ function agendarNumeracao(){
 function entregasAbertasPorEntregador(){
   const g={};
   if(S.dia!==hoje()) return g;
-  S.pedidosDia.filter(p=>p.status==="pendente" && p._path).forEach(p=>{
+  // toda entrega em aberto que está na tela entra (de qualquer hora ou dia, lançada por ele, pela central ou pelo comércio)
+  const abertos=["pendente","aceita","a_caminho","em_rota"], vistos=new Set();
+  S.pedidosDia.filter(p=>p._path && abertos.includes(p.status) && !vistos.has(p._path) && vistos.add(p._path)).forEach(p=>{
     const k = S.modo==="entregador" ? S.eu : p.entregadorId;
     if(!k) return;
     (g[k]=g[k]||[]).push(p);
@@ -4382,7 +4384,7 @@ function abrirOrdemEntregas(ent,op){
   };
   let base=0,total=0; montar();
   const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
-  const info=h("div",{class:"muted",style:"font-size:13px",text:"Numerar é opcional. Toque no número de uma entrega para colocá-la nessa posição; a que tinha esse número fica com o número antigo dela (ou sem número). Entrega nova entra sempre no fim. Os números ficam fixos, mesmo se a rota passar para outro entregador."});
+  const info=h("div",{class:"muted",style:"font-size:13px",text:"Todas as suas entregas em aberto estão aqui e, ao salvar, todas ficam na rota. Toque no número de uma entrega para colocá-la nessa posição; a que tinha esse número fica com o número antigo dela (ou sem número). Entrega nova entra sempre no fim. Os números ficam fixos, mesmo se a rota passar para outro entregador."});
   const falta=h("div",{style:"font-size:13px;font-weight:800;color:var(--laranja-ink)"});
   const msg=h("div",{class:"aviso",hidden:true});
   const btOrg=h("button",{class:"btn sec full",type:"button"},"🧭 Sugerir uma ordem");
@@ -4391,7 +4393,7 @@ function abrirOrdemEntregas(ent,op){
     const usados=new Set(Object.values(nums));
     const ord=itens.slice().sort((x,y)=>(nums[x.id]||999)-(nums[y.id]||999));
     const semN=itens.filter(p=>!nums[p.id]).length;
-    falta.textContent=semN?(semN===1?"1 entrega sem número (pode deixar assim)":semN+" entregas sem número (pode deixar assim)"):"✓ Todas numeradas";
+    falta.textContent=semN?(semN===1?"1 entrega sem número (ao salvar, entra no fim da rota)":semN+" entregas sem número (ao salvar, entram no fim da rota)"):"✓ Todas numeradas";
     falta.style.color=semN?"var(--muted)":"var(--ok)";
     caixa.replaceChildren(...ord.map(p=>{ const n=nums[p.id]||0;
       return h("div",{class:"parada",style:n?"":"border-style:dashed"},
@@ -4416,7 +4418,10 @@ function abrirOrdemEntregas(ent,op){
   salvar.addEventListener("click",async()=>{
     const atual=pegar();
     if(chaveOrdem(atual)!==chaveOrdem(itens)){ itens=atual; montar(); desenhar(); msg.hidden=false; msg.textContent="As entregas mudaram enquanto você ajustava. Confira a lista de novo e salve."; return; }
-    const semN=itens.filter(p=>!nums[p.id]).length;
+    // ao salvar, todas as entregas entram na rota: as que ficaram sem número vão para o fim, na ordem da tela
+    { const usados=new Set(Object.values(nums)); let k=base+1;
+      itens.slice().sort((x,y)=>(num(x.ordemEntrega)||999)-(num(y.ordemEntrega)||999)||String(x.criadoEm||"").localeCompare(String(y.criadoEm||"")))
+        .filter(p=>!nums[p.id]).forEach(p=>{ while(usados.has(k)) k++; nums[p.id]=k; usados.add(k); }); }
     salvar.disabled=true; salvar.textContent="Salvando…";
     try{
       const chave=chaveOrdem(itens);
