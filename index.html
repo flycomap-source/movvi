@@ -5584,20 +5584,24 @@ function abrirConfirmacao(p){
   const lblValor=h("span",{class:"muted",style:"font-weight:700",text:"Valor a receber"});
   const txValor=h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)});
   const fValEd=h("input",{class:"inp num",inputmode:"decimal",style:"max-width:140px;font-size:18px;font-weight:800;text-align:right",hidden:true,"aria-label":"Valor recebido"});
-  const btEdVal=h("button",{class:"mini-bt",type:"button",style:"flex:none"},"✏️ Editar");
   const avisoEd=h("div",{class:"muted",style:"font-size:12px;font-weight:700;color:var(--warn)",hidden:true,text:"Valor alterado: explique nas observações (ex.: eram dois pedidos)."});
-  btEdVal.addEventListener("click",()=>{ txValor.hidden=true; btEdVal.hidden=true; fValEd.hidden=false; fValEd.value=fmtInput(valPedido); fValEd.focus(); try{ fValEd.select(); }catch(e){} });
-  fValEd.addEventListener("input",()=>{ const v=num(fValEd.value); valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
+  fValEd.removeAttribute("hidden"); fValEd.placeholder="Deixe em branco se recebeu o valor certo"; fValEd.id="fQuantoRecebi";
+  fValEd.setAttribute("style","width:100%;font-size:20px;font-weight:800;text-align:left;padding:14px");
+  const blocoQuanto=(anunc!=="pix" && valPedido>0) ? h("div",{class:"painel",style:"gap:6px;border:2px dashed var(--royal)"},
+      h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"💵 Quanto recebi (R$)"}),fValEd,
+      h("span",{class:"muted",style:"font-size:12px",text:"Use só se recebeu um valor diferente (ex.: dois pedidos pagos juntos)."}),avisoEd) : null;
+  fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
+    // digitou o valor cheio de um pedido com troco (ex.: 100 num "troco para 100"): é o troco normal, não valor diferente
+    if(valorEditado!==null && formaRec==="dinheiro" && num(p.trocoPara)>0 && v>valPedido && v<=num(p.trocoPara)+0.009){ valorEditado=null; fValRec.value=fmtInput(v); avisoEd.hidden=true; try{ atPag(); }catch(e){} return; }
     lblValor.textContent = valorEditado!==null ? "Valor recebido" : "Valor a receber"; avisoEd.hidden = valorEditado===null;
-    if(valorEditado!==null && formaRec==="dinheiro") fValRec.value=fmtInput(valorEditado);
+    if(formaRec==="dinheiro") fValRec.value=fmtInput(valorEditado!==null?valorEditado:valAnunc);
     try{ atPag(); }catch(e){} });
   const cheioTroco = p.pagamento==="dinheiro" && num(p.trocoPara)>valPedido+0.009 ? num(p.trocoPara) : 0;
   const linhaCheio = cheioTroco ? h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px dashed var(--line);padding-top:6px"},
       h("span",{style:"font-weight:800",text:"Total com troco"}),
-      h("span",{style:"display:flex;flex-direction:column;align-items:flex-end"},h("b",{class:"num",style:"font-size:20px;color:var(--bad)",text:fmt(cheioTroco)}),
-        h("span",{class:"muted num",style:"font-size:12px",text:"pedido "+fmt(valPedido)+" + troco "+fmt(cheioTroco-valPedido)}))) : null;
+      h("b",{class:"num",style:"font-size:20px;color:var(--bad)",text:fmt(cheioTroco)})) : null;
   const infoValor = (anunc!=="pix" && valPedido>0) ? h("div",{class:"painel",style:"gap:4px;padding:10px 14px"},
-      h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},lblValor,h("div",{style:"display:flex;align-items:center;gap:8px"},txValor,fValEd,btEdVal)),avisoEd,linhaCheio) : null;
+      h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px"},lblValor,h("div",{style:"display:flex;align-items:center;gap:8px"},txValor)),linhaCheio) : null;
   const trocoTxt=h("b",{style:"color:var(--bad)"});
   const btDeiTroco=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"Dei o troco");
   const btSemTroco=h("button",{class:"btn sec",type:"button",style:"flex:1;padding:8px"},"Não tinha troco");
@@ -5730,7 +5734,7 @@ function abrirConfirmacao(p){
   if(transf){ ok.textContent="Finalizar transferência"; box.remove(); btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
   else atuBotoesDin();
   const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
-    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoObsFin,blocoDinParc,msg,linhaOk]);
+    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoQuanto,blocoObsFin,blocoDinParc,msg,linhaOk]);
   // se faltar alguma coisa, o aviso aparece e a tela rola até ele
   ok.addEventListener("click",()=>setTimeout(()=>{ if(!msg.hidden){ try{ msg.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} msg.style.outline="3px solid var(--bad)"; setTimeout(()=>msg.style.outline="",1500); } },30));
   ok.addEventListener("click",async()=>{
