@@ -5585,11 +5585,12 @@ function abrirConfirmacao(p){
   const txValor=h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)});
   const fValEd=h("input",{class:"inp num",inputmode:"decimal",style:"max-width:140px;font-size:18px;font-weight:800;text-align:right",hidden:true,"aria-label":"Valor recebido"});
   const avisoEd=h("div",{class:"muted",style:"font-size:12px;font-weight:700;color:var(--warn)",hidden:true,text:"Valor alterado: explique nas observações (ex.: eram dois pedidos)."});
-  fValEd.removeAttribute("hidden"); fValEd.placeholder="Deixe em branco se recebeu o valor certo"; fValEd.id="fQuantoRecebi";
-  fValEd.setAttribute("style","width:100%;font-size:20px;font-weight:800;text-align:left;padding:14px");
-  const blocoQuanto=(anunc!=="pix" && valPedido>0) ? h("div",{class:"painel",style:"gap:6px;border:2px dashed var(--royal)"},
-      h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"💵 Quanto recebi (R$)"}),fValEd,
-      h("span",{class:"muted",style:"font-size:12px",text:"Use só se recebeu um valor diferente (ex.: dois pedidos pagos juntos)."}),avisoEd) : null;
+  fValEd.removeAttribute("hidden"); fValEd.placeholder="0,00"; fValEd.id="fQuantoRecebi";
+  fValEd.setAttribute("style","width:130px;flex:none;font-size:18px;font-weight:800;text-align:right");
+  // dinheiro ou cartão: se recebeu um valor diferente, digita aqui e explica nas observações
+  const blocoQuanto=(anunc!=="pix" && valPedido>0) ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
+      h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:10px"},
+        h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Quanto recebi"}),fValEd),avisoEd) : null;
   fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
     // digitou o valor cheio de um pedido com troco (ex.: 100 num "troco para 100"): é o troco normal, não valor diferente
     if(valorEditado!==null && formaRec==="dinheiro" && num(p.trocoPara)>0 && v>valPedido && v<=num(p.trocoPara)+0.009){ valorEditado=null; fValRec.value=fmtInput(v); avisoEd.hidden=true; try{ atPag(); }catch(e){} return; }
