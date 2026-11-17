@@ -2628,7 +2628,7 @@ function cartaoPedidoBase(p){
         const txt = p.emRotaEm ? "Em rota" : "Indo coletar · aceito às "+new Date(p.aceitoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
         acoes.append(h("button",{class:"btn"+(p.emRotaEm?"":" sec"),type:"button",style:"flex:1;cursor:default","aria-disabled":"true",title:"O entregador confirma a entrega pelo app dele"},txt));
       }else{
-        acoes.append(h("button",{class:"btn lar",type:"button",style:"flex:1",onclick:()=>abrirConfirmacao(p)},camIcon(),"Finalizar entrega"));
+        acoes.append(h("button",{class:"btn lar",type:"button",style:"flex:1",onclick:()=>abrirConfirmacao(p,{direto:finalizaDireto(p)})},camIcon(),"Finalizar entrega"));
       }
     }
   }
@@ -5557,7 +5557,9 @@ async function comprimir(file){
     return blob||file;
   }catch(e){ return file; }
 }
-function abrirConfirmacao(p){
+/* pedido pago (Pix), sem receita e sem transferência: finalizar não precisa da tela de confirmação */
+const finalizaDireto = p => S.modo==="entregador" && (p.pagamentoAnunciado||p.pagamento)==="pix" && !p.pegarReceita && !ehTransf(p) && p.tipo!=="rota";
+function abrirConfirmacao(p,op){
   let arquivo=null;
   const entrada=h("input",{type:"file",accept:"image/*",capture:"environment","aria-label":"Tirar foto da entrega"});
   const prev=h("div",{style:"display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none"},
@@ -5632,14 +5634,14 @@ function abrirConfirmacao(p){
     trocoBox.hidden = !(sobra>0.009); if(trocoBox.hidden) trocoEscolha=""; else trocoTxt.textContent="O cliente pagou "+fmt(num(fValRec.value))+": troco de "+fmt(sobra)+".";
     pintaTroco();
     const mudou = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(num(fValRec.value)-valAnunc)>0.009);
-    avisoPag.hidden=!mudou;
+    avisoPag.hidden=true;   // a frase "diferente do que o comércio informou" não aparece mais (o elemento fica só como referência de posição)
   }
   fValRec.addEventListener("input",atPag);
   const boxMudarPag=h("div",{style:"display:flex;flex-direction:column;gap:6px",hidden:true},h("span",{class:"lbl",text:"Recebido em"}),segPag);
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,blocoNota);   // sem o aviso "diferente do que o comércio informou"
+    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
@@ -5741,6 +5743,11 @@ function abrirConfirmacao(p){
   else atuBotoesDin();
   const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
     transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoObsFin,blocoAd,blocoDinParc,msg,linhaOk]);
+  if(op&&op.direto){   // finaliza na hora: a tela fica escondida e só aparece se faltar alguma coisa
+    const veu=[...document.querySelectorAll(".veu")].pop(); if(veu) veu.style.opacity="0";
+    toast("Finalizando…"); setTimeout(()=>ok.click(),0);
+    setTimeout(()=>{ if(veu && veu.isConnected) veu.style.opacity=""; },3500);
+  }
   // se faltar alguma coisa, o aviso aparece e a tela rola até ele
   ok.addEventListener("click",()=>setTimeout(()=>{ if(!msg.hidden){ try{ msg.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} msg.style.outline="3px solid var(--bad)"; setTimeout(()=>msg.style.outline="",1500); } },30));
   ok.addEventListener("click",async()=>{
