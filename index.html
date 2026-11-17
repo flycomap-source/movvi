@@ -1918,7 +1918,7 @@ function renderPedidos(){
   if(central() && S.filtro!=="todos") ps=ps.filter(p=>p.entregadorId===S.filtro);
   ps.sort((a,b)=> (a.status==="entregue")-(b.status==="entregue") || String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")) || String(a.rotaId||"").localeCompare(String(b.rotaId||"")) || (num(a.rotaOrdem)-num(b.rotaOrdem)));
   // entregador (e a central filtrando um entregador): na ordem em que cada entrega vai ser feita
-  if(S.modo==="entregador" || (central() && S.filtro!=="todos")) ps.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
+  if(S.modo==="entregador" || (central() && S.filtro!=="todos")) ps.sort(cmpSeq);
   const ent=ps.filter(p=>p.status==="entregue");
   $("#rTotal").textContent=ps.length;
   $("#rEntregues").textContent=ent.length;
@@ -1975,7 +1975,7 @@ function renderPedidos(){
     });
   if(S.modo==="entregador"){
     const minhas=[...grupos.aceite,...grupos.coletar,...grupos.rota];
-    minhas.sort((a,b)=>(num(a.ordemEntrega)||999)-(num(b.ordemEntrega)||999));
+    minhas.sort(cmpSeq);
     const rotaPraArrumar = minhas.length>=2 && minhas.some(p=>!p.emRotaEm);
     const btRota=h("button",{type:"button",title:"Editar rota",  "aria-label":"Editar rota",
       style:"width:42px;height:38px;flex:none;border:0;border-radius:8px;background:var(--laranja);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)"},"🧭");
@@ -2490,7 +2490,7 @@ function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" 
 function celCliente(p,extra){
   const entregue=p.status==="entregue";
   const marcas=[(p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"", ehTransf(p)?"🔁":"", p.pegarReceita?"℞":"",
-    (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0)?"🧭"+num(p.ordemEntrega)+"/"+num(p.ordemQtd):p.rotaOrdem?"Parada "+p.rotaOrdem:"", p.obs?"📝":"", extra||""].filter(Boolean).join(" ");
+    (!entregue && posNaRota(p))?(()=>{ const r=posNaRota(p); return "🧭"+r.n+"/"+r.de+(r.coleta?" coletar":""); })():p.rotaOrdem?"Parada "+p.rotaOrdem:"", p.obs?"📝":"", extra||""].filter(Boolean).join(" ");
   const nome=p.cliente||(ehTransf(p)?((p.transfDe||p.transfPara)?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência"):"—");
   const baixo=[p.bairro||p.endereco||"",marcas].filter(Boolean).join(" · ");
   return h("span",{class:"c",title:[nome,p.endereco,p.obs].filter(Boolean).join(" · ")},h("b",{text:nome}),baixo?h("span",{class:"sub",text:baixo}):null);
@@ -2568,9 +2568,9 @@ function cartaoPedidoBase(p){
       pillReceita(p),
       p.acertado?h("span",{class:"pill acert",text:"Acertado"}):null,
       num(p.adicionais)>0 && !comercio() && S.modo!=="entregador"?h("span",{class:"pill",style:"background:var(--warn-bg);color:var(--laranja-ink)",text:"+"+num(p.adicionais)+(num(p.adicionais)>1?" adicionais":" adicional")}):null,
-      (!entregue && num(p.ordemQtd)>=2 && num(p.ordemEntrega)>0 && !comercio())
+      (!entregue && !comercio() && posNaRota(p))
         ? h(S.modo==="entregador"?"button":"span",{class:"pill ordem",type:"button",style:"background:var(--laranja);color:#fff;font-weight:800;font-size:12.5px;padding:4px 10px;border:0",title:S.modo==="entregador"?"Toque para mudar a ordem das entregas":"Posição desta entrega na rota do entregador",
-            onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:"🧭 "+num(p.ordemEntrega)+"ª entrega de "+num(p.ordemQtd)+(S.modo==="entregador"?" ▾":"")})
+            onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:(()=>{ const r=posNaRota(p); return "🧭 "+r.n+"ª "+(r.coleta?"parada · coletar"+(r.ent?" (entrega "+r.ent+"ª)":""):"entrega")+" de "+r.de; })()+(S.modo==="entregador"?" ▾":"")})
         : p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null),
     p.obs?h("div",{class:"obs",text:p.obs}):null,
@@ -4252,6 +4252,17 @@ function entregasAbertasPorEntregador(){
   return g;
 }
 const chaveOrdem=l=>l.map(p=>p.id).sort().join("|");
+/* ordem de coleta e de entrega: entrega ainda não coletada com "coletar antes da entrega nº X" aparece nessa posição
+   (ex.: coletar na Campos antes da 1ª entrega); quando sai em rota, passa para a posição de entrega dela (ordemEntrega) */
+const coletaPendente = p => !p.emRotaEm && num(p.ordemColeta)>0;
+const chaveSeq = p => coletaPendente(p) ? num(p.ordemColeta)-0.5 : (num(p.ordemEntrega)||999);
+const cmpSeq = (a,b) => chaveSeq(a)-chaveSeq(b) || String(a.criadoEm||"").localeCompare(String(b.criadoEm||""));
+function posNaRota(p){
+  if(!(num(p.ordemQtd)>=2 && (num(p.ordemEntrega)>0||num(p.ordemColeta)>0))) return null;
+  const l=(entregasAbertasPorEntregador()[S.modo==="entregador"?S.eu:p.entregadorId]||[]).slice().sort(cmpSeq);
+  const i=l.findIndex(x=>x._path===p._path); if(i<0) return null;
+  return {n:i+1,de:l.length,coleta:coletaPendente(p),ent:num(p.ordemEntrega)};
+}
 async function numerarEntregas(){
   // a numeração agora é só manual (o entregador ou a central toca no número de cada entrega em "Rota de entregas")
   return;
@@ -4355,12 +4366,12 @@ function abrirRotaCentral(){
   const ents=Object.keys(por).filter(k=>k && (por[k]||[]).length).sort((a,b)=>nomeEnt(a).localeCompare(nomeEnt(b)));
   const situ=p=>p.emRotaEm?["Em rota","var(--royal)"]:p.aceitoEm?["Indo coletar","var(--muted)"]:["Aguardando aceite","var(--laranja)"];
   const secoes=ents.length?ents.map(k=>{
-      const l=por[k].slice().sort((x,y)=>(num(x.ordemEntrega)||999)-(num(y.ordemEntrega)||999));
+      const l=por[k].slice().sort(cmpSeq);
       const bt=h("button",{type:"button",style:"flex:none;border:0;border-radius:10px;background:var(--laranja);color:#fff;font:inherit;font-weight:800;font-size:14px;padding:8px 12px;cursor:pointer"},"🧭 Organizar");
       bt.addEventListener("click",()=>{ fechar(); abrirOrdemEntregas(k); });
       return h("div",{class:"painel",style:"gap:8px"},
         h("div",{style:"display:flex;align-items:center;gap:10px"},h("b",{style:"flex:1;font-size:17px",text:"🛵 "+nomeEnt(k)+" · "+l.length+(l.length===1?" entrega":" entregas")}),l.length>=2?bt:null),
-        ...l.map(p=>{ const [st,cor]=situ(p), n=num(p.ordemEntrega);
+        ...l.map((p,i)=>{ const [st,cor]=situ(p), n=(num(p.ordemEntrega)>0||coletaPendente(p))?i+1:0;
           return h("button",{type:"button",onclick:()=>abrirDetalhes(p),style:"all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)"},
             h("span",{class:"parada-n num",style:"flex:none;"+(n?"":"background:var(--muted)"),text:n?String(n):"—"}),
             h("span",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},
@@ -4374,13 +4385,14 @@ function abrirRotaCentral(){
 function abrirOrdemEntregas(ent,op){
   op=op||{};
   const pegar=()=>(entregasAbertasPorEntregador()[ent]||[]).slice();
-  let itens=pegar(), nums={};
+  let itens=pegar(), nums={}, numsCol={};
   // as que já têm número (escolhido antes) continuam com ele; as novas entram sem número
   const montar=()=>{
     const comNum=itens.filter(p=>num(p.ordemEntrega)>0);
     base=comNum.length?Math.min(...comNum.map(p=>num(p.ordemEntrega)))-1:0;
     total=base+itens.length; nums={};
     itens.forEach(p=>{ const n=num(p.ordemEntrega); if(n>base && n<=total && !Object.values(nums).includes(n)) nums[p.id]=n; });
+    numsCol={}; itens.forEach(p=>{ const c=num(p.ordemColeta); if(!p.emRotaEm && c>base && c<=total) numsCol[p.id]=c; });
   };
   let base=0,total=0; montar();
   const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
@@ -4391,7 +4403,9 @@ function abrirOrdemEntregas(ent,op){
   const salvar=h("button",{class:"btn full",type:"button"},"Salvar ordem");
   const desenhar=()=>{
     const usados=new Set(Object.values(nums));
-    const ord=itens.slice().sort((x,y)=>(nums[x.id]||999)-(nums[y.id]||999));
+    // na lista: coleta pendente marcada aparece antes da entrega escolhida; o resto na ordem de entrega
+    const kSeq=p=>(!p.emRotaEm&&numsCol[p.id])?numsCol[p.id]-0.5:(nums[p.id]||999);
+    const ord=itens.slice().sort((x,y)=>kSeq(x)-kSeq(y));
     const semN=itens.filter(p=>!nums[p.id]).length;
     falta.textContent=semN?(semN===1?"1 entrega sem número (ao salvar, entra no fim da rota)":semN+" entregas sem número (ao salvar, entram no fim da rota)"):"✓ Todas numeradas";
     falta.style.color=semN?"var(--muted)":"var(--ok)";
@@ -4401,12 +4415,16 @@ function abrirOrdemEntregas(ent,op){
           h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")})),
         h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
         h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))}),
+        p.emRotaEm?null:h("span",{style:"font-size:12.5px;font-weight:800;color:var(--laranja-ink);margin-top:4px",text:"🏁 Ordem da entrega (vale depois de coletar)"}),
         chipsPosicao(base+1,total,n,usados,k=>{
           const outro=Object.keys(nums).find(id=>nums[id]===k && id!==p.id);
           if(n===k){ delete nums[p.id]; }
           else { if(outro){ if(n) nums[outro]=n; else delete nums[outro]; } nums[p.id]=k; }
           msg.hidden=true; desenhar();
-        }));
+        }),
+        // ainda falta coletar: escolher em que ponto da rota passa no comércio (a ordem de entrega acima vale depois de coletar)
+        p.emRotaEm?null:h("span",{style:"font-size:12.5px;font-weight:800;color:var(--royal);margin-top:4px",text:numsCol[p.id]?"📦 Coletar antes da "+numsCol[p.id]+"ª entrega":"📦 Ordem da coleta (opcional): coletar antes da entrega nº"}),
+        p.emRotaEm?null:chipsPosicao(base+1,total,numsCol[p.id]||0,null,k=>{ if(numsCol[p.id]===k) delete numsCol[p.id]; else numsCol[p.id]=k; msg.hidden=true; desenhar(); }));
     }));
   };
   btOrg.addEventListener("click",async()=>{
@@ -4425,8 +4443,8 @@ function abrirOrdemEntregas(ent,op){
     salvar.disabled=true; salvar.textContent="Salvando…";
     try{
       const chave=chaveOrdem(itens);
-      for(const p of itens){ const upd={ordemEntrega:nums[p.id]||0,ordemQtd:total,ordemChave:chave,ordemDe:ent}; // sem número é permitido
-        if(num(p.ordemEntrega)===upd.ordemEntrega && num(p.ordemQtd)===total && p.ordemChave===chave) continue;
+      for(const p of itens){ const upd={ordemEntrega:nums[p.id]||0,ordemColeta:p.emRotaEm?0:(numsCol[p.id]||0),ordemQtd:total,ordemChave:chave,ordemDe:ent};
+        if(num(p.ordemEntrega)===upd.ordemEntrega && num(p.ordemColeta)===upd.ordemColeta && num(p.ordemQtd)===total && p.ordemChave===chave) continue;
         await comRetry(()=>S.db.doc(p._path).update(upd)); }
       if(central()){ const m=membro(ent)||{}; let uid=m.uid||"";
         if(!uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",ent).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false); if(v) uid=v.id; }catch(e){} }
