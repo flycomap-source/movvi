@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=11"></script></head><body>
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=12"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -5639,7 +5639,7 @@ function abrirConfirmacao(p){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
+    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,blocoNota);   // sem o aviso "diferente do que o comércio informou"
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
@@ -7957,6 +7957,11 @@ function ouvirRecados(){
   if(S.subRecados){ S.subRecados(); S.subRecados=null; }
   if(S.subAvisoCentral){ S.subAvisoCentral(); S.subAvisoCentral=null; }
   if(!S.db || !S.uid) return;
+  if(!S.acessoGravado){ S.acessoGravado=true;   // a central vê o usuário de login e o último acesso de cada um
+    const ua=navigator.userAgent||"", ap=(ua.match(/Android [\d.]+; ([^;)]+)/)||[])[1]||(/iPhone/.test(ua)?"iPhone":/Windows/.test(ua)?"Computador (Windows)":/Mac/.test(ua)?"Computador (Mac)":"");
+    const mc=window.movviConta||{};
+    S.db.doc("acessos/"+S.uid).set({usuario:S.meuUsuario||window.movviUsuario||"",nome:S.euNome||mc.nome||"",modo:S.modo||"",equipeId:S.eu||"",ultimoAcesso:new Date().toISOString(),aparelho:ap.trim(),
+      email:mc.email||"",criadaEm:mc.criadaEm||"",cadNome:mc.nome||"",primeiroNome:mc.primeiroNome||"",sobrenome:mc.sobrenome||"",telefone:mc.telefone||"",pix:mc.pix||"",endereco:mc.endereco||"",tipo:mc.tipo||""}).catch(()=>{}); }
   ouvirTransf();
   ouvirChats();
   // quem é da central (para o aviso de Pix ao comércio chegar no celular dela)
@@ -8567,6 +8572,37 @@ $("#comBusca").addEventListener("input",()=>renderComercios());
 /* editar entregador: tudo num lugar só (dados, senha, desativar, excluir) */
 function editarEntregador(e){
   const novo=!e; e=e||{};
+  // informações da conta (só leitura): usuário de login, último acesso, aparelho, chave
+  const infoConta=novo?null:h("div",{class:"painel",style:"gap:4px;background:var(--bg)"},h("span",{class:"muted",style:"font-size:13px",text:"Carregando as informações da conta…"}));
+  if(infoConta) (async()=>{
+    let uid=e.uid||"";
+    if(!uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",e.id).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false)||sn.docs[0]; if(v) uid=v.id; }catch(x){} }
+    let a={}, v={};
+    if(uid){ try{ const sn=await S.db.doc("acessos/"+uid).get(); if(sn.exists) a=sn.data()||{}; }catch(x){} try{ const sn=await S.db.doc("vinculos/"+uid).get(); if(sn.exists) v=sn.data()||{}; }catch(x){} }
+    const usuario=a.usuario||v.usuario||"";
+    const quando=iso=>iso?new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+    const lin=(rot,val,copiar)=>h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px"},h("span",{class:"muted",text:rot}),
+      h("span",{style:"display:flex;align-items:center;gap:6px;min-width:0"},h("b",{style:"overflow-wrap:anywhere;text-align:right",text:val||"—"}),
+        copiar&&val?h("button",{class:"mini-bt",type:"button",onclick:async()=>{ try{ await navigator.clipboard.writeText(val); toast("Copiado"); }catch(x){ toast(val); } }},"Copiar"):null));
+    let sol={}; if(uid){ try{ const sn=await S.db.doc("solicitacoes/"+uid).get(); if(sn.exists) sol=sn.data()||{}; }catch(x){} }
+    const pega=k=>a[k]||sol[k]||v[k]||"";
+    const nomeCad=[pega("primeiroNome"),pega("sobrenome")].filter(Boolean).join(" ")||a.cadNome||sol.nome||v.nome||"";
+    infoConta.replaceChildren(
+      h("b",{style:"font-size:14px",text:"👤 Conta no app (o que ele preencheu)"}),
+      ...(uid?[
+        lin("Nome",nomeCad),
+        lin("Usuário (login)",usuario,true),
+        lin("E-mail de login",a.email||(usuario?usuario+"@movvi.app":""),true),
+        lin("Telefone",pega("telefone"),true),
+        lin("Chave Pix",pega("pix"),true),
+        pega("endereco")?lin("Endereço",pega("endereco")):null,
+        lin("Conta criada em",quando(a.criadaEm||sol.criadoEm)),
+        lin("Último acesso",quando(a.ultimoAcesso)),
+        a.aparelho?lin("Aparelho",a.aparelho):null,
+        lin("Situação",v.ativo===false?"Bloqueado":"Liberado")]
+      :[h("span",{class:"muted",style:"font-size:13px",text:"Ainda não tem conta no app ligada a este cadastro."})]),
+      lin("Chave do QR (Mensagens)",chaveDe(e.id),true));
+  })();
   const partes=String(e.nome||"").trim().split(/\s+/);
   const fN=h("input",{class:"inp",id:"eeN",value:e.primeiroNome||partes[0]||"",placeholder:"Ex.: Melissa",autocomplete:"off"});
   const fSob=h("input",{class:"inp",id:"eeSob",value:e.sobrenome!==undefined?e.sobrenome:partes.slice(1).join(" "),placeholder:"Ex.: Gontijo",autocomplete:"off"});
@@ -8581,6 +8617,7 @@ function editarEntregador(e){
   const msg=h("div",{class:"aviso",hidden:true});
   const ok=h("button",{class:"btn full",type:"button"},novo?"Cadastrar entregador":"Salvar alterações");
   const corpo=[
+    infoConta,
     !novo?h("div",{class:"muted",style:"font-size:13px",text:"Nº "+(ordemCadastro(S.equipe).get(e.id)||"")+" · "+(e.ativo===false?"bloqueado":e.uid?((S.usuarios||{})[e.uid]?"usuário: "+S.usuarios[e.uid]:"usa o app · ainda sem senha"):"ainda sem acesso ao app")}):null,
     h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},
       h("div",{class:"campo"},h("label",{for:"eeN",text:"Nome"}),fN),

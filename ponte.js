@@ -387,6 +387,8 @@
     sessao = session;
     const meta = session.user.user_metadata || {};
     window.movviUsuario = meta.usuario || String(session.user.email || "").replace("@" + DOMINIO, "");
+    // dados que a pessoa preencheu ao criar a conta (a central vê no cadastro dela)
+    window.movviConta = { email: session.user.email || "", criadaEm: session.user.created_at || "", nome: meta.nome || "", primeiroNome: meta.primeiroNome || "", sobrenome: meta.sobrenome || "", telefone: meta.telefone || "", pix: meta.pix || "", endereco: meta.endereco || "", tipo: meta.tipo || "" };
     if (meta.tipo) window.movviCadastro = { tipo: meta.tipo, nome: meta.nome || "", telefone: meta.telefone || "", pix: meta.pix || "", endereco: meta.endereco || "" };
     const { data: p }= await sb.from("perfis").select("papel,nome,ativo").eq("id", session.user.id).maybeSingle();
     perfil = p || { papel: "pendente" };
