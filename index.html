@@ -5589,8 +5589,8 @@ function abrirConfirmacao(p){
   fValEd.setAttribute("style","width:130px;flex:none;font-size:18px;font-weight:800;text-align:right");
   // dinheiro ou cartão: se recebeu um valor diferente, digita aqui e explica nas observações
   const blocoQuanto=(anunc!=="pix" && valPedido>0) ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
-      h("div",{style:"display:flex;align-items:center;justify-content:space-between;gap:10px"},
-        h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Quanto recebi"}),fValEd),avisoEd) : null;
+      h("div",{style:"display:flex;align-items:center;justify-content:flex-end;gap:8px"},
+        h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Valor recebido?"}),fValEd),avisoEd) : null;
   fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
     // digitou o valor cheio de um pedido com troco (ex.: 100 num "troco para 100"): é o troco normal, não valor diferente
     if(valorEditado!==null && formaRec==="dinheiro" && num(p.trocoPara)>0 && v>valPedido && v<=num(p.trocoPara)+0.009){ valorEditado=null; fValRec.value=fmtInput(v); avisoEd.hidden=true; try{ atPag(); }catch(e){} return; }
