@@ -5588,7 +5588,7 @@ function abrirConfirmacao(p){
   fValEd.removeAttribute("hidden"); fValEd.placeholder="0,00"; fValEd.id="fQuantoRecebi";
   fValEd.setAttribute("style","width:130px;flex:none;font-size:18px;font-weight:800;text-align:right");
   // dinheiro ou cartão: se recebeu um valor diferente, digita aqui e explica nas observações
-  const blocoQuanto=(anunc!=="pix" && valPedido>0) ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
+  const blocoQuanto=(anunc!=="pix") ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
       h("div",{style:"display:flex;align-items:center;justify-content:flex-end;gap:8px"},
         h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Valor recebido?"}),fValEd),avisoEd) : null;
   fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
