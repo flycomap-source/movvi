@@ -5633,7 +5633,7 @@ function abrirConfirmacao(p){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
+    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
@@ -5735,7 +5735,7 @@ function abrirConfirmacao(p){
   if(transf){ ok.textContent="Finalizar transferência"; box.remove(); btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
   else atuBotoesDin();
   const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
-    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoAd,blocoQuanto,blocoObsFin,blocoDinParc,msg,linhaOk]);
+    transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoObsFin,blocoAd,blocoDinParc,msg,linhaOk]);
   // se faltar alguma coisa, o aviso aparece e a tela rola até ele
   ok.addEventListener("click",()=>setTimeout(()=>{ if(!msg.hidden){ try{ msg.scrollIntoView({block:"center",behavior:"smooth"}); }catch(e){} msg.style.outline="3px solid var(--bad)"; setTimeout(()=>msg.style.outline="",1500); } },30));
   ok.addEventListener("click",async()=>{
