@@ -1096,6 +1096,7 @@ function abrirMenuCentral(){
     item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
     item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
     item("🗺️","Mapa dos entregadores","Onde cada entregador disponível está agora",()=>abrirMapaEntregadores()),
+    item("🧭","Rota dos entregadores","Organizar a ordem das entregas de cada entregador",()=>abrirRotaCentral()),
     item("💬","Mensagens","Conversas com entregadores e histórico de todas as conversas",()=>abrirMensagens()),
     item("🔁","Transferências entre entregadores","Aprovar ou recusar envios de saldo",()=>abrirTransfCentral()),
     sec("Cadastros e acessos"),
@@ -2002,6 +2003,12 @@ function renderPedidos(){
     return;
   }
   if(S.filtro!=="todos"){ const l=ps.filter(p=>p.entregadorId===S.filtro && p.status==="pendente"); if(l.length>=2) box.append(botaoOrdemEntregas(S.filtro,l)); }
+  { // central: quadradinho laranja 🧭 → entregas de todos os entregadores
+    const por=entregasAbertasPorEntregador(), nEnt=Object.keys(por).filter(k=>k&&(por[k]||[]).length).length, nPed=Object.values(por).reduce((a,l)=>a+(l||[]).length,0);
+    if(nPed){ const bt=h("button",{type:"button",title:"Entregas com os entregadores","aria-label":"Entregas com os entregadores",onclick:()=>abrirRotaCentral(),
+        style:"width:42px;height:38px;flex:none;border:0;border-radius:8px;background:var(--laranja);color:#fff;font-size:20px;display:grid;place-items:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)"},"🧭");
+      box.append(h("div",{style:"display:flex;align-items:center;gap:10px;margin:2px 0 10px"},bt,
+        h("span",{style:"font-weight:800;font-size:14px;color:var(--ink)",text:"Rota dos entregadores · "+nEnt+(nEnt===1?" entregador":" entregadores")+", "+nPed+(nPed===1?" entrega":" entregas")}))); } }
   caixa("aguardando","Aguardando entregador",grupos.aguardando.length,"var(--laranja)",corpo=>grupos.aguardando.forEach(p=>poe(corpo,p)));
   caixa("aceite","Aguardando aceite",grupos.aceite.length,"var(--laranja)",corpo=>grupos.aceite.forEach(p=>poe(corpo,p)));
   caixa("coletar","Indo coletar",grupos.coletar.length,"var(--muted)",corpo=>{
@@ -2502,6 +2509,7 @@ function linhaPedido(p){
   }
   if(!entregue && !pedidoMorto(p)){
     const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
+    if(p.entregadorId && (entregasAbertasPorEntregador()[p.entregadorId]||[]).length>=2) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Organizar a ordem das entregas de "+nomeEnt(p.entregadorId),onclick:e=>{ e.stopPropagation(); abrirOrdemEntregas(p.entregadorId); }},"🧭"));
     if(emRota) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:e=>{ e.stopPropagation(); acrescentarPedidosNaRota(p); }},"+ Rota"));
     else if(!p.rotaId) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Adicionar a uma rota",onclick:e=>{ e.stopPropagation(); escolherRota(p); }},"+ Rota"));
   }
@@ -2627,6 +2635,9 @@ function cartaoPedidoBase(p){
       if(central() && p.aceitoEm){
         const txt = p.emRotaEm ? "Em rota" : "Indo coletar · aceito às "+new Date(p.aceitoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
         acoes.append(h("button",{class:"btn"+(p.emRotaEm?"":" sec"),type:"button",style:"flex:1;cursor:default","aria-disabled":"true",title:"O entregador confirma a entrega pelo app dele"},txt));
+        if((entregasAbertasPorEntregador()[p.entregadorId]||[]).length>=2)
+          acoes.append(h("button",{type:"button",title:"Organizar a rota de "+nomeEnt(p.entregadorId),"aria-label":"Organizar a rota",onclick:e=>{ e.stopPropagation(); abrirOrdemEntregas(p.entregadorId); },
+            style:"flex:none;width:46px;border:0;border-radius:10px;background:var(--laranja);color:#fff;font-size:20px;cursor:pointer"},"🧭"));
       }else{
         acoes.append(h("button",{class:"btn lar",type:"button",style:"flex:1",onclick:()=>abrirConfirmacao(p,{direto:finalizaDireto(p)})},camIcon(),"Finalizar entrega"));
       }
@@ -4327,6 +4338,28 @@ function escolherOrdemSeTodasEmRota(acabou){
     if(l.length>=2 && l.every(p=>p.emRotaEm||ids.has(p.id))) abrirOrdemEntregas(S.eu,{todasEmRota:true});
   },900);
 }
+/* central: todas as entregas em aberto, separadas por entregador (na ordem da rota de cada um) */
+function abrirRotaCentral(){
+  const por=entregasAbertasPorEntregador();
+  const ents=Object.keys(por).filter(k=>k && (por[k]||[]).length).sort((a,b)=>nomeEnt(a).localeCompare(nomeEnt(b)));
+  const situ=p=>p.emRotaEm?["Em rota","var(--royal)"]:p.aceitoEm?["Indo coletar","var(--muted)"]:["Aguardando aceite","var(--laranja)"];
+  const secoes=ents.length?ents.map(k=>{
+      const l=por[k].slice().sort((x,y)=>(num(x.ordemEntrega)||999)-(num(y.ordemEntrega)||999));
+      const bt=h("button",{type:"button",style:"flex:none;border:0;border-radius:10px;background:var(--laranja);color:#fff;font:inherit;font-weight:800;font-size:14px;padding:8px 12px;cursor:pointer"},"🧭 Organizar");
+      bt.addEventListener("click",()=>{ fechar(); abrirOrdemEntregas(k); });
+      return h("div",{class:"painel",style:"gap:8px"},
+        h("div",{style:"display:flex;align-items:center;gap:10px"},h("b",{style:"flex:1;font-size:17px",text:"🛵 "+nomeEnt(k)+" · "+l.length+(l.length===1?" entrega":" entregas")}),l.length>=2?bt:null),
+        ...l.map(p=>{ const [st,cor]=situ(p), n=num(p.ordemEntrega);
+          return h("button",{type:"button",onclick:()=>abrirDetalhes(p),style:"all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)"},
+            h("span",{class:"parada-n num",style:"flex:none;"+(n?"":"background:var(--muted)"),text:n?String(n):"—"}),
+            h("span",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},
+              h("b",{style:"font-size:15px",text:(p.cliente||"Cliente")+(p.numero?" · #"+p.numero:"")}),
+              h("span",{style:"font-size:13px",text:"📍 "+(p.endereco||"Sem endereço")+(p.bairro&&!new RegExp(p.bairro,"i").test(p.endereco||"")?" · "+p.bairro:"")}),
+              h("span",{class:"muted",style:"font-size:12px",text:"Coleta: "+(p.coletaEmpresa||p.coletaEndereco||"—")})),
+            h("span",{style:"flex:none;font-size:11.5px;font-weight:800;color:#fff;background:"+cor+";border-radius:999px;padding:2px 8px;white-space:nowrap",text:st})); })); })
+    :[h("p",{class:"muted",style:"margin:0",text:"Nenhum entregador com entrega em aberto agora."})];
+  const fechar=abrirSheet("🧭 Entregas com os entregadores",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Os números são a ordem da rota. Toque em “Organizar” para mudar a ordem de um entregador (ele recebe um aviso e pode ajustar depois). Toque numa entrega para ver os detalhes."}),...secoes]);
+}
 function abrirOrdemEntregas(ent,op){
   op=op||{};
   const pegar=()=>(entregasAbertasPorEntregador()[ent]||[]).slice();
@@ -4381,7 +4414,10 @@ function abrirOrdemEntregas(ent,op){
       for(const p of itens){ const upd={ordemEntrega:nums[p.id]||0,ordemQtd:total,ordemChave:chave,ordemDe:ent}; // sem número é permitido
         if(num(p.ordemEntrega)===upd.ordemEntrega && num(p.ordemQtd)===total && p.ordemChave===chave) continue;
         await comRetry(()=>S.db.doc(p._path).update(upd)); }
-      fechar(); toast("Ordem das entregas salva"); }
+      if(central()){ const m=membro(ent)||{}; let uid=m.uid||"";
+        if(!uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",ent).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false); if(v) uid=v.id; }catch(e){} }
+        if(uid) S.db.doc("recados/r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)).set({tipo:"aviso",para:uid,de:"Central",deUid:S.uid||"",texto:"🧭 A central organizou a ordem da sua rota. Confira em Minhas entregas (você pode mudar se precisar).",criadoEm:new Date().toISOString()}).catch(()=>{}); }
+      fechar(); toast(central()?"Rota de "+nomeEnt(ent)+" salva · o entregador foi avisado":"Ordem das entregas salva"); }
     catch(e){ salvar.disabled=false; salvar.textContent="Salvar ordem"; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
   });
   desenhar();
