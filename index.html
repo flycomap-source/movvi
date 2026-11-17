@@ -712,7 +712,10 @@ const dinheiroRetivel = p => dinheiroDoPedido(p)>0 && !dinheiroFicaNaLoja(p);
 function dinheiroDoPedido(p){ return p.pagamento==="dinheiro" ? num(p.valorDinheiro!==undefined?p.valorDinheiro:p.valor)+num(p.trocoDevolver) : num(p.dinheiroParcial); }   // trocoDevolver: troco que o comércio deu ao entregador; volta junto para o comércio   // dinheiroParcial: parte paga em dinheiro numa compra no cartão/pix/convênio
 /* Unidades pagas ao entregador: a entrega + adicionais */
 /* quem faz parte da central (ex.: Anderson Pereira dos Santos) não recebe adicional nem bônus; os adicionais dos outros saem dos 25% da central */
-function semAdicional(entId){ if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
+/* na tela os valores aparecem cheios para todo mundo ver (taxa, ADD, bônus e total); só na contagem/pagamento quem é da central não soma bônus nem adicional */
+let _naTela=false;
+const naTela = fn => { const ant=_naTela; _naTela=true; try{ return fn(); } finally{ _naTela=ant; } };
+function semAdicional(entId){ if(_naTela) return false; if(central()) return !!((S.equipe||[]).find(m=>m.id===entId)||{}).semAdicional; return !!S.euSemAdicional; }
 const unidades = p => 1 + (semAdicional(p.entregadorId) ? 0 : Math.max(0, Math.round(num(p.adicionais))));
 const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
 /* Quanto o entregador recebe por entrega:
@@ -725,7 +728,7 @@ const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="con
 function ganhoUnit(p){
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
   if(p && p.taxaFixaCentral) return min;
-  // quem faz parte da central não recebe bônus nem adicional (a entrega conta, mas paga só a taxa dele)
+  // quem faz parte da central não recebe bônus nem adicional (a entrega conta, mas paga só a taxa dele) — na tela continua mostrando os valores
   if(semAdicional(p&&p.entregadorId)) return min;
   if(!num(p.taxaCobrada) && num(p.valorEntrega)) return Math.max(min, num(p.valorEntrega));   // valorEntrega já vem com o bônus
   // bônus da central para o entregador (ex.: entrega longe): +X% em cima do valor dele
@@ -738,11 +741,12 @@ const somaGanhoEntregas = lst => lst.reduce((s,p)=>s+ganhoUnit(p),0);
 /* Valor de taxa que cada perfil enxerga num pedido */
 function taxaVisivel(p){
   if(comercio()) return 0;   // o comércio não vê taxa nem valores de entrega (esse controle é feito fora do app)
-  if(S.modo==="entregador") return ganhoPedido(p);
+  if(S.modo==="entregador") return naTela(()=>ganhoPedido(p));
   return num(p.taxaCobrada);
 }
 /* entregador: taxa dele (R$ 6), bônus (o que passa da taxa: % da central / 75% da taxa), adicionais e o total em verde */
-function partesGanho(p){
+function partesGanho(p){ return naTela(()=>partesGanhoCalc(p)); }
+function partesGanhoCalc(p){
   if(p._rotaTot!==undefined) return {base:p._rotaBase,bonus:Math.max(0,Math.round((p._rotaTot-p._rotaBase)*100)/100),adic:0,total:p._rotaTot};
   const unit=ganhoUnit(p), base=Math.min(unit,(central()?taxaEnt(p.entregadorId):num(S.euTaxa))||TAXA_MINIMA);
   return {base, bonus:Math.max(0,Math.round((unit-base)*100)/100), adic:Math.max(0,Math.round((ganhoPedido(p)-unit)*100)/100), total:ganhoPedido(p)};
@@ -2549,7 +2553,7 @@ function cartaoPedidoBase(p){
           g.bonus>0?h("span",{class:"num",style:"font-size:9px;font-weight:800;color:var(--ok)",text:"🤩"+pct+" "+fmt(g.bonus)}):null,
           // com ADD e/ou bônus: o total logo embaixo, em caixinha verde
           (g.adic>0||g.bonus>0)?h("span",{class:"num",style:"margin-top:3px;font-size:12px;font-weight:900;background:var(--ok);color:#fff;border-radius:7px;padding:2px 8px;white-space:nowrap;box-shadow:0 2px 6px rgba(23,132,90,.3)",text:"Total "+fmt(g.total)}):null); })()
-      : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(ganhoPedido(p))}))
+      : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(naTela(()=>ganhoPedido(p)))}))
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
