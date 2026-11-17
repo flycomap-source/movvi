@@ -72,6 +72,8 @@
         if (st === "SUBSCRIBED") { ouvintes.forEach((s) => s.forEach((fn) => fn())); ouvintesDoc.forEach((s) => s.forEach((fn) => fn())); }
       });
   }
+  // o próprio aparelho gravou: atualiza as telas na hora, sem esperar o aviso do servidor (que pode atrasar)
+  const avisarLocal = (col, path) => { setTimeout(() => { (ouvintes.get(col) || []).forEach((fn) => fn()); (ouvintesDoc.get(path) || []).forEach((fn) => fn()); }, 0); };
   const somar = (mapa, k, fn) => { if (!mapa.has(k)) mapa.set(k, new Set()); mapa.get(k).add(fn); return () => { const s = mapa.get(k); if (s) { s.delete(fn); if (!s.size) mapa.delete(k); } }; };
   // quando o celular volta do segundo plano, recarrega tudo
   document.addEventListener("visibilitychange", () => {
@@ -172,14 +174,17 @@
       set: async (obj) => {
         const { error } = await sb.from("docs").upsert({ path, col, id, data: limpa(obj) });
         if (error) throw erro(error);
+        avisarLocal(col, path);
       },
       update: async (obj) => {
         const { error } = await sb.rpc("doc_update", { p_path: path, p_patch: limpa(obj) });
         if (error) throw erro(error);
+        avisarLocal(col, path);
       },
       delete: async () => {
         const { error } = await sb.from("docs").delete().eq("path", path);
         if (error) throw erro(error);
+        avisarLocal(col, path);
       },
       // trava curta "quem pega primeiro" (código de cliente, aceite de oferta)
       acquire: async (opts) => {
