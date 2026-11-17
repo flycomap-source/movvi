@@ -2535,8 +2535,9 @@ function cartaoPedidoBase(p){
   const st=statusCard(p);
   // status, data e taxa ficam na frente do "Coletar em"
   const stCol=h("div",{class:"ped-st"},
+    // a data fica sempre em cima do status, em letra menor (70%)
+    h("span",{class:"muted num",style:"font-size:8.5px;line-height:1",text:dataHoraCard(p)}),
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
-    h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
     // entregador (depois de aceitar): só a taxa total dele, em verde
     S.modo==="entregador" ? (aguardaAceiteEnt(p) ? (()=>{ // taxa fixa em cima; ADD e bônus (quando tiver) logo embaixo
         const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
@@ -2754,7 +2755,7 @@ function cartaoOferta(o){
   });
   const espera=o.criadoEm?Math.max(0,Math.round((Date.now()-new Date(o.criadoEm))/60000)):null;
   return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
-    colunaAoLado(blocoRota(o),colunaEnt(h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Disponível"}),h("span",{class:"muted num",style:"font-size:12px",text:espera!==null?"pedido há "+fmtMin(espera):""}),caixaGanho(linhasGanhoEnt(o,"mini")))),
+    colunaAoLado(blocoRota(o),colunaEnt(h("span",{class:"muted num",style:"font-size:8.5px;line-height:1",text:espera!==null?"pedido há "+fmtMin(espera):""}),h("span",{class:"ped-badge",style:"background:var(--laranja)",text:"Disponível"}),caixaGanho(linhasGanhoEnt(o,"mini")))),
     h("div",{class:"meta"},o.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,o.tipoServico==="transferencia"?null:pillPag(o)),
     o.obs?h("div",{class:"obs",text:o.obs}):null,
     b);
