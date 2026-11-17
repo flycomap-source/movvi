@@ -2449,7 +2449,7 @@ function rodapePag(p){
         return h("div",{style:"display:flex;flex-direction:column;gap:0"},
           h("div",{style:"display:flex;align-items:baseline;gap:6px"},h("span",{style:"font-weight:700;color:var(--ink)",text:temTroco?"Total com troco":"Total"}),h("b",{class:"ped-total num",text:temTroco?fmt(cheio):(v?fmt(v):"—")})),
           temTroco?h("span",{class:"muted num",style:"font-size:12px",text:"pedido "+fmt(v)+" + troco "+fmt(cheio-v)}):null); })()),
-    S.modo==="entregador" && aguardaAceiteEnt(p) ? caixaValoresEnt(p) : null,
+
     (S.modo==="entregador" && p.pagamento==="dinheiro")
       // entregador, pedido a receber: na tela principal só o "Troco para"
       ? (tr?h("div",{style:"display:flex;align-items:center"},h("span",{class:"pill alerta num",style:"font-size:14px",text:"Troco para "+fmt(num(p.trocoPara))})):null)
@@ -2530,7 +2530,13 @@ function cartaoPedidoBase(p){
     central()?h("button",{type:"button",class:"ped-badge",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾"):h("span",{class:"ped-badge",style:"background:"+st.c,text:st.t}),
     h("span",{class:"muted num",style:"font-size:12px",text:dataHoraCard(p)}),
     // entregador (depois de aceitar): só a taxa total dele, em verde
-    S.modo==="entregador" ? (aguardaAceiteEnt(p) ? h("span",{class:"num",style:"font-size:15px;font-weight:900;color:var(--ink)",text:"Taxa "+fmt(partesGanho(p).base)}) : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(ganhoPedido(p))}))
+    S.modo==="entregador" ? (aguardaAceiteEnt(p) ? (()=>{ // taxa fixa em cima; ADD e bônus (quando tiver) logo embaixo
+        const g=partesGanho(p), pct=num(p.bonusPct)>0?" +"+num(p.bonusPct)+"%":"";
+        return h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
+          h("span",{class:"num",style:"font-size:15px;font-weight:900;color:var(--ink)",text:"Taxa "+fmt(g.base)}),
+          g.adic>0?h("span",{class:"num",style:"font-size:13px;font-weight:800;color:var(--laranja-ink)",text:"🔥 ADD "+fmt(g.adic)}):null,
+          g.bonus>0?h("span",{class:"num",style:"font-size:13px;font-weight:800;color:var(--ok)",text:"🤩"+pct+" "+fmt(g.bonus)}):null); })()
+      : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(ganhoPedido(p))}))
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
     central()
