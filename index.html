@@ -725,10 +725,10 @@ const PCT_ENTREGADOR = 0.75, TAXA_MINIMA = 6;
 /* convênio, transferência e busca de receita: a central cobra R$ 4,00 (pedidos marcados com taxaFixaCentral, a partir de 09/11/2026);
    o entregador recebe a taxa normal dele (R$ 6,00), independente do valor cobrado */
 /* preços dos serviços — editáveis em Configurações → "Preços dos serviços" (config/servicos) */
-const PRECO_SERV = {convenio:4, transferencia:4, receita:4, troca:4};
+const PRECO_SERV = {outros:4, convenio:4, transferencia:4, receita:4, troca:4};   // hoje o lançamento usa só "outros"; os demais ficam para pedidos antigos
 /* "Outros serviços" do lançamento (a entrega normal fica com o valor normal do comércio) */
 const OUTROS_SERV = [["convenio","✍ Assinar nota (convênio)"],["transferencia","🔁 Transferência entre lojas"],["receita","📄 Busca de receita"],["troca","💵 Troca de dinheiro"]];
-const nomeServico = p => { const k=p&&p.servicoTipo; const o=OUTROS_SERV.find(x=>x[0]===k); return o?o[1].replace(/^\S+\s/,""):(p&&p.tipoServico==="transferencia"?"Transferência / busca de receita":p&&p.pagamento==="convenio"?"Assinar nota (convênio)":"Entrega"); };
+const nomeServico = p => { const k=p&&p.servicoTipo; if(k==="outros") return "Outro serviço"+(p.servicoDesc?": "+p.servicoDesc:""); const o=OUTROS_SERV.find(x=>x[0]===k); return o?o[1].replace(/^\S+\s/,""):(p&&p.tipoServico==="transferencia"?"Transferência / busca de receita":p&&p.pagamento==="convenio"?"Assinar nota (convênio)":"Entrega"); };
 const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
 const taxaFixaDe = (servico,pag,sub) => (sub && num(PRECO_SERV[sub])>0) ? num(PRECO_SERV[sub]) : servico==="transferencia" ? num(PRECO_SERV.transferencia) : num(PRECO_SERV.convenio);
 function ganhoUnit(p){
@@ -1274,7 +1274,7 @@ function abrirConfiguracoes(){
       msg,ok),
     item("🔑","Usuário e senha da central","Trocar usuário e senha de acesso",()=>abrirConta()),
     item("⛰","Bairros com adicional","Quais bairros pagam adicional e quantos",()=>abrirBairrosAdicional()),
-    item("💲","Preços dos serviços","Entrega, assinar nota (convênio), transferência e busca de receita",()=>abrirPrecosServicos()),
+    item("💲","Preços dos serviços","Entrega normal e outros serviços",()=>abrirPrecosServicos()),
     item("🍔","Taxa por bairro (delivery)","Tabela de taxas dos comércios de delivery",()=>abrirTabelaBairros()),
     S.assets?item("🗑","Histórico de fotos","Excluir fotos antigas das entregas",()=>abrirFotos()):null,
     item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
@@ -1291,10 +1291,7 @@ function abrirConfiguracoes(){
 function abrirPrecosServicos(){
   const linhas=[
     ["entrega","🛵 Entrega normal","Comércio que não tem taxa própria no cadastro. Quem tem taxa própria continua com a dele.",TAXA_PADRAO],
-    ["convenio","✍ Assinar nota (convênio)","O cliente assina a notinha e ela volta ao comércio.",PRECO_SERV.convenio],
-    ["transferencia","🔁 Transferência entre lojas","Levar mercadoria de uma loja para outra.",PRECO_SERV.transferencia],
-    ["receita","📄 Busca de receita","Buscar a receita com o cliente e levar ao comércio.",PRECO_SERV.receita],
-    ["troca","💵 Troca de dinheiro","Levar ou buscar troco/dinheiro.",PRECO_SERV.troca]];
+    ["outros","➕ Outros serviços","Assinar nota, transferência, busca de receita, troca de dinheiro e qualquer outro serviço (o que fazer vai escrito no lançamento).",PRECO_SERV.outros]];
   const ins={};
   const corpo=linhas.map(([k,tit,dica,v])=>{ ins[k]=h("input",{class:"inp num",id:"preco-"+k,inputmode:"decimal",value:fmtInput(num(v)),style:"max-width:130px"});
     return h("div",{class:"painel",style:"gap:6px"},h("label",{for:"preco-"+k,style:"font-weight:800;font-size:15px",text:tit}),h("span",{class:"muted",style:"font-size:12.5px",text:dica}),
@@ -2687,6 +2684,7 @@ function cartaoPedidoBase(p){
             onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:(()=>{ const r=posNaRota(p); return "🧭 "+r.n+"ª "+(r.coleta?"parada · coletar"+(r.ent?" (entrega "+r.ent+"ª)":""):"entrega")+" de "+r.de; })()+(S.modo==="entregador"?" ▾":"")})
         : p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null),
+    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ Outro serviço: "+(p.servicoDesc||"ver observação")}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     (entregue && p.obsFinalizacao)?h("div",{class:"obs",style:"font-style:normal;color:var(--ink)",text:"📝 Entregador: "+p.obsFinalizacao}):null,
     rodapePag(p)
@@ -2829,6 +2827,7 @@ function cartaoSolicitacaoLoja(p){
     p.tipo==="rota"?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
     p.tipo==="rota"?listaParadas(p.paradas):null,
     h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),...pillsValor(p),h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
+    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ Outro serviço: "+(p.servicoDesc||"ver observação")}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),
       p.tipo==="rota"?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
@@ -5203,8 +5202,8 @@ function abrirPedido(p,arquivoComanda,pre){
   // entrega nova entra sempre no dia de hoje (só a central pode lançar num dia que escolheu na tela)
   const novo=!p; p=p||{pagamento:"dinheiro",entregadorId:central()?(S.filtro!=="todos"?S.filtro:""):S.eu,data:central()?S.dia:hoje(),...(pre||{})};
   let pag=p.pagamento||"dinheiro";
-  let subServ = p.servicoTipo && p.servicoTipo!=="entrega" ? p.servicoTipo : (p.tipoServico==="transferencia" ? "transferencia" : pag==="convenio" ? "convenio" : "");
-  let outrosServ = !!subServ;
+  let outrosServ = (p.servicoTipo && p.servicoTipo!=="entrega") || p.tipoServico==="transferencia" || pag==="convenio";
+  const subServ = "outros";
   const fNum=h("input",{class:"inp num",id:"pNum",readonly:true,tabindex:"-1",style:"background:var(--bg);color:var(--muted)",value:novo?"Automático":(p.numero?"#"+p.numero:"—")});
   const fData=h("input",{class:"inp",type:"date",id:"pData",value:p.data||S.dia});
   const fPedCom=h("input",{class:"inp num",id:"pPedCom",inputmode:"numeric",placeholder:"Opcional",value:p.pedidoComercio||""});
@@ -5304,10 +5303,10 @@ function abrirPedido(p,arquivoComanda,pre){
     campoDin.hidden = pag!=="dinheiro"; campoNota.hidden = pag!=="convenio"; campoCartao.hidden = pag!=="cartao";
     try{ campoBairro.hidden = servico==="transferencia"; }catch(e){}
     // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
-    try{ const fixa=servicoTaxaFixa(servico,pag);
+    try{ const fixa=outrosServ || servicoTaxaFixa(servico,pag);
       // sugere R$ 4,00, mas a central pode mudar a taxa à mão (o campo fica editável)
-      const preco=fixa?taxaFixaDe(servico,pag,subServ):0;
-      if(fixa && fTaxa.dataset.fixa!==String(preco)){ if(!fTaxa.dataset.fixa) fTaxa._antes=fTaxa.value; fTaxa.dataset.fixa=String(preco); if(!taxaMexida) fTaxa.value=fmtInput(preco); fTaxa.title="Preço do serviço ("+((OUTROS_SERV.find(x=>x[0]===subServ)||[,"outro serviço"])[1])+"): "+fmt(preco)+" (pode mudar)"; }
+      const preco=fixa?taxaFixaDe(servico,pag,"outros"):0;
+      if(fixa && fTaxa.dataset.fixa!==String(preco)){ if(!fTaxa.dataset.fixa) fTaxa._antes=fTaxa.value; fTaxa.dataset.fixa=String(preco); if(!taxaMexida) fTaxa.value=fmtInput(preco); fTaxa.title="Preço de outros serviços: "+fmt(preco)+" (pode mudar)"; }
       else if(!fixa && fTaxa.dataset.fixa){ delete fTaxa.dataset.fixa; if(fTaxa._antes!=null && !taxaMexida) fTaxa.value=fTaxa._antes; fTaxa.title=""; }
       fTaxa.disabled=false;
     }catch(e){}
@@ -5358,7 +5357,7 @@ function abrirPedido(p,arquivoComanda,pre){
     const os=osDaComanda(r);
     if(os && !os.transf){ if(os.empresa) r.empresa=os.empresa; if(os.destino) r.cliente=os.destino; if(os.pago){ r.pagamento="pago"; r.valor=0; } }
     if(os && os.transf){
-      servico="transferencia"; if(!subServ || subServ==="convenio") subServ="transferencia"; outrosServ=true; atuServ();
+      servico="transferencia"; outrosServ=true; atuServ();
       const bts=[...blocoLojas.querySelectorAll(".seg")].map(sg=>[...sg.querySelectorAll("button")]);
       const clica=(i,txt)=>{ const b=(bts[i]||[]).find(x=>x.textContent.trim()===txt); if(b) b.click(); };
       clica(0,os.lojaBt); if(os.empresa && (!fEmp.value.trim() || os.lojaBt==="Outros")) fEmp.value=os.empresa;
@@ -5552,21 +5551,17 @@ function abrirPedido(p,arquivoComanda,pre){
     const b=h("button",{type:"button",role:"checkbox",style:"flex:1;display:flex;align-items:center;gap:10px;padding:12px;border:1.5px solid var(--line);border-radius:12px;background:var(--card);font:inherit;font-weight:800;font-size:15px;cursor:pointer;text-align:left"},box,h("span",{text:rot}));
     b._marca=v=>{ b.setAttribute("aria-checked",String(v)); box.textContent=v?"✓":""; box.style.background=v?"var(--royal)":"transparent"; b.style.borderColor=v?"var(--royal)":"var(--line)"; }; return b; };
   const btEntrega=caixaMarca("📦 Entrega"), btOutros=caixaMarca("➕ Outros serviços");
-  const subBtns={};
-  const listaOutros=h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px",hidden:true},
-    ...OUTROS_SERV.map(([k,t])=>subBtns[k]=h("button",{type:"button","aria-pressed":"false",style:"padding:10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font:inherit;font-weight:700;font-size:14px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px",
-      onclick:()=>{ subServ=k; outrosServ=true; if(k==="convenio"){ servico="entrega"; pag="convenio"; } else { servico="transferencia"; } atuServ(); }},
-      h("span",{text:t}),h("span",{class:"muted num",style:"font-size:12px;font-weight:600","data-preco":k}))));
-  btEntrega.addEventListener("click",()=>{ outrosServ=false; subServ=""; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
-  btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; atuServ(); });
+  const fServDesc=h("textarea",{class:"inp",id:"pServDesc",rows:3,style:"resize:vertical;min-height:70px",placeholder:"O que é para fazer? Ex.: assinar a nota do convênio · buscar receita com a cliente · levar mercadoria da Loja 2 para a Loja 41 · trocar dinheiro",value:p.servicoDesc||""});
+  const campoServDesc=h("div",{class:"campo",hidden:true},h("label",{for:"pServDesc",text:"O que é para fazer? (obrigatório)"}),fServDesc,
+    h("span",{class:"muted num",style:"font-size:12px","data-preco-outros":"1"}));
+  btEntrega.addEventListener("click",()=>{ outrosServ=false; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
+  btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; servico="entrega"; if(pag==="dinheiro" && !num(fDin.value)) pag="pix"; atuServ(); try{ fServDesc.focus(); }catch(e){} });
   function sincServ(){
-    if(pag==="convenio" && servico!=="transferencia"){ subServ="convenio"; outrosServ=true; }
-    else if(subServ==="convenio" && pag!=="convenio"){ subServ=""; if(servico!=="transferencia") outrosServ=false; }
-    btEntrega._marca(!outrosServ); btOutros._marca(outrosServ); listaOutros.hidden=!outrosServ;
-    Object.entries(subBtns).forEach(([k,b])=>{ const on=subServ===k; b.setAttribute("aria-pressed",String(on)); b.style.borderColor=on?"var(--royal)":"var(--line)"; b.style.background=on?"#e8eefc":"var(--card)";
-      const pr=b.querySelector("[data-preco]"); if(pr) pr.textContent=fmt(taxaFixaDe(k==="convenio"?"entrega":"transferencia",k==="convenio"?"convenio":"pix",k)); });
+    if(pag==="convenio" || servico==="transferencia") outrosServ=true;
+    btEntrega._marca(!outrosServ); btOutros._marca(outrosServ); campoServDesc.hidden=!outrosServ;
+    const pr=campoServDesc.querySelector("[data-preco-outros]"); if(pr) pr.textContent="Preço do serviço: "+fmt(num(PRECO_SERV.outros))+" (muda em Configurações → Preços dos serviços)";
   }
-  const blocoServ=h("div",{class:"campo"},h("span",{class:"lbl",text:"Tipo de serviço"}),h("div",{style:"display:flex;gap:8px"},btEntrega,btOutros),listaOutros);
+  const blocoServ=h("div",{class:"campo"},h("span",{class:"lbl",text:"Tipo de serviço"}),h("div",{style:"display:flex;gap:8px"},btEntrega,btOutros),campoServDesc);
   const dicaServ=h("div",{class:"muted",style:"font-size:12px",hidden:true,text:"Levar mercadoria de uma loja para outra ou buscar receita. Nada a cobrar do cliente e o telefone é opcional."});
   const tituloDestino=h("div",{class:"eyebrow",text:"Entrega"});
   const lblEnd=h("label",{for:"pEnd",text:"Endereço de entrega"});
@@ -5664,7 +5659,7 @@ function abrirPedido(p,arquivoComanda,pre){
     if(pag==="dinheiro" && !num(fDin.value)){ msg.hidden=false; msg.textContent="Informe o valor que o entregador vai receber em dinheiro."; return; }
     if((central()||comercio()) && pag==="cartao" && !num(fCartao.value)){ msg.hidden=false; msg.textContent="Informe o valor total do pedido para cobrar no cartão."; try{ fCartao.focus(); }catch(e){} return; }
     if((central()||comercio()) && pag==="convenio" && !num(fNota.value)){ msg.hidden=false; msg.textContent="Informe o valor total da nota que o cliente vai assinar."; try{ fNota.focus(); }catch(e){} return; }
-    if(outrosServ && !subServ){ msg.hidden=false; msg.textContent="Escolha qual é o outro serviço (assinar nota, transferência, receita ou troca de dinheiro)."; return; }
+    if(outrosServ && !fServDesc.value.trim()){ msg.hidden=false; msg.textContent="Escreva o que é para fazer neste serviço."; try{ fServDesc.focus(); }catch(e){} return; }
     if(!entId && !comercio() && !(central() && (novo||aguardandoEnt))){ msg.hidden=false; msg.textContent="Escolha o entregador. Se a lista estiver vazia, cadastre a equipe na aba Equipe."; return; }
     const dados={
       numero:novo?"":(p.numero||""), data:fData.value||S.dia,
@@ -5673,8 +5668,8 @@ function abrirPedido(p,arquivoComanda,pre){
       bairro: servico==="transferencia" ? (p.bairro||"") : fBairro.value.trim(),
       bonusPct,
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
-      entregadorId:entId, pagamento:pag, tipoServico:servico, servicoTipo:(outrosServ&&subServ)||"entrega", ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
-      ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag,subServ)}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
+      entregadorId:entId, pagamento:pag, tipoServico:servico, servicoTipo:outrosServ?"outros":"entrega", servicoDesc:outrosServ?fServDesc.value.trim():"", ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
+      ...((outrosServ||servicoTaxaFixa(servico,pag))?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag,"outros")}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
       valorNota: pag==="convenio" ? num(fNota.value) : 0,
@@ -6073,6 +6068,7 @@ function abrirDetalhes(p){
   add("Endereço",p.endereco);
   add("Bairro",p.bairro);
   add("Telefone",p.telefone);
+  if(p.servicoTipo==="outros") add("Serviço",nomeServico(p));
   add("Observação",p.obs);
   if(!comercio()) add("Comércio",p.coletaEmpresa);
   add("Pagamento",p.pagamento==="dinheiro"?(p.status==="entregue"?"Recebido ":"Receber ")+fmt(dinheiroDoPedido(p))+" (dinheiro)":p.pagamento==="convenio"?"Convênio · assinar nota"+(num(p.valorNota)?" de "+fmt(p.valorNota):""):p.pagamento==="cartao"?"Cartão"+(num(p.valorCartao)?" · "+fmt(p.valorCartao):""):(PAG[p.pagamento]||""));
