@@ -4885,13 +4885,23 @@ $("#fab").addEventListener("click",()=>abrirMenuMais());
 function abrirMenuMais(){
   garantirClientes();
   if(comercio() && S.euCategoria==="delivery"){ abrirChamarEntregador(); return; }
-  const item=(icone,titulo,desc,acao,principal)=>{ const b=h("button",{class:principal?"btn full":"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
-      h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
-      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),desc?h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc}):null));
-    b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
-  const fechar=abrirSheet("Lançar serviço",[
-    S.sample?botaoScanDemanda(()=>fechar()):null,
-    item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null))]);
+  if(!S.sample){ abrirPedido(null); return; }
+  if(document.getElementById("discoMais")){ document.getElementById("discoMais").remove(); return; }
+  // dois botões flutuantes logo acima do ＋
+  const fab=$("#fab"), r=fab.getBoundingClientRect();
+  const fecha=()=>{ veu.remove(); };
+  const pilula=(icone,txt,cor,acao)=>{ const b=h("button",{type:"button",style:"pointer-events:auto;display:flex;align-items:center;gap:10px;border:0;border-radius:999px;padding:12px 18px 12px 14px;background:"+cor+";color:#fff;font:800 16px/1 inherit;font-family:inherit;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;white-space:nowrap;animation:bolhaEntra .18s ease-out"},
+      h("span",{style:"font-size:22px",text:icone}),h("span",{text:txt}));
+    b.addEventListener("click",e=>{ e.stopPropagation(); fecha(); acao(); }); return b; };
+  const cx=r.left+r.width/2;
+  const lado=Math.abs(cx-innerWidth/2)<90 ? "left:"+cx+"px;transform:translateX(-50%);align-items:center"
+    : cx>innerWidth/2 ? "right:"+Math.max(12,innerWidth-r.right)+"px;align-items:flex-end" : "left:"+Math.max(12,r.left)+"px;align-items:flex-start";
+  const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:column;gap:10px;pointer-events:none"},
+    pilula("📷","Escanear comandas","var(--royal)",()=>abrirEscanearComandas()),
+    pilula("✏️","Lançar sem foto","var(--laranja)",()=>abrirPedido(null)));
+  const veu=h("div",{id:"discoMais",style:"position:fixed;inset:0;z-index:60;background:rgba(10,20,40,.18)"},caixa);
+  veu.addEventListener("click",fecha);
+  document.body.append(veu);
 }
 /* Lançar por demanda: várias comandas de empresas diferentes de uma vez.
    Cada foto vira uma entrega separada (com a empresa daquela comanda), não uma rota. */
