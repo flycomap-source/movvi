@@ -1040,8 +1040,7 @@ function reabrirJanelas(lista){
     chat:conv=>{ if(!conv) return true; if(!(chatDoc(conv)||conv===S.uid)) return false; abrirChat(conv,false); return true; },
     mensagens:()=>{ abrirMensagens(); return true; },
     detalhes:id=>{ const p=ped(id); if(!p) return false; abrirDetalhes(p); return true; },
-    mapaEntrega:id=>{ const p=ped(id); if(!p) return false; abrirMapaEntrega(p); return true; },
-    mapaEntregadores:()=>{ abrirMapaEntregadores(); return true; },
+    // mapas não reabrem sozinhos depois de atualizar (se o mapa travar, o app não fica preso nele)
     rotaCentral:()=>{ abrirRotaCentral(); return true; }};
   let i=0, tent=0;
   const passo=()=>{
