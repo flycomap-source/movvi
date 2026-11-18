@@ -4316,8 +4316,8 @@ function abrirRota(op){
     let d=null; try{ d=JSON.parse(ls.get(chaveRC)||"null"); }catch(e){}
     if(!d){ const r=docRC(); if(r){ try{ const sn=await comTempo(r.get(),2500); if(sn&&sn!=="__tempo"&&sn.exists) d=sn.data(); }catch(e){} } }
     if(!d||!Array.isArray(d.paradas)||!d.paradas.length||Date.now()-Date.parse(d.em)>18*3600000) return;
-    const bt=h("button",{class:"btn full",type:"button"},"Continuar a rota que você estava montando ("+d.paradas.length+")");
-    const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},bt,
+    const bt=h("button",{class:"btn full",type:"button"},"▶ Continuar rota ("+d.paradas.length+")");
+    const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},h("span",{style:"font-size:13px",text:"Você tem uma rota em andamento."}),bt,
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); limparRascCentral(); }},"Descartar"));
     bt.addEventListener("click",()=>{ box.remove(); aplicarRascCentral(d); });
     flutuarRascunho(box,caixaParadas);
@@ -4876,7 +4876,7 @@ function montarRotaPorFotos(restaurar){
     ordenada=true; desenhar(); toast("Rota recuperada: "+paradas.length+(paradas.length>1?" comandas":" comanda"));
   }
   const api={ vazia:()=>!paradas.length, oferecer:r=>{
-    const bt=h("button",{class:"btn full",type:"button"},"Continuar a rota que você tinha começado ("+r.paradas.length+")");
+    const bt=h("button",{class:"btn full",type:"button"},"▶ Continuar rota ("+r.paradas.length+")");
     const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},h("span",{style:"font-size:13px",text:"Achei uma rota em andamento salva na sua conta."}),bt,
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); rascunhoRotaLimpar(); }},"Descartar"));
     bt.addEventListener("click",()=>{ box.remove(); if(!paradas.length) aplicar(r.paradas); });
