@@ -7103,7 +7103,7 @@ async function gerarRelatorio(){
   const out=$("#relResultado");
   // não escolheu nada: gera o mês inteiro (do dia 1 até hoje)
   if(!$("#relDe").value && !$("#relAte").value){ const t=hoje(); $("#relDe").value=t.slice(0,8)+"01"; $("#relAte").value=t;
-    document.querySelectorAll("#relAtalhos .chip").forEach(x=>x.setAttribute("aria-pressed",String(/mês/i.test(x.textContent)))); }
+    document.querySelectorAll("#relAtalhos .chip").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.p==="mes"))); }
   const de=$("#relDe").value, ate=$("#relAte").value;
   if(!S.db){ out.replaceChildren(h("div",{class:"aviso",text:"Sem conexão com os dados."})); return; }
   if(!de||!ate||de>ate){ out.replaceChildren(h("div",{class:"aviso",text:"Confira o período."})); return; }
