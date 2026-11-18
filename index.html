@@ -729,7 +729,7 @@ const PRECO_SERV = {outros:4, convenio:4, transferencia:4, receita:4, troca:4}; 
 /* "Outros serviços" do lançamento (a entrega normal fica com o valor normal do comércio) */
 const OUTROS_SERV = [["receita","📄 Buscar receita"],["transferencia","🔁 Transferência"],["convenio","✍ Entregar convênio"],["troca","💵 Trocar dinheiro"]];
 const nomeServico = p => { const k=p&&p.servicoTipo; if(k==="outros"){ const o=OUTROS_SERV.find(x=>x[0]===p.servicoSub); return [o?o[1].replace(/^\S+\s/,""):"Outro serviço",p.servicoDesc].filter(Boolean).join(": "); } const o=OUTROS_SERV.find(x=>x[0]===k); return o?o[1].replace(/^\S+\s/,""):(p&&p.tipoServico==="transferencia"?"Transferência / busca de receita":p&&p.pagamento==="convenio"?"Assinar nota (convênio)":"Entrega"); };
-const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
+const servicoTaxaFixa = (servico,pag) => servico==="transferencia";   // "assinar nota" no pagamento é entrega normal
 const taxaFixaDe = (servico,pag,sub) => (sub && num(PRECO_SERV[sub])>0) ? num(PRECO_SERV[sub]) : servico==="transferencia" ? num(PRECO_SERV.transferencia) : num(PRECO_SERV.convenio);
 function ganhoUnit(p){
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
@@ -5401,7 +5401,7 @@ function abrirPedido(p,arquivoComanda,pre){
     campoDin.hidden = pag!=="dinheiro"; campoNota.hidden = pag!=="convenio"; campoCartao.hidden = pag!=="cartao";
     try{ campoBairro.hidden = servico==="transferencia"; }catch(e){}
     // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
-    try{ const fixa=outrosServ || servicoTaxaFixa(servico,pag);
+    try{ const fixa=outrosServ || servico==="transferencia";
       // sugere R$ 4,00, mas a central pode mudar a taxa à mão (o campo fica editável)
       const preco=fixa?taxaFixaDe(servico,pag,"outros"):0;
       if(fixa && fTaxa.dataset.fixa!==String(preco)){ if(!fTaxa.dataset.fixa) fTaxa._antes=fTaxa.value; fTaxa.dataset.fixa=String(preco); if(!taxaMexida) fTaxa.value=fmtInput(preco); fTaxa.title="Preço de outros serviços: "+fmt(preco)+" (pode mudar)"; }
@@ -5660,9 +5660,9 @@ function abrirPedido(p,arquivoComanda,pre){
   btEntrega.addEventListener("click",()=>{ outrosServ=false; servSub=""; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
   btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; servico="entrega"; if(pag==="dinheiro" && !num(fDin.value)) pag="pix"; atuServ(); try{ fServDesc.focus(); }catch(e){} });
   function sincServ(){
-    if(pag==="convenio" || servico==="transferencia") outrosServ=true;
+    if(servico==="transferencia") outrosServ=true;   // "Assinar nota" no pagamento NÃO muda para outros serviços
     btEntrega._marca(!outrosServ); btOutros._marca(outrosServ); campoServDesc.hidden=!outrosServ;
-    if(pag==="convenio" && outrosServ) servSub="convenio"; else if(servSub==="convenio" && pag!=="convenio") servSub="";
+    if(servSub==="convenio" && pag!=="convenio" && outrosServ) servSub="";
     Object.entries(subBts).forEach(([k,b])=>{ const on=servSub===k; b.setAttribute("aria-pressed",String(on)); b.style.borderColor=on?"var(--royal)":"var(--line)"; b.style.background=on?"#e8eefc":"var(--card)"; b.style.color=on?"var(--royal)":"inherit"; });
     const pr=campoServDesc.querySelector("[data-preco-outros]"); if(pr) pr.textContent="Preço do serviço: "+fmt(num(PRECO_SERV.outros))+" (muda em Configurações → Preços dos serviços)";
   }
@@ -5774,7 +5774,7 @@ function abrirPedido(p,arquivoComanda,pre){
       bonusPct,
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
       entregadorId:entId, pagamento:pag, tipoServico:servico, servicoTipo:outrosServ?"outros":"entrega", servicoSub:outrosServ?servSub:"", servicoDesc:outrosServ?fServDesc.value.trim():"", ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
-      ...((outrosServ||servicoTaxaFixa(servico,pag))?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag,"outros")}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
+      ...((outrosServ||servico==="transferencia")?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag,"outros")}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
       valorNota: pag==="convenio" ? num(fNota.value) : 0,
