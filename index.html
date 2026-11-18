@@ -8515,7 +8515,7 @@ function empilhar(cont,novoNoInicio){
   if(!cont._empilhado){ cont._empilhado=true; cont.style.display="grid"; cont.style.gridTemplateColumns="minmax(0,1fr)"; cont.style.justifyItems="center"; new MutationObserver(arruma).observe(cont,{childList:true}); }
   arruma();
 }
-function pilhaRecados(){ let p=document.getElementById("pilhaRecados"); if(!p){ p=h("div",{id:"pilhaRecados",style:"position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:0;right:0;z-index:9997;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 12px;pointer-events:none"}); document.body.append(p); empilhar(p,false); } return p; }
+function pilhaRecados(){ let p=document.getElementById("pilhaRecados"); if(!p){ p=h("div",{id:"pilhaRecados",style:"position:fixed;top:calc(env(safe-area-inset-top,0px) + "+(innerWidth>=900?"80px":"12px")+");left:50%;transform:translateX(-50%);width:min(94vw,460px);box-sizing:border-box;z-index:9997;display:flex;flex-direction:column;align-items:stretch;gap:8px;pointer-events:none"}); document.body.append(p); empilhar(p,false); } return p; }
 function mostrarRecado(r,semSom){
   if(!r || S.recadosMostrados.has(r.id)) return;
   S.recadosMostrados.add(r.id);
