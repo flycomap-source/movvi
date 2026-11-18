@@ -724,8 +724,10 @@ const somaUn = lst => lst.reduce((s,p)=>s+unidades(p),0);
 const PCT_ENTREGADOR = 0.75, TAXA_MINIMA = 6;
 /* convênio, transferência e busca de receita: a central cobra R$ 4,00 (pedidos marcados com taxaFixaCentral, a partir de 09/11/2026);
    o entregador recebe a taxa normal dele (R$ 6,00), independente do valor cobrado */
-const TAXA_FIXA_CENTRAL = 4;
+/* preços dos serviços — editáveis em Configurações → "Preços dos serviços" (config/servicos) */
+const PRECO_SERV = {convenio:4, transferencia:4};
 const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
+const taxaFixaDe = (servico,pag) => servico==="transferencia" ? num(PRECO_SERV.transferencia) : num(PRECO_SERV.convenio);
 function ganhoUnit(p){
   const min = (central() ? taxaEnt(p.entregadorId) : num(S.euTaxa)) || TAXA_MINIMA;
   if(p && p.taxaFixaCentral) return min;
@@ -789,7 +791,7 @@ const dinResolvidoFora = p => p.dinheiroCom==="central" || p.dinheiroCom==="fatu
 const dinComCentral = p => (p.status==="entregue" && p.dinheiroCom==="central" && !p.dinheiroDevolvido && !p.pixComercioEnviadoEm && !p.dinheiroAbatidoFatura) ? dinheiroDoPedido(p) : 0;
 const valorFatCom = lst => Math.round(lst.reduce((s,p)=>s+num(p.taxaCobrada)-(p.dinheiroAbatidoFatura?dinheiroDoPedido(p):0),0)*100)/100;
 const valorFatEnt = lst => Math.round((somaGanho(lst)-lst.reduce((s,p)=>s+dinNaFatura(p),0))*100)/100;
-const TAXA_PADRAO = 8;
+let TAXA_PADRAO = 8;   // entrega normal de comércio sem taxa própria (editável em Configurações)
 const taxaComercioPorNome = nome => { const c=S.comercios.find(x=>slug(x.nome)===slug(nome)); return c ? num(c.taxa||TAXA_PADRAO) : null; };
 /* forma de pagamento: em dinheiro mostra só o valor a receber */
 const MOTIVO_RECEITA={depois:"Cliente leva a receita depois",buscar:"Buscar a receita em outro endereço",outro:"Cliente vai mandar a receita por outro meio"};
@@ -1269,6 +1271,7 @@ function abrirConfiguracoes(){
       msg,ok),
     item("🔑","Usuário e senha da central","Trocar usuário e senha de acesso",()=>abrirConta()),
     item("⛰","Bairros com adicional","Quais bairros pagam adicional e quantos",()=>abrirBairrosAdicional()),
+    item("💲","Preços dos serviços","Entrega, assinar nota (convênio), transferência e busca de receita",()=>abrirPrecosServicos()),
     item("🍔","Taxa por bairro (delivery)","Tabela de taxas dos comércios de delivery",()=>abrirTabelaBairros()),
     S.assets?item("🗑","Histórico de fotos","Excluir fotos antigas das entregas",()=>abrirFotos()):null,
     item("♪","Testar som do alerta","Som de caixa registradora",()=>testarSom()),
@@ -1278,6 +1281,27 @@ function abrirConfiguracoes(){
     if(!(ad>0)){ msg.hidden=false; msg.textContent="Informe o valor do adicional."; return; }
     ok.disabled=true;
     try{ await comRetry(()=>S.db.doc("config/central").set({nome,valorAdicional:ad,atualizadoEm:new Date().toISOString()})); S.nomeCentral=nome; VALOR_ADICIONAL=ad; fechar(); toast("Configurações salvas"); }
+    catch(e){ ok.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
+  });
+}
+/* Preços dos serviços: quanto a central cobra por cada forma de entrega */
+function abrirPrecosServicos(){
+  const linhas=[
+    ["entrega","🛵 Entrega normal","Comércio que não tem taxa própria no cadastro. Quem tem taxa própria continua com a dele.",TAXA_PADRAO],
+    ["convenio","✍ Assinar nota (convênio)","O cliente assina a notinha e ela volta ao comércio.",PRECO_SERV.convenio],
+    ["transferencia","🔁 Transferência / busca de receita / troca de dinheiro","Levar mercadoria entre lojas, buscar receita ou trocar dinheiro.",PRECO_SERV.transferencia]];
+  const ins={};
+  const corpo=linhas.map(([k,tit,dica,v])=>{ ins[k]=h("input",{class:"inp num",id:"preco-"+k,inputmode:"decimal",value:fmtInput(num(v)),style:"max-width:130px"});
+    return h("div",{class:"painel",style:"gap:6px"},h("label",{for:"preco-"+k,style:"font-weight:800;font-size:15px",text:tit}),h("span",{class:"muted",style:"font-size:12.5px",text:dica}),
+      h("div",{style:"display:flex;align-items:center;gap:8px"},h("span",{class:"muted",text:"R$"}),ins[k])); });
+  const msg=h("div",{class:"aviso",hidden:true}), ok=h("button",{class:"btn full",type:"button"},"Salvar preços");
+  const fechar=abrirSheet("💲 Preços dos serviços",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Valor que a central cobra do comércio por cada serviço. Vale para as entregas lançadas a partir de agora; as já lançadas não mudam. Na hora de lançar, a taxa ainda pode ser mudada à mão. O entregador continua recebendo a taxa dele."}),...corpo,msg,ok]);
+  ok.addEventListener("click",async()=>{
+    const d={entrega:num(ins.entrega.value),convenio:num(ins.convenio.value),transferencia:num(ins.transferencia.value)};
+    if(!(d.entrega>0&&d.convenio>0&&d.transferencia>0)){ msg.hidden=false; msg.textContent="Preencha todos os preços (maiores que zero)."; return; }
+    ok.disabled=true; msg.hidden=true;
+    try{ await comRetry(()=>S.db.doc("config/servicos").set({...d,atualizadoEm:new Date().toISOString()}));
+      TAXA_PADRAO=d.entrega; PRECO_SERV.convenio=d.convenio; PRECO_SERV.transferencia=d.transferencia; fechar(); toast("Preços salvos"); }
     catch(e){ ok.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(e&&e.code||"erro")+")."; }
   });
 }
@@ -2819,7 +2843,7 @@ function docsDaRota(r, extra){
     adicionais:0,criadoEm:r.criadoEm||new Date().toISOString(),status:"pendente",acertado:false,...(x.bairro?{bairro:x.bairro}:{}),
     rotaId:r.rotaId,rotaQtd:N,rotaOrdem:i+1,...extra,
     ...(x.tipoServico==="transferencia"?{tipoServico:"transferencia",transfDe:x.transfDe||r.coletaEmpresa||"",transfPara:x.transfPara||x.cliente||x.endereco||""}:{}),
-    ...(servicoTaxaFixa(x.tipoServico,x.pagamento)?{taxaCobrada:TAXA_FIXA_CENTRAL,taxaFixaCentral:true}:{})}}));
+    ...(servicoTaxaFixa(x.tipoServico,x.pagamento)?{taxaCobrada:taxaFixaDe(x.tipoServico,x.pagamento),taxaFixaCentral:true}:{})}}));
 }
 /* valor no cartão da entrega: entregador vê o que ele recebe (com bônus e adicionais); central vê a taxa; comércio só no delivery */
 function pillsValor(p){
@@ -4733,7 +4757,7 @@ function montarRotaPorFotos(restaurar){
       return h("div",{class:"parada"},cab,posChips,
         st.erro?h("div",{class:"aviso",text:st.erro}):null, blocoConf, blocoSemBase, blocoNovo, blocoAd,
         st.cliente?h("div",{style:"font-size:13px;font-weight:700;color:var(--ok)",text:"Cliente da base"+(st.loc?" · com localização":"")}):null,
-        cruz, fNome, fEnd, fBaiW, fTel, h("div",{class:"linha"},sel,fVal), central()?(()=>{ const auto=()=>servicoTaxaFixa(st.servico,st.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(st.empresa,st.bairro,taxaComercioPorNome(st.empresa)??TAXA_PADRAO);
+        cruz, fNome, fEnd, fBaiW, fTel, h("div",{class:"linha"},sel,fVal), central()?(()=>{ const auto=()=>servicoTaxaFixa(st.servico,st.pag)?taxaFixaDe(st.servico,st.pag):taxaDaEntrega(st.empresa,st.bairro,taxaComercioPorNome(st.empresa)??TAXA_PADRAO);
             const fTx=inp("taxa","Taxa da entrega (R$) · automática: "+fmt(auto()),{inputmode:"decimal"}); fTx.addEventListener("focus",()=>{ fTx.placeholder="Taxa da entrega (R$) · automática: "+fmt(auto()); });
             return h("div",{class:"campo"},h("span",{class:"lbl",text:"Taxa (deixe em branco para a automática)"}),fTx); })():null, fTr,
         (()=>{ const c=h("input",{type:"checkbox",checked:st.servico==="transferencia"}); c.addEventListener("change",()=>{ st.servico=c.checked?"transferencia":"entrega"; lbl.style.color=c.checked?"var(--royal)":""; });
@@ -4803,7 +4827,7 @@ function montarRotaPorFotos(restaurar){
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
           adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
-          taxaCobrada:(central() && num(x.taxa)>0) ? num(x.taxa) : servicoTaxaFixa(x.servico,x.pag)?TAXA_FIXA_CENTRAL:taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
+          taxaCobrada:(central() && num(x.taxa)>0) ? num(x.taxa) : servicoTaxaFixa(x.servico,x.pag)?taxaFixaDe(x.servico,x.pag):taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
           ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && String(x.bairro||"").trim() ? (registrarBairroNovo(x.bairro),{adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true}) : {}),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
           ...(servicoTaxaFixa(x.servico,x.pag)?{taxaFixaCentral:true}:{}),
@@ -5275,7 +5299,8 @@ function abrirPedido(p,arquivoComanda,pre){
     // convênio, transferência e busca de receita: taxa fixa de R$ 4,00 para a central
     try{ const fixa=servicoTaxaFixa(servico,pag);
       // sugere R$ 4,00, mas a central pode mudar a taxa à mão (o campo fica editável)
-      if(fixa && !fTaxa.dataset.fixa){ fTaxa.dataset.fixa="1"; fTaxa._antes=fTaxa.value; if(!taxaMexida) fTaxa.value=fmtInput(TAXA_FIXA_CENTRAL); fTaxa.title="Sugestão para convênio, transferência e busca de receita: "+fmt(TAXA_FIXA_CENTRAL)+" (pode mudar)"; }
+      const preco=fixa?taxaFixaDe(servico,pag):0;
+      if(fixa && fTaxa.dataset.fixa!==String(preco)){ if(!fTaxa.dataset.fixa) fTaxa._antes=fTaxa.value; fTaxa.dataset.fixa=String(preco); if(!taxaMexida) fTaxa.value=fmtInput(preco); fTaxa.title="Preço do serviço ("+(servico==="transferencia"?"transferência / receita":"assinar nota")+"): "+fmt(preco)+" (pode mudar)"; }
       else if(!fixa && fTaxa.dataset.fixa){ delete fTaxa.dataset.fixa; if(fTaxa._antes!=null && !taxaMexida) fTaxa.value=fTaxa._antes; fTaxa.title=""; }
       fTaxa.disabled=false;
     }catch(e){}
@@ -5624,7 +5649,7 @@ function abrirPedido(p,arquivoComanda,pre){
       bonusPct,
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
       entregadorId:entId, pagamento:pag, tipoServico:servico, ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
-      ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:TAXA_FIXA_CENTRAL}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
+      ...(servicoTaxaFixa(servico,pag)?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag)}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
       valorNota: pag==="convenio" ? num(fNota.value) : 0,
@@ -5634,7 +5659,7 @@ function abrirPedido(p,arquivoComanda,pre){
       ...(central()?{adicionais:Math.max(0,Math.min(9,Math.round(num(fAdic.value)))),adicionaisPelaCentral:Math.round(num(fAdic.value))>0}:{}),
       ...((central()||S.modo==="entregador") && adicOk===true && adicEscolhido ? {adicionalMotivo:"Bairro "+adicEscolhido.nome, adicionalBairro:adicEscolhido.nome} : {}),
       ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd))} : {}),
-      taxaCobrada: central() ? num(fTaxa.value) : servicoTaxaFixa(servico,pag) ? TAXA_FIXA_CENTRAL : comercio() ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
+      taxaCobrada: central() ? num(fTaxa.value) : servicoTaxaFixa(servico,pag) ? taxaFixaDe(servico,pag) : comercio() ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
     // comércio de delivery: taxa pela tabela de bairros e sem adicional de bairro (a central ainda pode mudar a taxa à mão)
     if(!servicoTaxaFixa(servico,pag) && ehDelivery(dados.coletaEmpresa) && dados.bairro){
@@ -8941,6 +8966,8 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
   }
   db.doc("config/central").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.nomeCentral=d.nome||"Central"; if(num(d.valorAdicional)>0) VALOR_ADICIONAL=num(d.valorAdicional); if(typeof renderPedidos==="function") renderPedidos(); },()=>{});
   setTimeout(()=>verificarDinComercio(),5000);
+  db.doc("config/servicos").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{};
+    if(num(d.convenio)>0) PRECO_SERV.convenio=num(d.convenio); if(num(d.transferencia)>0) PRECO_SERV.transferencia=num(d.transferencia); if(num(d.entrega)>0) TAXA_PADRAO=num(d.entrega); },()=>{});
   db.doc("config/campanhas").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.campanhas=Array.isArray(d.lista)?d.lista:[]; if(S.redesenharCampanhas&&$("#v-pagina")&&!$("#v-pagina").hidden) S.redesenharCampanhas(); },()=>{});
   db.collection("faturasDecisoes").onSnapshot(snap=>{ const m={}; snap.docs.forEach(d=>m[d.id]=d.data()); S.fatDecis=m; verificarFaturasFechadas(true); },()=>{});
   db.doc("config/bairrosTaxa").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):null;
