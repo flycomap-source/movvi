@@ -4335,7 +4335,7 @@ function abrirRota(op){
     bt.addEventListener("click",()=>{ box.remove(); aplicarRascCentral(d); });
     flutuarRascunho(box,caixaParadas);
   })();
-  if(op&&op.escanear&&S.sample) setTimeout(()=>(op.galeria?btScanGal:btScan).click(),0);
+  if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(ler),0); else if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
   // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
   const preenchidas=()=>paradas.filter(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim()).length;
   const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=preenchidas(); salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
@@ -4677,8 +4677,8 @@ function abrirRotaPorFotos(op){
     const box=h("div",{class:"painel",style:"gap:8px"},
       h("b",{style:"font-size:16px",text:"🧭 Rota em andamento"}),
       h("span",{style:"font-size:14px",text:"Você tinha começado uma rota com "+rasc.paradas.length+(rasc.paradas.length>1?" comandas já lidas.":" comanda já lida.")+" Continuar de onde parou?"}),
-      h("button",{class:"btn full",type:"button",onclick:()=>{ fechar(); montarRotaPorFotos(rasc.paradas); }},"▶ Continuar ("+rasc.paradas.length+")"),
-      h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); rascunhoRotaLimpar(); montarRotaPorFotos(null); }},"Começar nova"));
+      h("button",{class:"btn full",type:"button",onclick:()=>{ fechar(); montarRotaPorFotos(rasc.paradas,op); }},"▶ Continuar ("+rasc.paradas.length+")"),
+      h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); rascunhoRotaLimpar(); montarRotaPorFotos(null,op); }},"Começar nova"));
     fundo.addEventListener("click",fechar);
     document.body.append(fundo); flutuarRascunho(box,box);
     return;
@@ -4902,9 +4902,9 @@ function montarRotaPorFotos(restaurar,op){
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); rascunhoRotaLimpar(); }},"Descartar"));
     bt.addEventListener("click",()=>{ box.remove(); if(!paradas.length) aplicar(r.paradas); });
     flutuarRascunho(box,caixa); } };
-  if(restaurar){ aplicar(restaurar); return api; }
+  if(restaurar){ aplicar(restaurar); if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(novaFoto),0); return api; }
   desenhar();
-  setTimeout(()=>(op&&op.galeria?btGal:btCam).click(),0);
+  if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(novaFoto),0); else setTimeout(()=>btCam.click(),0);
   return api;
 }
 /* Formulário de pedido */
@@ -4993,15 +4993,23 @@ function abrirPorDemanda(op){
   desenhar();
   const fechar=abrirSheet("Escanear comandas",[info,cam,gal,lista,btLancar]);
   barraScan(lista.parentElement||lista,[btCam,btGal]);
-  if(op&&op.galeria) setTimeout(()=>btGal.click(),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
+  if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(ler),0); else if(op&&op.galeria) setTimeout(()=>btGal.click(),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
 }
 /* "Escanear comandas": um botão só. Várias comandas → rota (entregador/central); uma só → entrega normal.
    No comércio cada comanda vira uma entrega (a central monta as rotas). */
 function abrirEscanearComandas(op){
-  garantirClientes(); const gal=!!(op&&op.galeria);
-  if(S.modo==="entregador") return abrirRotaPorFotos(gal?{galeria:true}:null);
-  if(central()) return abrirRota({escanear:true,galeria:gal});
-  return abrirPorDemanda(gal?{galeria:true}:{camera:true});
+  garantirClientes();
+  if(op&&op.galeria){
+    // galeria: abre só o seletor de fotos; a tela das comandas aparece depois de escolher
+    const inp=h("input",{type:"file",accept:"image/*",multiple:true,style:"display:none"}); document.body.append(inp);
+    inp.addEventListener("change",()=>{ const arq=[...(inp.files||[])]; inp.remove(); if(arq.length) abrirEscanearComandas({arquivos:arq}); });
+    inp.addEventListener("cancel",()=>inp.remove());
+    inp.click(); return;
+  }
+  const arq=op&&op.arquivos;
+  if(S.modo==="entregador") return abrirRotaPorFotos(arq?{arquivos:arq}:null);
+  if(central()) return abrirRota({escanear:true,arquivos:arq});
+  return abrirPorDemanda(arq?{arquivos:arq}:{camera:true});
 }
 function botaoScanDemanda(fecharMenu){
   const sub=comercio()?"Uma ou várias · cada comanda vira uma entrega":"Uma ou várias · com várias o app já monta a rota";
