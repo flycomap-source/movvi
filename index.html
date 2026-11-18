@@ -7668,7 +7668,7 @@ function abrirMapaEntrega(p){
   carregarLeaflet().then(async L=>{
     if(!jan.isConnected) return;
     area.replaceChildren(); const d=h("div",{style:"position:absolute;inset:0"}); area.append(d);
-    mapa=L.map(d,{zoomControl:true}).setView([UNAI.lat,UNAI.lng],13);
+    mapa=L.map(d,{zoomControl:true});   // a vista é definida uma vez só, quando os pontos estiverem prontos (sem pulo de zoom)
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
     const pts=[];
@@ -7686,7 +7686,7 @@ function abrirMapaEntrega(p){
     for(const x of outras.slice(0,8)){ const c=coordDeTexto(x.localizacao); const k=chaveLocCli(x); let g=c;
       if(!g && k){ try{ const sn=await S.db.doc("locCli/"+k).get(); const dd=sn.exists?sn.data():null; if(dd&&dd.lat) g=dd; }catch(e){} }
       if(g&&jan.isConnected) L.marker([g.lat,g.lng],{icon:pinoHtml((num(x.ordemEntrega)?num(x.ordemEntrega)+" · ":"")+esc((x.cliente||"").split(/\s+/)[0]),"#6b7280")}).addTo(mapa).bindPopup("<b>"+esc(x.cliente)+"</b><br>"+esc(x.endereco)); }
-    if(pts.length>1) mapa.fitBounds(pts,{padding:[50,50],maxZoom:17}); else if(pts.length===1) mapa.setView(pts[0],17);
+    if(pts.length>1) mapa.fitBounds(pts,{padding:[50,50],maxZoom:17,animate:false}); else if(pts.length===1) mapa.setView(pts[0],17,{animate:false}); else mapa.setView([UNAI.lat,UNAI.lng],13);
     txt.textContent = lc ? (lc.fonte.includes("aproximado")?"⚠️ Ponto aproximado (busca pelo endereço). Se não bater, use o Google Maps.":"✓ Ponto do cliente: "+lc.fonte+".")
       : "Não achei este endereço no mapa do app. Use o Google Maps.";
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Sem internet para carregar o mapa. Use o Google Maps."})); });
