@@ -1099,7 +1099,7 @@ function iniciarVoltar(){
     let falta=Math.max(1,passosQueFaltam()-d), seg=0;
     while(falta>1 && seg++<20){ const el=camadaDeCima(); if(el){ fecharCamada(el); falta--; } else if(!emTelaPrincipal()){ irPara("entregas"); falta--; } else break; }
     const el=camadaDeCima();
-    if(el){ fecharCamada(el); return; }
+    if(el){ fecharCamada(el); setTimeout(()=>{ try{ const d2=(history.state&&history.state.movviD)||0; if(d2>passosQueFaltam()) completarHistorico(); }catch(e){} },350); return; }
     if(!emTelaPrincipal()){ irPara("entregas"); return; }
     // tela principal: pergunta. Sem passo guardado, o próximo "voltar" fecha o app.
     const ficar=h("button",{class:"btn",type:"button",style:"flex:1"},"Continuar no app");
@@ -4308,9 +4308,10 @@ function abrirRota(op){
       st.din.value=o.din||""; st.obs.value=o.obs||""; st.rec.checked=!!o.rec; st.produtos=o.produtos||[]; });
     desenhar(); toast("Rota recuperada: "+d.paradas.length+(d.paradas.length>1?" paradas":" parada"));
   }
-  btScan.addEventListener("click",()=>abrirCameraTraseira(scanCam,ler,{multi:true}));
+  btScan.addEventListener("click",()=>abrirCameraTraseira(scanCam,ler,{multi:true,aoFechar:q=>{ if(!q && !paradas.some(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim())) fechar(); }}));
   scanCam.addEventListener("change",()=>{ const f=scanCam.files&&scanCam.files[0]; scanCam.value=""; if(f) ler(f); });
   btScanGal.addEventListener("click",()=>{ scanGal.value=""; scanGal.click(); });
+  scanGal.addEventListener("cancel",()=>{ if(!paradas.some(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim())) fechar(); });
   scanGal.addEventListener("change",()=>{ [...(scanGal.files||[])].forEach(ler); scanGal.value=""; });
   const msg=h("div",{class:"aviso",hidden:true});
   const salvar=h("button",{class:"btn full",type:"button"},"Criar rota");
@@ -4334,7 +4335,7 @@ function abrirRota(op){
     bt.addEventListener("click",()=>{ box.remove(); aplicarRascCentral(d); });
     flutuarRascunho(box,caixaParadas);
   })();
-  if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
+  if(op&&op.escanear&&S.sample) setTimeout(()=>(op.galeria?btScanGal:btScan).click(),0);
   // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
   const preenchidas=()=>paradas.filter(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim()).length;
   const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=preenchidas(); salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
@@ -4660,12 +4661,12 @@ async function rascunhoRotaLer(){
   if(!r || !Array.isArray(r.paradas) || !r.paradas.length || Date.now()-Date.parse(r.em)>18*3600000) return null;
   return r;
 }
-function abrirRotaPorFotos(){
+function abrirRotaPorFotos(op){
   garantirClientes();
   const rasc=rascunhoRotaLocal();
   if(!rasc){
     // abre na hora (mantém o toque para a câmera) e confere na conta se ficou rota salva de antes
-    const tela=montarRotaPorFotos(null);
+    const tela=montarRotaPorFotos(null,op);
     rascunhoRotaLer().then(r=>{ if(r && tela.vazia()) tela.oferecer(r); });
     return;
   }
@@ -4684,7 +4685,7 @@ function abrirRotaPorFotos(){
   }
   montarRotaPorFotos(null);
 }
-function montarRotaPorFotos(restaurar){
+function montarRotaPorFotos(restaurar,op){
   const paradas=[]; let fila=Promise.resolve(), ordenada=false;
   const caixa=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
   const vazio=h("p",{class:"muted",style:"margin:0;text-align:center",text:"Fotografe cada comanda. Pode tirar todas em seguida."});
@@ -4700,9 +4701,10 @@ function montarRotaPorFotos(restaurar){
   const novaFoto=f=>{ const st={lendo:true,foto:null}; paradas.push(st); paradas._teve=true; ordenada=false; desenhar();
     const pronta=prepararImagem(f); f=null;   // guarda só a versão reduzida da foto
     fila=fila.then(async()=>{ st.foto=await pronta; await lerParada(st); }); };
-  btCam.addEventListener("click",()=>abrirCameraTraseira(inpCam,novaFoto,{multi:true}));
+  btCam.addEventListener("click",()=>abrirCameraTraseira(inpCam,novaFoto,{multi:true,aoFechar:q=>{ if(!q && !paradas.length) fechar(); }}));
   inpCam.addEventListener("change",()=>{ const f=inpCam.files&&inpCam.files[0]; inpCam.value=""; if(f) novaFoto(f); });
   btGal.addEventListener("click",()=>{ inpGal.value=""; inpGal.click(); });
+  inpGal.addEventListener("cancel",()=>{ if(!paradas.length) fechar(); });
   inpGal.addEventListener("change",()=>{ [...(inpGal.files||[])].forEach(novaFoto); inpGal.value=""; });
 
   async function lerParada(st){
@@ -4902,7 +4904,7 @@ function montarRotaPorFotos(restaurar){
     flutuarRascunho(box,caixa); } };
   if(restaurar){ aplicar(restaurar); return api; }
   desenhar();
-  setTimeout(()=>btCam.click(),0);
+  setTimeout(()=>(op&&op.galeria?btGal:btCam).click(),0);
   return api;
 }
 /* Formulário de pedido */
@@ -4924,6 +4926,7 @@ function abrirMenuMais(){
     : cx>innerWidth/2 ? "right:"+Math.max(12,innerWidth-r.right)+"px;align-items:flex-end" : "left:"+Math.max(12,r.left)+"px;align-items:flex-start";
   const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:column;gap:10px;pointer-events:none"},
     pilula("📷","Escanear comandas","var(--royal)",()=>abrirEscanearComandas()),
+    pilula("🖼","Foto da galeria","#0e7490",()=>abrirEscanearComandas({galeria:true})),
     pilula("✏️","Lançar sem foto","var(--laranja)",()=>abrirPedido(null)));
   const veu=h("div",{id:"discoMais","data-camada":"1",style:"position:fixed;inset:0;z-index:60;background:rgba(10,20,40,.18)"},caixa);
   veu.addEventListener("click",fecha);
@@ -4982,9 +4985,10 @@ function abrirPorDemanda(op){
     abrirPedido(null);
   }
   btLancar.addEventListener("click",()=>{ const prox=itens.find(x=>x.estado!=="lancada"); if(prox) abrirItem(prox); });
-  btCam.addEventListener("click",()=>abrirCameraTraseira(cam,ler,{multi:true}));
+  btCam.addEventListener("click",()=>abrirCameraTraseira(cam,ler,{multi:true,aoFechar:q=>{ if(!q && !itens.length) fechar(); }}));
   cam.addEventListener("change",()=>{ const f=cam.files&&cam.files[0]; cam.value=""; if(f) ler(f); });
   btGal.addEventListener("click",()=>{ gal.value=""; gal.click(); });
+  gal.addEventListener("cancel",()=>{ if(!itens.length) fechar(); });
   gal.addEventListener("change",()=>{ [...(gal.files||[])].forEach(ler); gal.value=""; });
   desenhar();
   const fechar=abrirSheet("Escanear comandas",[info,cam,gal,lista,btLancar]);
@@ -4993,11 +4997,11 @@ function abrirPorDemanda(op){
 }
 /* "Escanear comandas": um botão só. Várias comandas → rota (entregador/central); uma só → entrega normal.
    No comércio cada comanda vira uma entrega (a central monta as rotas). */
-function abrirEscanearComandas(){
-  garantirClientes();
-  if(S.modo==="entregador") return abrirRotaPorFotos();
-  if(central()) return abrirRota({escanear:true});
-  return abrirPorDemanda({camera:true});
+function abrirEscanearComandas(op){
+  garantirClientes(); const gal=!!(op&&op.galeria);
+  if(S.modo==="entregador") return abrirRotaPorFotos(gal?{galeria:true}:null);
+  if(central()) return abrirRota({escanear:true,galeria:gal});
+  return abrirPorDemanda(gal?{galeria:true}:{camera:true});
 }
 function botaoScanDemanda(fecharMenu){
   const sub=comercio()?"Uma ou várias · cada comanda vira uma entrega":"Uma ou várias · com várias o app já monta a rota";
@@ -5121,7 +5125,7 @@ function abrirCameraTraseira(inp,aoFoto,op){
   if(!podeCameraDireta()){ cameraDoCelular(inp); return; }
   const video=h("video",{autoplay:true,playsinline:true,muted:true,style:"width:100%;height:100%;object-fit:cover;background:#000"});
   video.setAttribute("playsinline",""); video.muted=true;
-  const fechar=()=>{ try{ (video.srcObject&&video.srcObject.getTracks()||[]).forEach(t=>t.stop()); }catch(e){} tela.remove(); };
+  const fechar=(saiu)=>{ try{ (video.srcObject&&video.srcObject.getTracks()||[]).forEach(t=>t.stop()); }catch(e){} tela.remove(); if(saiu && op && op.aoFechar) try{ op.aoFechar(qtd); }catch(e){} };
   const btFoto=h("button",{type:"button","aria-label":"Capturar comanda",style:"width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:var(--laranja)"});
   // várias fotos: "Pronto" fica do lado direito do botão de disparar (dá para usar com uma mão); uma foto: "Cancelar" no canto
   const btSair=multi
@@ -5134,7 +5138,7 @@ function abrirCameraTraseira(inp,aoFoto,op){
     h("div",{style:"display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:18px 12px calc(18px + env(safe-area-inset-bottom,0px))"},
       h("span"),btFoto,h("div",{style:"display:flex;justify-content:flex-start"},multi?btSair:null)));
   document.body.append(tela);
-  btSair.addEventListener("click",fechar);
+  btSair.addEventListener("click",()=>fechar(true));
   let abriu=false;
   const falhou=()=>{ if(abriu) return; abriu=true; cameraDiretaFalhou=true; fechar(); oferecerOutraCamera(inp,aoFoto,multi); };
   let limite=setTimeout(()=>{ if(!video.videoWidth) falhou(); },15000);
