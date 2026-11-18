@@ -1,4 +1,5 @@
-<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=12"></script></head><body>
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}@keyframes bolhaEntra{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=12"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -1009,23 +1010,90 @@ function abrirEscolhaRelatorio(){
 /* ao puxar a tela para baixo (atualizar a página), volta para a mesma tela em que estava */
 const TELA_SALVA=(()=>{ try{ const t=JSON.parse(sessionStorage.getItem("movvi.telaAtual")||localStorage.getItem("movvi.telaAtual")||"null");
   return t && (Date.now()-(t.em||0))<30*60*1000 ? t : null; }catch(e){ return null; } })();
+/* janelas abertas (conversa, mensagens, detalhes, mapas…) também voltam depois de atualizar */
+function janelasAbertas(){ const l=[]; document.querySelectorAll("[data-janela]").forEach(e=>{ if(e.isConnected) try{ l.push(JSON.parse(e.getAttribute("data-janela"))); }catch(x){} }); return l; }
 function guardarTela(){
   if(!S.telaRestaurada) return; // não sobrescreve antes de voltar à tela salva
   try{ if(S.modo && !["carregando","semacesso","desativado"].includes(S.modo)){
-    const j=JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo,em:Date.now()});
+    const j=JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo,janelas:janelasAbertas(),em:Date.now()});
     sessionStorage.setItem("movvi.telaAtual",j); localStorage.setItem("movvi.telaAtual",j); } }catch(e){} }
 function restaurarTela(){
   if(S.telaRestaurada || !S.modo || ["carregando","semacesso","desativado"].includes(S.modo)) return;
   const t=TELA_SALVA;
-  if(!t || t.modo!==S.modo || !t.v || t.v==="entregas" || t.v==="acesso"){ S.telaRestaurada=true; guardarTela(); return; }
+  if(!t || t.modo!==S.modo || !t.v || t.v==="acesso"){ S.telaRestaurada=true; guardarTela(); return; }
   setTimeout(()=>{ try{
     if(t.v==="acerto" && t.fat) fatTipo=t.fat;
     S.telaRestaurada=true;
-    irPara(t.v);
+    if(t.v!=="entregas") irPara(t.v);
     if(t.v==="relatorios" && t.rel && typeof escolherRelTipo==="function") escolherRelTipo(t.rel);
-  }catch(e){ S.telaRestaurada=true; } },0);
+  }catch(e){ S.telaRestaurada=true; }
+    reabrirJanelas(t.janelas||[]); },0);
+}
+function reabrirJanelas(lista){
+  const ped=id=>(S.pedidosDia||[]).find(p=>p.id===id)||Object.values(S.fontesDia||{}).flat().find(p=>p&&p.id===id);
+  const abre={
+    chat:conv=>{ if(!conv) return true; if(!(chatDoc(conv)||conv===S.uid)) return false; abrirChat(conv,false); return true; },
+    mensagens:()=>{ abrirMensagens(); return true; },
+    detalhes:id=>{ const p=ped(id); if(!p) return false; abrirDetalhes(p); return true; },
+    mapaEntrega:id=>{ const p=ped(id); if(!p) return false; abrirMapaEntrega(p); return true; },
+    mapaEntregadores:()=>{ abrirMapaEntregadores(); return true; },
+    rotaCentral:()=>{ abrirRotaCentral(); return true; }};
+  let i=0, tent=0;
+  const passo=()=>{
+    while(i<lista.length){
+      const [tipo,arg]=lista[i]||[]; const f=abre[tipo];
+      if(!f){ i++; continue; }
+      let ok=false; try{ ok=f(arg); }catch(e){ ok=true; }
+      if(!ok && tent<30){ tent++; setTimeout(passo,400); return; }   // espera os dados chegarem (até ~12 s)
+      i++; tent=0;
+    }
+  };
+  if(lista.length) setTimeout(passo,300);
+}
+/* ---- botão/gesto "voltar" do celular ----
+   fecha a janela de cima; sem janela, volta para Entregas; na tela inicial pede confirmação
+   e só sai do app se voltar de novo */
+function camadaDeCima(){
+  const els=[...document.querySelectorAll(".veu,[data-tela-cheia],[role=dialog],.lightbox")].filter(e=>e.isConnected && !e.hidden && getComputedStyle(e).display!=="none");
+  if(!els.length) return null;
+  const z=e=>parseInt(getComputedStyle(e).zIndex)||0;
+  return els.reduce((a,b)=> z(b)>=z(a) ? b : a);
+}
+function fecharCamada(el){
+  if(el.id==="confirmaSair"){ el.remove(); return; }
+  const bt=el.querySelector('[aria-label="Voltar"],[aria-label="Fechar"]');
+  if(bt){ bt.click(); return; }
+  if(el.classList.contains("veu")){ el.dispatchEvent(new MouseEvent("click",{bubbles:true})); if(el.isConnected) el.remove(); return; }
+  if(el.classList.contains("lightbox")){ el.click(); return; }
+  document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}));
+  if(el.isConnected) el.remove();
+}
+function iniciarVoltar(){
+  if(iniciarVoltar.ok) return; iniciarVoltar.ok=true;
+  try{ history.replaceState({movvi:"base"},""); history.pushState({movvi:"guarda"},""); }catch(e){ return; }
+  const guarda=()=>{ try{ if(!history.state || history.state.movvi!=="guarda") history.pushState({movvi:"guarda"},""); }catch(e){} };
+  window.addEventListener("popstate",()=>{
+    const conf=document.getElementById("confirmaSair");
+    if(conf){ conf.remove(); try{ history.back(); }catch(e){} return; }   // voltou de novo: sai do app
+    const el=camadaDeCima();
+    if(el){ fecharCamada(el); guarda(); return; }
+    if(typeof viewAtual!=="undefined" && viewAtual!=="entregas" && viewAtual!=="acesso" && !["carregando","semacesso","desativado"].includes(S.modo)){ irPara("entregas"); guarda(); return; }
+    // tela inicial: pergunta; a guarda NÃO volta, então o próximo "voltar" fecha o app
+    const ficar=h("button",{class:"btn",type:"button",style:"flex:1"},"Continuar no app");
+    const caixa=h("div",{id:"confirmaSair",role:"alertdialog","aria-label":"Sair do app?",style:"position:fixed;inset:0;z-index:10050;background:rgba(10,20,40,.45);display:grid;place-items:end center;padding:0 12px calc(18px + env(safe-area-inset-bottom,0px))"},
+      h("div",{style:"width:min(100%,420px);background:var(--card,#fff);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.3)"},
+        h("b",{style:"font-size:18px",text:"Quer mesmo sair do app?"}),
+        h("span",{class:"muted",style:"font-size:14px",text:"Para sair, volte (ou arraste para o lado) mais uma vez."}),
+        h("div",{style:"display:flex;gap:8px"},ficar)));
+    const fica=()=>{ caixa.remove(); guarda(); };
+    ficar.addEventListener("click",fica); caixa.addEventListener("click",e=>{ if(e.target===caixa) fica(); });
+    document.body.append(caixa);
+  });
+  window.addEventListener("pagehide",guardarTela);
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") guardarTela(); });
 }
 function aplicarModo(){
+  iniciarVoltar();
   setTimeout(restaurarTela,0);
   const comAbas = central()||comercio()||S.modo==="entregador";
   $("#abas").hidden=!comAbas;
@@ -3222,6 +3290,7 @@ function alerta(msg){ toast(msg); try{ document.title="(!) Movvi+ Entregas"; set
 /* ---------- sheets ---------- */
 function abrirSheet(titulo, corpo){
   const veu=h("div",{class:"veu",role:"dialog","aria-modal":"true","aria-label":titulo});
+  if(abrirSheet.janela){ veu.setAttribute("data-janela",JSON.stringify(abrirSheet.janela)); abrirSheet.janela=null; }
   if(document.querySelector("[data-tela-cheia]")) veu.style.zIndex="10000";   // por cima do mapa / da conversa
   const aoFechar=abrirSheet.aoFechar; abrirSheet.aoFechar=null; let fechado=false;
   const fechar=()=>{ veu.remove(); document.removeEventListener("keydown",esc); if(!fechado){ fechado=true; if(aoFechar) try{ aoFechar(); }catch(e){} } };
@@ -4380,6 +4449,7 @@ function abrirRotaCentral(){
               h("span",{class:"muted",style:"font-size:12px",text:"Coleta: "+(p.coletaEmpresa||p.coletaEndereco||"—")})),
             h("span",{style:"flex:none;font-size:11.5px;font-weight:800;color:#fff;background:"+cor+";border-radius:999px;padding:2px 8px;white-space:nowrap",text:st})); })); })
     :[h("p",{class:"muted",style:"margin:0",text:"Nenhum entregador com entrega em aberto agora."})];
+  abrirSheet.janela=["rotaCentral"];
   const fechar=abrirSheet("🧭 Entregas com os entregadores",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Os números são a ordem da rota. Toque em “Organizar” para mudar a ordem de um entregador (ele recebe um aviso e pode ajustar depois). Toque numa entrega para ver os detalhes."}),...secoes]);
 }
 function abrirOrdemEntregas(ent,op){
@@ -4401,6 +4471,23 @@ function abrirOrdemEntregas(ent,op){
   const msg=h("div",{class:"aviso",hidden:true});
   const btOrg=h("button",{class:"btn sec full",type:"button"},"🧭 Sugerir uma ordem");
   const salvar=h("button",{class:"btn full",type:"button"},"Salvar ordem");
+  // botão − : exclui a entrega (lançada errado) e ela sai da rota
+  const confirmarTirar=p=>{
+    const sim=h("button",{class:"btn full",type:"button",style:"background:var(--bad)"},"Sim, excluir a entrega");
+    const erro=h("div",{class:"aviso",hidden:true});
+    const fecharC=abrirSheet("Excluir esta entrega?",[
+      h("p",{style:"margin:0",text:"Tem certeza que deve excluir a entrega de "+(p.cliente||p.telefone||"cliente")+(p.numero?" (#"+p.numero+")":"")+"?"}),
+      h("p",{class:"muted",style:"margin:0;font-size:13px",text:"📍 "+(p.endereco||"Sem endereço")+" · ela sai da sua rota e da sua lista."}),
+      erro,sim,h("button",{class:"btn sec full",type:"button",onclick:()=>fecharC()},"Não, manter")]);
+    sim.addEventListener("click",async()=>{
+      sim.disabled=true; sim.textContent="Excluindo…";
+      try{ await excluirPedido(p);
+        itens=itens.filter(x=>x.id!==p.id); delete nums[p.id]; delete numsCol[p.id];
+        total=base+itens.length; Object.keys(nums).forEach(k=>{ if(nums[k]>total) delete nums[k]; }); Object.keys(numsCol).forEach(k=>{ if(numsCol[k]>total) delete numsCol[k]; });
+        fecharC(); toast("Entrega excluída"); desenhar();
+      }catch(e){ sim.disabled=false; sim.textContent="Sim, excluir a entrega"; erro.hidden=false; erro.textContent="Não foi possível excluir agora. Tente de novo."; }
+    });
+  };
   const desenhar=()=>{
     const usados=new Set(Object.values(nums));
     // na lista: coleta pendente marcada aparece antes da entrega escolhida; o resto na ordem de entrega
@@ -4411,7 +4498,10 @@ function abrirOrdemEntregas(ent,op){
     falta.style.color=semN?"var(--muted)":"var(--ok)";
     caixa.replaceChildren(...ord.map(p=>{ const n=nums[p.id]||0;
       return h("div",{class:"parada",style:n?"":"border-style:dashed"},
-        h("div",{class:"parada-cab"},h("span",{class:"parada-n num",style:"width:auto;min-width:36px;padding:0 6px;border-radius:14px;"+(n?"":"background:var(--muted)"),text:n?n+"/"+total:"—"}),
+        h("div",{class:"parada-cab"},
+          h("button",{type:"button",title:"Excluir esta entrega","aria-label":"Excluir a entrega de "+(p.cliente||"cliente"),onclick:()=>confirmarTirar(p),
+            style:"flex:none;width:30px;height:30px;border-radius:50%;border:0;background:var(--bad);color:#fff;font-size:22px;font-weight:900;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0"},"−"),
+          h("span",{class:"parada-n num",style:"width:auto;min-width:36px;padding:0 6px;border-radius:14px;"+(n?"":"background:var(--muted)"),text:n?n+"/"+total:"sem nº"}),
           h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")})),
         h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
         h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))}),
@@ -5963,6 +6053,7 @@ function abrirDetalhes(p){
       h("td",{class:"muted",style:"white-space:nowrap;vertical-align:top",text:k}),
       h("td",{class:"r num",style:"white-space:normal;overflow-wrap:anywhere;"+(f?"font-weight:800":""),text:v}))))));
   const destRecado=destinoRecado(p);
+  abrirSheet.janela=["detalhes",p.id||""];
   const fecharDet=abrirSheet("Detalhes da entrega",[
     h("div",{style:"font-family:var(--f-display);font-weight:900;font-size:24px;line-height:1.15;color:var(--royal);overflow-wrap:anywhere",text:p.coletaEmpresa||"Entrega"}),
     destRecado?h("button",{class:"btn lar full",type:"button",onclick:()=>abrirRecado(p,destRecado)},"📣 Mandar recado para "+(destRecado.nome||"o entregador")):null,
@@ -7423,7 +7514,7 @@ function abrirMapaEntregadores(){
   const resumoCli=h("span",{style:"font-size:12.5px;font-weight:800;color:#dc2626"});
   const avisoLocal=h("span",{class:"muted",style:"font-size:11.5px",hidden:true});
   const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
-  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["mapaEntregadores"]),"aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
     lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
     h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · bonequinho de camisa vermelha = cliente com entrega em aberto. Toque no cliente para ver e editar."}));
@@ -7478,9 +7569,8 @@ function abrirMapaEntregadores(){
     const nLoj=pts.reduce((a,pt)=>a+pt.pedidos.length,0);
     resumoLoj.textContent=pts.length?"🏪 "+pts.length+(pts.length===1?" local":" locais")+" com "+nLoj+(nLoj===1?" pedido em aberto":" pedidos em aberto"):"Nenhum pedido em aberto";
   };
-  const fechar=()=>{ if(unsub) unsub(); if(unsubGeo) unsubGeo(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapa) history.back(); }catch(e){} };
+  const fechar=()=>{ if(unsub) unsub(); if(unsubGeo) unsubGeo(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); };
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
-  try{ history.pushState({mapa:1},""); window.addEventListener("popstate",fechar,{once:true}); }catch(e){}
   const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
   const desenhar=()=>{
     const vis=pos.filter(x=>x.disponivel!==false && x.lat && x.lng && (Date.now()-new Date(x.em).getTime())<3*3600e3);
@@ -7541,16 +7631,15 @@ function abrirMapaEntrega(p){
   const url=linkMaps(p.endereco,p.localizacao);
   const btG=url?h("a",{class:"btn sec",href:url,target:"_blank",rel:"noopener",style:"flex:1;text-align:center"},"🧭 Ir com Google Maps"):null;
   const btEu=h("button",{class:"btn sec",type:"button",style:"flex:1"},"📍 Onde estou");
-  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["mapaEntrega",p&&p.id||""]),"aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,
       h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},h("b",{style:"font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"🏠 "+(p.cliente||"Cliente")}),
         h("span",{class:"muted",style:"font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:p.endereco||""}))),
     area,txt,h("div",{style:"display:flex;gap:8px"},btEu,btG));
   document.body.append(jan);
   let mapa=null, eu=null, cli=null;
-  const fechar=()=>{ try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); try{ if(history.state&&history.state.mapaEnt) history.back(); }catch(e){} };
+  const fechar=()=>{ try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); };
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
-  try{ history.pushState({mapaEnt:1},""); window.addEventListener("popstate",fechar,{once:true}); }catch(e){}
   const pinoHtml=(t,cor)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+cor+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+t+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+cor+'"></div></div>'});
   const esc=t=>String(t||"").replace(/[<>&]/g,"");
   carregarLeaflet().then(async L=>{
@@ -7598,8 +7687,10 @@ function ouvirChats(){
   S.subChats=S.db.collection("chats").onSnapshot(snap=>{
     const todos=snap.docs.map(d=>({id:d.id,...d.data()}));
     S.chats = central() ? todos : todos.filter(c=>c.id===S.uid || (Array.isArray(c.participantes) && c.participantes.includes(S.uid)));
-    if(central()) S.chats.filter(c=>!ehPar(c) && c.aberto && c.naoLidaCentral).forEach(c=>abrirChat(c.id,true));
-    else S.chats.forEach(c=>{ if(ehPar(c) ? c["nl_"+S.uid] : (c.aberto && c.naoLidaEnt)) abrirChat(c.id,true); });
+    // mensagem nova: primeiro o balãozinho flutuante; tocando nele abre a conversa em tela cheia
+    const chegou=c=>S.chatJanelas[c.id] ? abrirChat(c.id,true) : bolhaChat(c);
+    if(central()) S.chats.filter(c=>!ehPar(c) && c.aberto && c.naoLidaCentral).forEach(chegou);
+    else S.chats.forEach(c=>{ if(ehPar(c) ? c["nl_"+S.uid] : (c.aberto && c.naoLidaEnt)) chegou(c); });
     Object.keys(S.chatJanelas).forEach(k=>{ const c=chatDoc(k); if(c && !ehPar(c) && !c.aberto) S.chatJanelas[k].encerrada(c.encerradoPor); });
     pintarDockChats(); if(S.redesenharMensagens) S.redesenharMensagens();
   },()=>{});
@@ -7609,6 +7700,33 @@ function tituloChat(id){
   if(ehPar(c)){ const n=c.nomes||{}; if(central()) return (c.participantes||[]).map(u=>n[u]||"?").join(" ↔ "); return n[(c.participantes||[]).find(u=>u!==S.uid)]||"Entregador"; }
   return central() ? ((c&&c.nome)||"Entregador") : "Central";
 }
+/* balãozinho flutuante com a última mensagem recebida (um por conversa) */
+S.bolhaVista=S.bolhaVista||{};
+function bolhaChat(c){
+  const chave=c.id+"|"+(c.atualizadoEm||c.ultima||"");
+  if(S.bolhaVista[c.id]===chave) return;
+  S.bolhaVista[c.id]=chave;
+  let pilha=document.getElementById("bolhasChat");
+  if(!pilha){ pilha=h("div",{id:"bolhasChat",style:"position:fixed;z-index:9995;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));width:min(94vw,420px);display:flex;flex-direction:column;gap:8px;pointer-events:none"}); document.body.append(pilha); }
+  const id="bolha_"+c.id.replace(/[^a-zA-Z0-9_]/g,"_");
+  const velha=document.getElementById(id); if(velha) velha.remove();
+  const de = ehPar(c) ? ((c.nomes||{})[c.ultimaDe]||tituloChat(c.id)) : tituloChat(c.id);
+  const fecha=h("button",{type:"button","aria-label":"Fechar",style:"all:unset;cursor:pointer;flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;font-size:16px;color:var(--muted)"},"✕");
+  const b=h("div",{id,role:"button",tabindex:"0","aria-label":"Mensagem de "+de+". Toque para abrir",
+      style:"pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:10px;background:var(--card,#fff);border-radius:16px;padding:10px 10px 10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.28);border-left:5px solid var(--royal);animation:bolhaEntra .25s ease-out"},
+    h("span",{style:"flex:none;width:40px;height:40px;border-radius:50%;background:var(--royal);color:#fff;display:grid;place-items:center;font-size:20px"},"💬"),
+    h("span",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},
+      h("b",{style:"font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",text:de}),
+      h("span",{style:"font-size:14px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere",text:c.ultima||"Nova mensagem"})),
+    fecha);
+  const tirar=()=>{ b.remove(); if(pilha && !pilha.children.length) pilha.remove(); };
+  b.addEventListener("click",e=>{ if(e.target.closest("button")===fecha){ tirar(); return; } tirar(); abrirChat(c.id,false); });
+  b.addEventListener("keydown",e=>{ if(e.key==="Enter"){ tirar(); abrirChat(c.id,false); } });
+  pilha.prepend(b);
+  while(pilha.children.length>3) pilha.lastChild.remove();
+  try{ if(navigator.vibrate) navigator.vibrate(120); }catch(e){}
+}
+function tirarBolha(conv){ const b=document.getElementById("bolha_"+String(conv).replace(/[^a-zA-Z0-9_]/g,"_")); if(b){ const p=b.parentElement; b.remove(); if(p&&!p.children.length) p.remove(); } }
 /* central: conversas abertas que foram minimizadas ficam num botãozinho no canto */
 function pintarDockChats(){
   let d=document.getElementById("chatDock");
@@ -7647,6 +7765,7 @@ function balao(m,meu,comNome){
       h("span",{style:"font-size:10.5px;opacity:.7;white-space:nowrap;flex:none;line-height:1.6",text:horaCurta(m.em)})));
 }
 function abrirChat(conv,chegou){
+  tirarBolha(conv);
   const ja=S.chatJanelas[conv];
   if(ja){ ja.frente(); if(chegou) ja.marcarLida(); return; }
   const c0=chatDoc(conv), par=ehPar(c0), soLer=central()&&par;
@@ -7660,7 +7779,7 @@ function abrirChat(conv,chegou){
   const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
   const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env);
-  const jan=h("div",{role:"dialog","data-tela-cheia":"1","aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
+  const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["chat",conv]),"aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btMin,h("b",{style:"flex:1;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim),
     lista,soLer?null:chips,rodape);
   document.body.append(jan);
@@ -7687,19 +7806,18 @@ function abrirChat(conv,chegou){
   // botão "voltar" do celular fecha a conversa; o ← da tela também desfaz esse passo do histórico
   const voltarCel=()=>{ porVoltar=true; fechar(); };
   let porVoltar=false;
-  try{ history.pushState({chat:conv},""); window.addEventListener("popstate",voltarCel,{once:true}); }catch(e){}
-  btMin.addEventListener("click",()=>{ window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} });
+  btMin.addEventListener("click",()=>{ window.removeEventListener("popstate",voltarCel); fechar(); });
   if(btFim){ let armado=false;
     btFim.addEventListener("click",async()=>{
       if(!armado){ armado=true; btFim.textContent="Encerrar?"; setTimeout(()=>{ armado=false; btFim.textContent="Encerrar"; },3500); return; }
       const ag=new Date().toISOString(), quem=central()?"pela central":"por "+(S.euNome||"entregador"), c=chatDoc(conv);
       try{ await S.db.doc("chats/"+conv).set({uid:conv,nome:central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador"),aberto:false,ultima:(c&&c.ultima)||"",ultimaDe:(c&&c.ultimaDe)||"",atualizadoEm:ag,naoLidaCentral:false,naoLidaEnt:false,encerradoPor:quem}); }catch(e){}
-      window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){}
+      window.removeEventListener("popstate",voltarCel); fechar();
     }); }
   S.chatJanelas[conv]={
     frente:()=>{ document.body.append(jan); },
     marcarLida,
-    encerrada:()=>{ if(fechada) return; window.removeEventListener("popstate",voltarCel); fechar(); try{ if(history.state && history.state.chat===conv) history.back(); }catch(e){} }};
+    encerrada:()=>{ if(fechada) return; window.removeEventListener("popstate",voltarCel); fechar(); }};
   if(chegou){ marcarLida(); try{ bip(); }catch(e){} try{ if(navigator.vibrate) navigator.vibrate([200,80,200]); }catch(e){} }
   pintarDockChats();
   if(!chegou && !soLer) setTimeout(()=>{ try{ txt.focus(); }catch(e){} },100);
@@ -7779,6 +7897,7 @@ function abrirMensagens(){
     corpo.replaceChildren(...itens);
   };
   S.redesenharMensagens=desenhar;
+  abrirSheet.janela=["mensagens"];
   abrirSheet("Mensagens",[corpo]);
   desenhar();
   if(central()) carregarRecadosComercio().then(l=>{ recadosCom=l; desenhar(); }).catch(()=>{ recadosCom=[]; desenhar(); });
