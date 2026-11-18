@@ -5006,7 +5006,7 @@ const PROMPT_COMANDA =
   '{"empresa":"","pedidoComercio":"","codigoCliente":"","cliente":"","clienteDoEndereco":"","telefone":"","telefoneCadastro":"","endereco":"","enderecoFiscal":"","enderecoObservacoes":"","enderecoCampo":"","bairro":"","pegarReceita":false,"transferencia":false,"osTipo":"","osLoja":"","osDestino":"","produtosControlados":[],"trocoPara":0,"pagamento":"dinheiro|cartao|pago|convenio","valorProdutos":0,"taxaEntrega":0,"valor":0,"previsaoPagamento":"","observacoes":"","confianca":"alta|media|baixa"}. '+
   "Há dois modelos comuns: (1) comanda impressa da Drogaria Canaan, com cliente identificado pelo telefone; (2) notinha da Farmácia Campos, preenchida à mão, com Sr.(a) = nome do cliente, End. = endereço, lista de produtos, TOTAL R$, e embaixo, junto da NOTA PROMISSÓRIA, a taxa de entrega abreviada \"TX\" e o valor total com a taxa. Farmacêuticos abreviam e escrevem rápido: leia com atenção nomes de ruas de Unaí (ex.: \"Princesa Isabel\"). "+
   "Regras: "+
-  "empresa = nome do comércio (ex.: em \"Filial: 2 - DROGARIA CANAAN - LJ02 - UNAI\" responda \"Drogaria Canaan\"). "+
+  "empresa = nome do comércio (ex.: em \"Filial: 2 - DROGARIA CANAAN - LJ02 - UNAI\" responda \"Drogaria Canaan\") Se aparecer MOURA INFORMÁTICA, PET STOP, PETSTOP ou HOSPITAL VETERINÁRIO em qualquer parte da comanda, responda \"Pet Stop\". "+
   "pedidoComercio = número do pedido/comanda do comércio (campo \"Pedido No\"), como impresso. "+
   "codigoCliente = código do cliente no sistema do comércio (o número impresso logo antes do nome do cliente). "+
   "cliente = nome do cliente impresso no cabeçalho. clienteDoEndereco = nome de quem recebe, escrito junto do endereço de entrega nas observações (ex.: \"para Dona Natália\"); vazio se não houver. "+
@@ -5028,7 +5028,18 @@ const PROMPT_COMANDA =
   "previsaoPagamento = o que estiver escrito em \"Previsão de pagamento\" ou \"Vencimento\" (vazio se nada). "+
   "observacoes = horário de entrega (ex.: \"ENTREGAR 12:00\"), referências e recados úteis ao entregador, sem repetir o endereço e o telefone usados. "+
   "NUNCA inclua CPF em nenhum campo. Não invente: deixe vazio o que não estiver na foto.";
+/* nomes que sempre viram uma empresa cadastrada (leitura de comanda) */
+const EMPRESA_FIXA=[[/moura\s*inform|pet\s*-?\s*stop|hospital\s+veterin/i,"Pet Stop"]];
+function empresaFixa(nome){
+  const t=semAcento(String(nome||""));
+  for(const [re,alvo] of EMPRESA_FIXA) if(re.test(t)){
+    const todas=[...S.empresas.map(e=>e.nome),...S.comercios.map(c=>c.nome)].filter(Boolean);
+    return todas.find(n=>slug(n)===slug(alvo)) || todas.find(n=>slug(n).replace(/-/g,"").includes(slug(alvo).replace(/-/g,""))) || alvo;
+  }
+  return null;
+}
 function acharEmpresa(nome){
+  { const f=empresaFixa(nome); if(f) return f; }
   const limpa=t=>semAcento(t||"").toLowerCase().replace(/\b(drogaria|farmacia|farma|loja|lj\d*|filial|unai|mg|ltda|me|de|da|do)\b/g," ").replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(w=>w.length>=3&&!/^\d+$/.test(w));
   const alvo=limpa(nome); if(!alvo.length) return null;
   const todas=[...S.empresas.map(e=>e.nome),...S.comercios.map(c=>c.nome)].filter(Boolean);
