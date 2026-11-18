@@ -3099,7 +3099,7 @@ async function compartilharCliente(c,col){
 S.listasEnt={}; let tDistrib=null, distribuindo=false;
 function agendarDistribuicao(){ clearTimeout(tDistrib); tDistrib=setTimeout(distribuirBase,2000); }
 async function distribuirBase(){
-  if(distribuindo||!central()||!S.db) return; distribuindo=true;
+  if(distribuindo||!central()||!S.db) return; distribuindo=true; let nGrav=0;
   try{
     const ativosUid=S.equipe.filter(e=>e.uid && e.ativo!==false);
     for(const e of ativosUid){
@@ -3108,9 +3108,13 @@ async function distribuirBase(){
         const d=atual.get(c.id);
         const ends=enderecosDe(c);
         const nm=c.nome||(d&&d.nome)||"";
-        if(d && (d.nome||"")===nm && d.telefone===c.telefone && JSON.stringify(enderecosDe(d).map(x=>x.endereco))===JSON.stringify(ends.map(x=>x.endereco))) continue;
-        await S.db.doc(col+"/"+c.id).set({obsCliente:c.obsCliente||"",aliasTels:c.aliasTels||[],nome:nm,telefone:c.telefone||"",codigo:c.codigo||"",endereco:(ends[0]||{}).endereco||"",
-          enderecos:c.editadoEm&&(!d||!d.atualizadoPeloEntregador)?ends:juntaEnderecos(ends,d?enderecosDe(d):[]),localizacao:c.localizacao||"",criadoEm:c.criadoEm||new Date().toISOString(),daBase:true}).catch(()=>{});
+        // o que vai ficar na lista do entregador; compara com ISSO (antes comparava com a base e regravava sem parar)
+        const alvo=(c.editadoEm&&(!d||!d.atualizadoPeloEntregador))||(d&&d.daBase&&!d.atualizadoPeloEntregador)?ends:juntaEnderecos(ends,d?enderecosDe(d):[]);
+        const sig=x=>JSON.stringify(x.map(e=>[e.endereco||"",e.localizacao||""]));
+        if(d && (d.nome||"")===nm && d.telefone===c.telefone && sig(enderecosDe(d))===sig(alvo)) continue;
+        await S.db.doc(col+"/"+c.id).set({obsCliente:c.obsCliente||"",aliasTels:c.aliasTels||[],nome:nm,telefone:c.telefone||"",codigo:c.codigo||"",endereco:(alvo[0]||{}).endereco||"",
+          enderecos:alvo,localizacao:(alvo[0]||{}).localizacao||c.localizacao||"",criadoEm:c.criadoEm||new Date().toISOString(),daBase:true}).catch(()=>{});
+        if(++nGrav%20===0) await new Promise(r=>setTimeout(r,300));   // não grava tudo de uma vez
       }
       const ids=new Set((S.clientes||[]).map(c=>c.id));
       for(const [id,d] of atual){ if(!ids.has(id) && d && d.daBase) await S.db.doc(col+"/"+id).delete().catch(()=>{}); }
@@ -3121,9 +3125,13 @@ let subsListas=[];
 function assinarListasClientes(){
   subsListas.forEach(u=>u()); subsListas=[];
   const cols=[...S.comercios.filter(c=>c.uid).map(c=>"lojas/"+c.uid+"/clientes"),...S.equipe.filter(e=>e.uid).map(e=>"entregas/"+e.uid+"/clientes")];
+  const vistos={};
   cols.forEach(col=>subsListas.push(S.db.collection(col).onSnapshot(sn=>{
     if(col.startsWith("entregas/")){ S.listasEnt[col]=new Map(sn.docs.map(d=>[d.id,d.data()])); agendarDistribuicao(); }
+    const ja=vistos[col]=vistos[col]||new Map();
     sn.docs.forEach(d=>{ const x={id:d.id,...d.data()}; if(!x.nome && !x.telefone) return;
+      const assin=JSON.stringify(x); if(ja.get(x.id)===assin) return; ja.set(x.id,assin);   // só o que mudou (antes reprocessava a lista toda a cada evento)
+      if(x.daBase && !x.atualizadoPeloEntregador) return;   // cópia que veio da própria central: não volta para a base
       const m=(S.clientes||[]).find(c=>c.id===x.id);
       if(x.telefone) S.db.doc("telefones/"+digTel(x.telefone)).get().then(sn=>{ const a=sn.exists?sn.data():{}; const ends=juntaEnderecos(enderecosDe(a),enderecosDe(x));
         if(!sn.exists || ends.length!==enderecosDe(a).length || (!a.nome && x.nome)) S.db.doc("telefones/"+digTel(x.telefone)).set({clienteId:x.id,codigo:x.codigo||a.codigo||"",nome:a.nome||x.nome||"",telefone:x.telefone,enderecos:ends}); }).catch(()=>{});
