@@ -5096,14 +5096,15 @@ function abrirCameraTraseira(inp,aoFoto,op){
   video.setAttribute("playsinline",""); video.muted=true;
   const fechar=()=>{ try{ (video.srcObject&&video.srcObject.getTracks()||[]).forEach(t=>t.stop()); }catch(e){} tela.remove(); };
   const btFoto=h("button",{type:"button","aria-label":"Capturar comanda",style:"width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:var(--laranja)"});
-  // várias fotos: "Pronto" fica logo acima do botão de disparar; uma foto: "Cancelar" no canto
+  // várias fotos: "Pronto" fica do lado direito do botão de disparar (dá para usar com uma mão); uma foto: "Cancelar" no canto
   const btSair=multi
-    ? h("button",{type:"button",style:"border:0;border-radius:999px;background:#16a34a;color:#fff;font:800 17px/1 inherit;font-family:inherit;padding:13px 34px;box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer"},"Pronto")
+    ? h("button",{type:"button",style:"border:0;border-radius:999px;background:#16a34a;color:#fff;font:800 17px/1 inherit;font-family:inherit;padding:14px 20px;min-height:56px;box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer;white-space:nowrap"},"Pronto")
     : h("button",{type:"button",class:"btn sec",style:"position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:14px"},"Cancelar");
   const tela=h("div",{style:"position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column"},
     h("div",{style:"flex:1;position:relative;min-height:0"},video,multi?null:btSair,
       h("div",{style:"position:absolute;left:0;right:0;bottom:12px;text-align:center;color:#fff;font-weight:700;text-shadow:0 1px 3px #000",text:multi?"Enquadre uma comanda por foto · toque para cada uma":"Enquadre a comanda inteira"})),
-    h("div",{style:"display:flex;flex-direction:column;align-items:center;gap:14px;padding:14px 0 calc(18px + env(safe-area-inset-bottom,0px))"},multi?btSair:null,btFoto));
+    h("div",{style:"display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:18px 12px calc(18px + env(safe-area-inset-bottom,0px))"},
+      h("span"),btFoto,h("div",{style:"display:flex;justify-content:flex-start"},multi?btSair:null)));
   document.body.append(tela);
   btSair.addEventListener("click",fechar);
   let abriu=false;
