@@ -7616,12 +7616,6 @@ function abrirMapaEntregadores(){
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
     desenhar(); desenharLojas(); desenharClientes();
-    /* TEMP-TODOS-CLIENTES: mostra todos os clientes cadastrados (provisório) */
-    try{ garantirClientes(); }catch(e){}
-    const todosCli=(tent)=>{ if(!(S.clientes||[]).length && tent<15) return setTimeout(()=>todosCli(tent+1),700);
-    try{ const pts=[]; (S.clientes||[]).forEach(c=>enderecosDe(c).forEach(e=>{ const ll=coordDeTexto(e.localizacao); if(!ll) return; pts.push([ll.lat,ll.lng]);
-        L.circleMarker([ll.lat,ll.lng],{radius:7,color:"#fff",weight:2,fillColor:"#1E3FAE",fillOpacity:.9}).addTo(mapa).bindPopup("<b>"+String(c.nome||"Cliente").replace(/[<>&]/g,"")+"</b><br>"+String(e.endereco||"").replace(/[<>&]/g,"")); }));
-      if(pts.length){ resumoCli.textContent="🔵 "+pts.length+" endereços de clientes no mapa"; } }catch(e){} }; todosCli(0);
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
 }
 
