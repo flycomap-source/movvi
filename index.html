@@ -7535,12 +7535,25 @@ setInterval(()=>{ if(gpsDeveLigar() && gps.watch===null) gpsAtualizar(); },30000
 /* ===== Central: mapa dos entregadores ===== */
 const UNAI={lat:-16.3575,lng:-46.9028};
 let leafletProm=null;
+/* biblioteca do mapa: tenta 3 endereços (se um estiver fora do ar ou lento, passa para o próximo em 7 s) */
+const LEAFLET_CDNS=["https://unpkg.com/leaflet@1.9.4/dist/","https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/","https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/"];
 function carregarLeaflet(){
   if(window.L && window.L.map) return Promise.resolve(window.L);
   if(leafletProm) return leafletProm;
   leafletProm=new Promise((ok,erro)=>{
-    const css=document.createElement("link"); css.rel="stylesheet"; css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.append(css);
-    const js=document.createElement("script"); js.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"; js.onload=()=>ok(window.L); js.onerror=()=>{ leafletProm=null; erro(new Error("mapa")); }; document.head.append(js);
+    const tenta=i=>{
+      if(window.L && window.L.map) return ok(window.L);
+      if(i>=LEAFLET_CDNS.length){ leafletProm=null; return erro(new Error("mapa")); }
+      const base=LEAFLET_CDNS[i]; let feito=false;
+      const css=document.createElement("link"); css.rel="stylesheet"; css.href=base+"leaflet.css"; document.head.append(css);
+      const js=document.createElement("script"); js.src=base+"leaflet.js";
+      const prox=()=>{ if(feito) return; feito=true; clearTimeout(t); js.remove(); if(!(window.L&&window.L.map)) css.remove(); tenta(i+1); };
+      const t=setTimeout(prox,7000);
+      js.onload=()=>{ if(feito) return; if(window.L&&window.L.map){ feito=true; clearTimeout(t); ok(window.L); } else prox(); };
+      js.onerror=prox;
+      document.head.append(js);
+    };
+    tenta(0);
   });
   return leafletProm;
 }
