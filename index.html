@@ -4915,8 +4915,14 @@ function abrirMenuMais(){
   if(comercio() && S.euCategoria==="delivery"){ abrirChamarEntregador(); return; }
   if(!S.sample){ abrirPedido(null); return; }
   if(document.getElementById("discoMais")){ document.getElementById("discoMais").remove(); return; }
-  // dois botões flutuantes logo acima do ＋
-  const fab=$("#fab"), r=fab.getBoundingClientRect();
+  discoFlutuante($("#fab"),[["📷","Escanear comandas","var(--royal)",()=>abrirEscanearComandas()],
+    ["🖼","Foto da galeria","#0e7490",()=>abrirEscanearComandas({galeria:true})],
+    ["✏️","Lançar sem foto","var(--laranja)",()=>abrirPedido(null)]]);
+}
+/* botões flutuantes logo acima de um botão (＋ ou cadastrar cliente) */
+function discoFlutuante(fab,itens){
+  if(document.getElementById("discoMais")){ document.getElementById("discoMais").remove(); return; }
+  const r=fab.getBoundingClientRect();
   const fecha=()=>{ veu.remove(); };
   const pilula=(icone,txt,cor,acao)=>{ const b=h("button",{type:"button",style:"pointer-events:auto;display:flex;align-items:center;gap:10px;border:0;border-radius:999px;padding:12px 18px 12px 14px;background:"+cor+";color:#fff;font:800 16px/1 inherit;font-family:inherit;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;white-space:nowrap;animation:bolhaEntra .18s ease-out"},
       h("span",{style:"font-size:22px",text:icone}),h("span",{text:txt}));
@@ -4924,10 +4930,7 @@ function abrirMenuMais(){
   const cx=r.left+r.width/2;
   const lado=Math.abs(cx-innerWidth/2)<90 ? "left:"+cx+"px;transform:translateX(-50%);align-items:center"
     : cx>innerWidth/2 ? "right:"+Math.max(12,innerWidth-r.right)+"px;align-items:flex-end" : "left:"+Math.max(12,r.left)+"px;align-items:flex-start";
-  const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:column;gap:10px;pointer-events:none"},
-    pilula("📷","Escanear comandas","var(--royal)",()=>abrirEscanearComandas()),
-    pilula("🖼","Foto da galeria","#0e7490",()=>abrirEscanearComandas({galeria:true})),
-    pilula("✏️","Lançar sem foto","var(--laranja)",()=>abrirPedido(null)));
+  const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:column;gap:10px;pointer-events:none"},...itens.map(x=>pilula(...x)));
   const veu=h("div",{id:"discoMais","data-camada":"1",style:"position:fixed;inset:0;z-index:60;background:rgba(10,20,40,.18)"},caixa);
   veu.addEventListener("click",fecha);
   document.body.append(veu);
@@ -5099,14 +5102,17 @@ $("#fabRota").addEventListener("click",()=>abrirRota());
 $("#fabCli").addEventListener("click",()=>{
   if(!central()) return; garantirClientes();
   if(!S.sample){ editarCliente(null); return; }   // sem leitura de foto disponível: vai direto ao cadastro normal
-  const item=(icone,titulo,desc,acao)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
-      h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
-      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:desc})));
-    b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
-  const fechar=abrirSheet("Cadastrar cliente",[
-    item("📷","Cadastrar com foto","Fotografa a comanda e o app preenche os dados",()=>editarCliente(null,{foto:true})),
-    item("✍️","Cadastrar normal","Digita nome, telefone e endereço",()=>editarCliente(null))]);
+  discoFlutuante($("#fabCli"),[["📷","Escanear comandas","var(--royal)",()=>cadastrarPelaComanda({camera:true})],
+    ["🖼","Foto da galeria","#0e7490",()=>escolherDaGaleria(arq=>cadastrarPelaComanda({arquivos:arq}))],
+    ["✏️","Cadastrar sem foto","var(--laranja)",()=>editarCliente(null)]]);
 });
+/* abre só a galeria; chama de volta com as fotos escolhidas (nada aparece atrás) */
+function escolherDaGaleria(cb){
+  const inp=h("input",{type:"file",accept:"image/*",multiple:true,style:"display:none"}); document.body.append(inp);
+  inp.addEventListener("change",()=>{ const arq=[...(inp.files||[])]; inp.remove(); if(arq.length) cb(arq); });
+  inp.addEventListener("cancel",()=>inp.remove());
+  inp.click();
+}
 function atuFabScan(){ const b=$("#fabScan"); if(b) b.hidden = true; }
 $("#fabScan").addEventListener("click",()=>{ if(!S.sample) return; garantirClientes(); if(S.modo==="entregador") abrirEscanearOpcoes(); else abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f)); });
 /* Câmera traseira: usa o visor próprio quando a página pode usar a câmera; senão, o seletor do celular já pedindo a traseira */
@@ -8688,7 +8694,7 @@ $("#cliComanda").addEventListener("click",()=>cadastrarPelaComanda());
 /* Cadastro de clientes pela comanda (central e comércio).
    Endereço e telefone vêm das Observações. Se o telefone das Observações for o mesmo do cabeçalho,
    usa também o nome completo do cabeçalho e o código do cliente no comércio (exclusivo daquele comércio). */
-function cadastrarPelaComanda(){
+function cadastrarPelaComanda(op){
   if(!S.sample){ toast("A leitura de comanda não está disponível nesta conta."); return; }
   garantirClientes();
   const itens=[]; let fila=Promise.resolve();
@@ -8702,7 +8708,7 @@ function cadastrarPelaComanda(){
   const nova=f=>{ const it={lendo:true}; itens.push(it); desenhar(); let pronta=prepararImagem(f); f=null;
     fila=fila.then(async()=>{ try{ const r=await S.sample.json(PROMPT_COMANDA,{images:await pronta})||{}; Object.assign(it,interpretar(r)); }
       catch(e){ it.erro="Não foi possível ler esta comanda."; } pronta=null; it.lendo=false; desenhar(); }); };
-  btCam.addEventListener("click",()=>abrirCameraTraseira(inpCam,nova,{multi:true}));
+  btCam.addEventListener("click",()=>abrirCameraTraseira(inpCam,nova,{multi:true,aoFechar:q=>{ if(!q && !itens.length) fechar(); }}));
   inpCam.addEventListener("change",()=>{ const f=inpCam.files&&inpCam.files[0]; inpCam.value=""; if(f) nova(f); });
   btGal.addEventListener("click",()=>{ inpGal.value=""; inpGal.click(); });
   inpGal.addEventListener("change",()=>{ [...(inpGal.files||[])].forEach(nova); inpGal.value=""; });
@@ -8754,6 +8760,7 @@ function cadastrarPelaComanda(){
     h("div",{style:"display:none"},inpCam,inpGal),caixa,msg,salvar]);
   barraScan(caixa.parentElement||caixa,[btCam,btGal]);
   desenhar();
+  if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(nova),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
 }
 function renderCadClientes(){
   if(!central()) return;
