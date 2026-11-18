@@ -727,8 +727,8 @@ const PCT_ENTREGADOR = 0.75, TAXA_MINIMA = 6;
 /* preços dos serviços — editáveis em Configurações → "Preços dos serviços" (config/servicos) */
 const PRECO_SERV = {outros:4, convenio:4, transferencia:4, receita:4, troca:4};   // hoje o lançamento usa só "outros"; os demais ficam para pedidos antigos
 /* "Outros serviços" do lançamento (a entrega normal fica com o valor normal do comércio) */
-const OUTROS_SERV = [["convenio","✍ Assinar nota (convênio)"],["transferencia","🔁 Transferência entre lojas"],["receita","📄 Busca de receita"],["troca","💵 Troca de dinheiro"]];
-const nomeServico = p => { const k=p&&p.servicoTipo; if(k==="outros") return "Outro serviço"+(p.servicoDesc?": "+p.servicoDesc:""); const o=OUTROS_SERV.find(x=>x[0]===k); return o?o[1].replace(/^\S+\s/,""):(p&&p.tipoServico==="transferencia"?"Transferência / busca de receita":p&&p.pagamento==="convenio"?"Assinar nota (convênio)":"Entrega"); };
+const OUTROS_SERV = [["receita","📄 Buscar receita"],["transferencia","🔁 Transferência"],["convenio","✍ Entregar convênio"],["troca","💵 Trocar dinheiro"]];
+const nomeServico = p => { const k=p&&p.servicoTipo; if(k==="outros"){ const o=OUTROS_SERV.find(x=>x[0]===p.servicoSub); return [o?o[1].replace(/^\S+\s/,""):"Outro serviço",p.servicoDesc].filter(Boolean).join(": "); } const o=OUTROS_SERV.find(x=>x[0]===k); return o?o[1].replace(/^\S+\s/,""):(p&&p.tipoServico==="transferencia"?"Transferência / busca de receita":p&&p.pagamento==="convenio"?"Assinar nota (convênio)":"Entrega"); };
 const servicoTaxaFixa = (servico,pag) => servico==="transferencia" || pag==="convenio";
 const taxaFixaDe = (servico,pag,sub) => (sub && num(PRECO_SERV[sub])>0) ? num(PRECO_SERV[sub]) : servico==="transferencia" ? num(PRECO_SERV.transferencia) : num(PRECO_SERV.convenio);
 function ganhoUnit(p){
@@ -1179,7 +1179,7 @@ function abrirMenuCentral(){
   const fechar=()=>{}; mostrarPagina("Central","Menu",[
     sec("Pedidos"),
     item("＋","Novo pedido","Lançar uma entrega",()=>{ irPara("entregas"); abrirPedido(null); }),
-    item("⤳","Nova rota","Várias paradas na ordem de entrega",()=>{ irPara("entregas"); abrirRota(); }),
+    item("📷","Escanear comandas","Uma ou várias · com várias o app já monta a rota",()=>{ irPara("entregas"); abrirEscanearComandas(); }),
     item("☰","Entregas do dia","Tela principal com todos os status",()=>irPara("entregas")),
     sec("Financeiro"),
     item("R$","Faturas","Semana a semana: entregadores, comércios e dinheiro",()=>abrirEscolhaFatura()),
@@ -2593,17 +2593,21 @@ function telaLarga(){ return !!(MQ_LARGA && MQ_LARGA.matches); }
 const emLinhas = () => (central()||comercio()) && telaLarga();
 function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", emLinhas()); }
 if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
-const COLS_CEN=["Situação","Hora","Coleta","Cliente","Pagamento","Entregador","Taxa",""];
-const COLS_COM=["Situação","Hora","Pedido","Cliente","Pagamento","Entregador",""];
+const COLS_CEN=["Situação","Hora","Coleta","Endereço","Pagamento","Entregador","Taxa",""];
+const COLS_COM=["Situação","Hora","Pedido","Endereço","Pagamento","Entregador",""];
 function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" com":"")},...(comercio()?COLS_COM:COLS_CEN).map(c=>h("span",{text:c}))); }
 /* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
 function celCliente(p,extra){
   const entregue=p.status==="entregue";
   const marcas=[(p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"", ehTransf(p)?"🔁":"", p.pegarReceita?"℞":"",
     (!entregue && posNaRota(p))?(()=>{ const r=posNaRota(p); return "🧭"+r.n+"/"+r.de+(r.coleta?" coletar":""); })():p.rotaOrdem?"Parada "+p.rotaOrdem:"", p.obs?"📝":"", extra||""].filter(Boolean).join(" ");
-  const nome=p.cliente||(ehTransf(p)?((p.transfDe||p.transfPara)?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência"):"—");
-  const baixo=[p.bairro||p.endereco||"",marcas].filter(Boolean).join(" · ");
-  return h("span",{class:"c",title:[nome,p.endereco,p.obs].filter(Boolean).join(" · ")},h("b",{text:nome}),baixo?h("span",{class:"sub",text:baixo}):null);
+  // em cima a rua (endereço), embaixo o bairro — o nome do cliente aparece ao clicar
+  const end=String(p.endereco||"").trim(), partes=end.replace(/\s*\([^)]*\)\s*/g," ").trim().split(/\s+-\s+/);
+  const rua=partes[0]||"", bairro=String(p.bairro||partes.slice(1).join(" - ")||"").trim();
+  const nomeAlt=p.cliente||(ehTransf(p)?((p.transfDe||p.transfPara)?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência"):"—");
+  const topo=rua||nomeAlt;
+  const baixo=[bairro,marcas].filter(Boolean).join(" · ");
+  return h("span",{class:"c",title:[end,p.cliente,p.obs].filter(Boolean).join(" · ")},h("b",{text:topo}),baixo?h("span",{class:"sub",text:baixo}):null);
 }
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
@@ -2683,7 +2687,7 @@ function cartaoPedidoBase(p){
             onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):null,text:(()=>{ const r=posNaRota(p); return "🧭 "+r.n+"ª "+(r.coleta?"parada · coletar"+(r.ent?" (entrega "+r.ent+"ª)":""):"entrega")+" de "+r.de; })()+(S.modo==="entregador"?" ▾":"")})
         : p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null),
-    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ Outro serviço: "+(p.servicoDesc||"ver observação")}):null,
+    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ "+nomeServico(p)}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     (entregue && p.obsFinalizacao)?h("div",{class:"obs",style:"font-style:normal;color:var(--ink)",text:"📝 Entregador: "+p.obsFinalizacao}):null,
     rodapePag(p)
@@ -2826,7 +2830,7 @@ function cartaoSolicitacaoLoja(p){
     p.tipo==="rota"?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
     p.tipo==="rota"?listaParadas(p.paradas):null,
     h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),...pillsValor(p),h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
-    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ Outro serviço: "+(p.servicoDesc||"ver observação")}):null,
+    p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ "+nomeServico(p)}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),
       p.tipo==="rota"?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
@@ -4292,7 +4296,7 @@ function abrirRota(op){
   scanGal.addEventListener("change",()=>{ [...(scanGal.files||[])].forEach(ler); scanGal.value=""; });
   const msg=h("div",{class:"aviso",hidden:true});
   const salvar=h("button",{class:"btn full",type:"button"},"Criar rota");
-  const fechar=abrirSheet("Nova rota",[
+  const fechar=abrirSheet(op&&op.escanear?"Escanear comandas":"Nova rota",[
     h("div",{class:"painel"},h("div",{class:"eyebrow",text:"Coleta"}),
       campoEmpresa("rEmp",fEmp,fCol,dl),
       h("div",{class:"campo"},h("label",{for:"rCol",text:"Endereço de coleta"}),fCol),
@@ -4312,11 +4316,20 @@ function abrirRota(op){
     caixaParadas.before(box);
   })();
   if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
+  // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
+  const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=paradas.length; salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
+  new MutationObserver(rotuloSalvar).observe(caixaParadas,{childList:true}); rotuloSalvar();
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     const lista=paradas.map(st=>({cliente:st.cli.value.trim(),telefone:st.tel.value.trim(),endereco:st.end.value.trim(),bairro:st.bai.value.trim(),numero:"",pagamento:st.pag,valorDinheiro:st.pag==="dinheiro"?num(st.din.value):0,obs:st.obs.value.trim(),pegarReceita:st.rec.checked,produtosReceita:st.rec.checked?(st.produtos||[]):[]}));
     // empresa de coleta é opcional (não precisa estar cadastrada)
-    if(lista.length<2){ msg.hidden=false; msg.textContent="Uma rota precisa de pelo menos 2 paradas."; return; }
+    if(!lista.length){ msg.hidden=false; msg.textContent="Escaneie ou adicione pelo menos uma comanda."; return; }
+    if(lista.length===1){   // só uma comanda: vira uma entrega normal (abre o formulário para conferir e lançar)
+      const x=lista[0]; limparRascCentral(); fechar();
+      abrirPedido(null,null,{cliente:x.cliente,telefone:x.telefone,endereco:x.endereco,bairro:x.bairro,pagamento:x.pagamento,valorDinheiro:x.valorDinheiro,obs:x.obs,
+        pegarReceita:x.pegarReceita,produtosReceita:x.produtosReceita,coletaEmpresa:fEmp.value.trim(),coletaEndereco:fCol.value.trim(),
+        ...(num(fTaxa.value)>0?{taxaCobrada:num(fTaxa.value)}:{}),...(fEnt.value&&fEnt.value!=="__movvi"?{entregadorId:fEnt.value}:{})});
+      return; }
     const falta=lista.findIndex(x=>!x.endereco && !x.cliente); if(falta>=0){ msg.hidden=false; msg.textContent="Parada "+(falta+1)+": informe o nome do cliente ou o endereço."; return; }
     const semBairro=lista.findIndex(x=>!x.bairro); if(semBairro>=0){ msg.hidden=false; msg.textContent="Parada "+(semBairro+1)+": informe o bairro."; try{ paradas[semBairro].bai.focus(); }catch(e){} return; }
     lista.forEach(x=>registrarBairroNovo&&registrarBairroNovo(x.bairro));
@@ -4601,15 +4614,7 @@ function abrirOrdemEntregas(ent,op){
   desenhar();
   const fechar=abrirSheet("Rota de entregas"+(central()?" · "+nomeEnt(ent):""),[info,falta,caixa,msg,salvar,btOrg]);
 }
-function abrirEscanearOpcoes(){
-  const item=(icone,titulo,desc,acao)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:14px"},
-      h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
-      h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:desc})));
-    b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
-  const fechar=abrirSheet("Escanear",[
-    botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))),
-    item("🗺","Criar rota com várias comandas","Fotografa todas as comandas e o app monta a ordem das entregas",()=>abrirRotaPorFotos())]);
-}
+function abrirEscanearOpcoes(){ abrirEscanearComandas(); }
 /* Rascunho da rota por fotos: cada comanda lida fica salva (no aparelho e na conta),
    para não perder o que já foi lido se o celular fechar o app por falta de memória. */
 const RASC_CAMPOS=["taxa","bairro","servico","nome","tel","end","loc","pag","valor","troco","empresa","pedidoComercio","codigoComercio","obs","receita","produtos","bairroLido","adicOk","adicB","semCadastro","semBase","cadastrado","novo","aviso","erro"];
@@ -4809,12 +4814,8 @@ function montarRotaPorFotos(restaurar){
     desenhar();
   }
   btOrdem.addEventListener("click",organizar);
-  // ao lado: "Lançar por demanda" (comandas de empresas diferentes, cada uma vira entrega separada)
-  const btDem=h("button",{class:"btn lar",type:"button",style:"background:var(--laranja);border-color:var(--laranja)"},"📚 Lançar por demanda");
-  btDem.addEventListener("click",()=>{ if(paradas.length && !confirm("Sair da rota? As comandas já lidas ficam salvas no rascunho.")) return; fechar(); abrirPorDemanda(); });
-  btCam.classList.remove("full");
-  const fechar=abrirSheet("Criar rota",[
-    h("div",{style:"display:flex;flex-direction:column;gap:8px"},h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btCam,btDem),btGal,inpCam,inpGal),
+  const fechar=abrirSheet("Escanear comandas",[
+    h("div",{style:"display:flex;flex-direction:column;gap:8px"},btCam,btGal,inpCam,inpGal),
     vazio, caixa, btOrdem, infoOrdem, totAdic, msg, salvar]);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
@@ -4885,13 +4886,9 @@ function abrirMenuMais(){
       h("span",{style:"font-size:24px;width:30px;text-align:center;flex:none",text:icone}),
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{text:titulo}),desc?h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc}):null));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
-  const podeRota=central()||(S.modo==="entregador"&&!!S.sample);
   const fechar=abrirSheet("Lançar serviço",[
-    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))):null,
-    S.sample?item("🖼","Escanear foto da galeria","Usa uma foto da comanda que já está no celular",()=>escanearDaGaleria()):null,
-    podeRota?item("🗺","Criar rota","Fotografa as comandas e monta a ordem das entregas",()=>{ if(central()) abrirRota({escanear:true}); else abrirRotaPorFotos(); },!S.sample):null,
-    item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null)),
-    item("🔁","Transferência / busca de receita","Levar mercadoria entre lojas ou buscar receita",()=>abrirPedido(null,null,{tipoServico:"transferencia",pagamento:"pix"}))]);
+    S.sample?botaoScanDemanda(()=>fechar()):null,
+    item("✏️","Lançar sem foto","Preencher a entrega à mão",()=>abrirPedido(null))]);
 }
 /* Lançar por demanda: várias comandas de empresas diferentes de uma vez.
    Cada foto vira uma entrega separada (com a empresa daquela comanda), não uma rota. */
@@ -4954,14 +4951,20 @@ function abrirPorDemanda(op){
   const fechar=abrirSheet("Lançar por demanda",[info,h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btCam,btGal),cam,gal,lista,btLancar]);
   if(op&&op.galeria) setTimeout(()=>btGal.click(),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
 }
-/* botão dividido: metade "Escanear comanda", metade "Lançar por demanda" */
-function botaoScanDemanda(fecharMenu,escanear,txtScan){
-  const est="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:12px 8px;text-align:center;line-height:1.2";
-  const a=h("button",{class:"btn",type:"button",style:est},h("span",{style:"font-size:24px",text:"📷"}),h("span",{text:txtScan||"Escanear comanda"}),h("span",{style:"font-size:11.5px;font-weight:500;opacity:.85",text:"Uma comanda"}));
-  const b=h("button",{class:"btn",type:"button",style:est+";background:var(--laranja);border-color:var(--laranja)"},h("span",{style:"font-size:24px",text:"📚"}),h("span",{text:"Lançar por demanda"}),h("span",{style:"font-size:11.5px;font-weight:500;opacity:.85",text:"Várias, de empresas diferentes"}));
-  a.addEventListener("click",()=>{ fecharMenu(); escanear(); });
-  b.addEventListener("click",()=>{ fecharMenu(); abrirPorDemanda(); });
-  return h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},a,b);
+/* "Escanear comandas": um botão só. Várias comandas → rota (entregador/central); uma só → entrega normal.
+   No comércio cada comanda vira uma entrega (a central monta as rotas). */
+function abrirEscanearComandas(){
+  garantirClientes();
+  if(S.modo==="entregador") return abrirRotaPorFotos();
+  if(central()) return abrirRota({escanear:true});
+  return abrirPorDemanda({camera:true});
+}
+function botaoScanDemanda(fecharMenu){
+  const sub=comercio()?"Uma ou várias · cada comanda vira uma entrega":"Uma ou várias · com várias o app já monta a rota";
+  const a=h("button",{class:"btn full",type:"button",style:"display:flex;align-items:center;gap:12px;padding:16px;text-align:left;justify-content:flex-start"},
+    h("span",{style:"font-size:28px;flex:none",text:"📷"}),h("span",{style:"display:flex;flex-direction:column;gap:2px"},h("span",{style:"font-size:17px",text:"Escanear comandas"}),h("span",{style:"font-size:12px;font-weight:500;opacity:.9",text:sub})));
+  a.addEventListener("click",()=>{ fecharMenu(); abrirEscanearComandas(); });
+  return a;
 }
 /* comércio de delivery (lanche, marmita…): "Chamar entregador" = foto da comanda ou só endereço e bairro */
 function abrirChamarEntregador(){
@@ -4971,7 +4974,7 @@ function abrirChamarEntregador(){
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{style:"font-size:17px",text:titulo}),h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc})));
     b.addEventListener("click",()=>{ fechar(); acao(); }); return b; };
   const fechar=abrirSheet("Lançar entrega",[
-    S.sample?botaoScanDemanda(()=>fechar(),()=>abrirCameraTraseira($("#scanInp"),f=>abrirPedido(null,f))):null,
+    S.sample?botaoScanDemanda(()=>fechar()):null,
     item("✏️","Lançar manual","Nome, telefone, endereço e bairro do cliente",()=>abrirEntregaRapida(),!S.sample)]);
 }
 function abrirEntregaRapida(){
@@ -5563,13 +5566,20 @@ function abrirPedido(p,arquivoComanda,pre){
     b._marca=v=>{ b.setAttribute("aria-checked",String(v)); box.textContent=v?"✓":""; box.style.background=v?"var(--royal)":"transparent"; b.style.borderColor=v?"var(--royal)":"var(--line)"; }; return b; };
   const btEntrega=caixaMarca("📦 Entrega"), btOutros=caixaMarca("➕ Outros serviços");
   const fServDesc=h("textarea",{class:"inp",id:"pServDesc",rows:3,style:"resize:vertical;min-height:70px",placeholder:"O que é para fazer? Ex.: assinar a nota do convênio · buscar receita com a cliente · levar mercadoria da Loja 2 para a Loja 41 · trocar dinheiro",value:p.servicoDesc||""});
-  const campoServDesc=h("div",{class:"campo",hidden:true},h("label",{for:"pServDesc",text:"O que é para fazer? (obrigatório)"}),fServDesc,
+  let servSub=p.servicoSub||"";
+  const subBts={};
+  const gradeSub=h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},...OUTROS_SERV.map(([k,t])=>subBts[k]=h("button",{type:"button","aria-pressed":"false",
+    style:"padding:12px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font:inherit;font-weight:800;font-size:14.5px;cursor:pointer;text-align:left",
+    onclick:()=>{ servSub=k; if(k==="convenio") pag="convenio"; else if(pag==="convenio") pag="pix"; atuServ(); }},t)));
+  const campoServDesc=h("div",{class:"campo",hidden:true},gradeSub,h("label",{for:"pServDesc",text:"Observação (o que é para fazer)"}),fServDesc,
     h("span",{class:"muted num",style:"font-size:12px","data-preco-outros":"1"}));
-  btEntrega.addEventListener("click",()=>{ outrosServ=false; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
+  btEntrega.addEventListener("click",()=>{ outrosServ=false; servSub=""; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
   btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; servico="entrega"; if(pag==="dinheiro" && !num(fDin.value)) pag="pix"; atuServ(); try{ fServDesc.focus(); }catch(e){} });
   function sincServ(){
     if(pag==="convenio" || servico==="transferencia") outrosServ=true;
     btEntrega._marca(!outrosServ); btOutros._marca(outrosServ); campoServDesc.hidden=!outrosServ;
+    if(pag==="convenio" && outrosServ) servSub="convenio"; else if(servSub==="convenio" && pag!=="convenio") servSub="";
+    Object.entries(subBts).forEach(([k,b])=>{ const on=servSub===k; b.setAttribute("aria-pressed",String(on)); b.style.borderColor=on?"var(--royal)":"var(--line)"; b.style.background=on?"#e8eefc":"var(--card)"; b.style.color=on?"var(--royal)":"inherit"; });
     const pr=campoServDesc.querySelector("[data-preco-outros]"); if(pr) pr.textContent="Preço do serviço: "+fmt(num(PRECO_SERV.outros))+" (muda em Configurações → Preços dos serviços)";
   }
   const blocoServ=h("div",{class:"campo"},h("span",{class:"lbl",text:"Tipo de serviço"}),h("div",{style:"display:flex;gap:8px"},btEntrega,btOutros),campoServDesc);
@@ -5670,7 +5680,7 @@ function abrirPedido(p,arquivoComanda,pre){
     if(pag==="dinheiro" && !num(fDin.value)){ msg.hidden=false; msg.textContent="Informe o valor que o entregador vai receber em dinheiro."; return; }
     if((central()||comercio()) && pag==="cartao" && !num(fCartao.value)){ msg.hidden=false; msg.textContent="Informe o valor total do pedido para cobrar no cartão."; try{ fCartao.focus(); }catch(e){} return; }
     if((central()||comercio()) && pag==="convenio" && !num(fNota.value)){ msg.hidden=false; msg.textContent="Informe o valor total da nota que o cliente vai assinar."; try{ fNota.focus(); }catch(e){} return; }
-    if(outrosServ && !fServDesc.value.trim()){ msg.hidden=false; msg.textContent="Escreva o que é para fazer neste serviço."; try{ fServDesc.focus(); }catch(e){} return; }
+    if(outrosServ && !servSub && !fServDesc.value.trim()){ msg.hidden=false; msg.textContent="Escolha o serviço (buscar receita, transferência, entregar convênio ou trocar dinheiro) ou escreva o que é para fazer."; return; }
     if(!entId && !comercio() && !(central() && (novo||aguardandoEnt))){ msg.hidden=false; msg.textContent="Escolha o entregador. Se a lista estiver vazia, cadastre a equipe na aba Equipe."; return; }
     const dados={
       numero:novo?"":(p.numero||""), data:fData.value||S.dia,
@@ -5679,7 +5689,7 @@ function abrirPedido(p,arquivoComanda,pre){
       bairro: servico==="transferencia" ? (p.bairro||"") : fBairro.value.trim(),
       bonusPct,
       codigoComercio: (central()||comercio()) ? (campoCodCom.hidden?(p.codigoComercio||codLido||""):fCodCom.value.trim().toUpperCase()) : (p.codigoComercio||codLido||""), localizacao:(fCli.dataset.loc && avisoEnd.hidden)?fCli.dataset.loc:(fCli.dataset.cliente?"":(p.localizacao||"")), telefone:fTel.value.trim(), endereco:fEnd.value.trim(),
-      entregadorId:entId, pagamento:pag, tipoServico:servico, servicoTipo:outrosServ?"outros":"entrega", servicoDesc:outrosServ?fServDesc.value.trim():"", ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
+      entregadorId:entId, pagamento:pag, tipoServico:servico, servicoTipo:outrosServ?"outros":"entrega", servicoSub:outrosServ?servSub:"", servicoDesc:outrosServ?fServDesc.value.trim():"", ...(servico==="transferencia"?{transfDe:trDe,transfPara:trPara}:{}),
       ...((outrosServ||servicoTaxaFixa(servico,pag))?{taxaFixaCentral:true,taxaCobrada:taxaFixaDe(servico,pag,"outros")}:(p.taxaFixaCentral?{taxaFixaCentral:false}:{})),
       valorDinheiro: pag==="dinheiro" ? num(fDin.value) : 0,
       trocoPara: pag==="dinheiro" && num(fTroco.value)>num(fDin.value) ? num(fTroco.value) : 0,
