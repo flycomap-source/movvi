@@ -4658,10 +4658,16 @@ function abrirRotaPorFotos(){
     return;
   }
   if(rasc){
-    const fechar=abrirSheet("Rota em andamento",[
-      h("p",{style:"margin:0",text:"Você tinha começado uma rota com "+rasc.paradas.length+(rasc.paradas.length>1?" comandas já lidas.":" comanda já lida.")+" Quer continuar de onde parou?"}),
-      h("button",{class:"btn full",type:"button",onclick:()=>{ fechar(); montarRotaPorFotos(rasc.paradas); }},"Continuar a rota ("+rasc.paradas.length+")"),
-      h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); rascunhoRotaLimpar(); montarRotaPorFotos(null); }},"Começar uma nova")]);
+    // flutua lá embaixo, perto do polegar
+    const fundo=h("div",{style:"position:fixed;inset:0;z-index:9989;background:rgba(10,20,40,.35)"});
+    const fechar=()=>{ fundo.remove(); box.remove(); };
+    const box=h("div",{class:"painel",style:"gap:8px"},
+      h("b",{style:"font-size:16px",text:"🧭 Rota em andamento"}),
+      h("span",{style:"font-size:14px",text:"Você tinha começado uma rota com "+rasc.paradas.length+(rasc.paradas.length>1?" comandas já lidas.":" comanda já lida.")+" Continuar de onde parou?"}),
+      h("button",{class:"btn full",type:"button",onclick:()=>{ fechar(); montarRotaPorFotos(rasc.paradas); }},"▶ Continuar ("+rasc.paradas.length+")"),
+      h("button",{class:"btn sec full",type:"button",onclick:()=>{ fechar(); rascunhoRotaLimpar(); montarRotaPorFotos(null); }},"Começar nova"));
+    fundo.addEventListener("click",fechar);
+    document.body.append(fundo); flutuarRascunho(box,box);
     return;
   }
   montarRotaPorFotos(null);
