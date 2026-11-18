@@ -4924,13 +4924,12 @@ function discoFlutuante(fab,itens){
   if(document.getElementById("discoMais")){ document.getElementById("discoMais").remove(); return; }
   const r=fab.getBoundingClientRect();
   const fecha=()=>{ veu.remove(); };
-  const pilula=(icone,txt,cor,acao)=>{ const b=h("button",{type:"button",style:"pointer-events:auto;display:flex;align-items:center;gap:10px;border:0;border-radius:999px;padding:12px 18px 12px 14px;background:"+cor+";color:#fff;font:800 16px/1 inherit;font-family:inherit;box-shadow:0 6px 18px rgba(0,0,0,.28);cursor:pointer;white-space:nowrap;animation:bolhaEntra .18s ease-out"},
-      h("span",{style:"font-size:22px",text:icone}),h("span",{text:txt}));
+  const pilula=(icone,txt,cor,acao)=>{ const b=h("button",{type:"button","aria-label":txt,title:txt,style:"pointer-events:auto;width:58px;height:58px;display:grid;place-items:center;border:0;border-radius:50%;background:"+cor+";color:#fff;font-size:27px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.3);cursor:pointer;animation:bolhaEntra .18s ease-out"},icone);
     b.addEventListener("click",e=>{ e.stopPropagation(); fecha(); acao(); }); return b; };
-  const cx=r.left+r.width/2;
-  const lado=Math.abs(cx-innerWidth/2)<90 ? "left:"+cx+"px;transform:translateX(-50%);align-items:center"
-    : cx>innerWidth/2 ? "right:"+Math.max(12,innerWidth-r.right)+"px;align-items:flex-end" : "left:"+Math.max(12,r.left)+"px;align-items:flex-start";
-  const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:column;gap:10px;pointer-events:none"},...itens.map(x=>pilula(...x)));
+  const larg=itens.length*58+(itens.length-1)*14, cx=r.left+r.width/2;
+  const esq=Math.min(Math.max(10,cx-larg/2),innerWidth-larg-10);
+  const lado="left:"+esq+"px";
+  const caixa=h("div",{style:"position:fixed;"+lado+";bottom:"+(innerHeight-r.top+12)+"px;display:flex;flex-direction:row;gap:14px;pointer-events:none"},...itens.map(x=>pilula(...x)));
   const veu=h("div",{id:"discoMais","data-camada":"1",style:"position:fixed;inset:0;z-index:60;background:rgba(10,20,40,.18)"},caixa);
   veu.addEventListener("click",fecha);
   document.body.append(veu);
@@ -5024,6 +5023,9 @@ function botaoScanDemanda(fecharMenu){
 /* comércio de delivery (lanche, marmita…): "Chamar entregador" = foto da comanda ou só endereço e bairro */
 function abrirChamarEntregador(){
   garantirClientes();
+  if(S.sample){ discoFlutuante($("#fab"),[["📷","Escanear comandas","var(--royal)",()=>abrirPorDemanda({camera:true})],
+      ["🖼","Foto da galeria","#0e7490",()=>escolherDaGaleria(arq=>abrirPorDemanda({arquivos:arq}))],
+      ["✏️","Lançar manual","var(--laranja)",()=>abrirEntregaRapida()]]); return; }
   const item=(icone,titulo,desc,acao,principal)=>{ const b=h("button",{class:principal?"btn full":"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:16px"},
       h("span",{style:"font-size:26px;width:32px;text-align:center;flex:none",text:icone}),
       h("span",{style:"display:flex;flex-direction:column;gap:2px;min-width:0"},h("span",{style:"font-size:17px",text:titulo}),h("span",{style:"font-size:12px;font-weight:500;opacity:.85",text:desc})));
