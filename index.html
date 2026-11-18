@@ -4200,6 +4200,13 @@ async function proximoNumero(qtd){
   }
   throw {code:"numeracao_ocupada"};
 }
+/* aviso "rota em andamento": flutua lá embaixo, perto do polegar; some quando a tela fecha */
+function flutuarRascunho(box,ancora){
+  box.style.cssText+=";position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:9990;max-width:520px;margin:0 auto;background:var(--card,#fff);border:2px solid var(--laranja);box-shadow:0 10px 30px rgba(0,0,0,.3);animation:bolhaEntra .2s ease-out";
+  const bts=[...box.querySelectorAll("button")]; if(bts.length>=2){ const linha=h("div",{style:"display:grid;grid-template-columns:2fr 1fr;gap:8px"}); bts.forEach(b=>{ b.classList.remove("full"); linha.append(b); }); box.append(linha); }
+  document.body.append(box);
+  const vigia=setInterval(()=>{ if(!box.isConnected||!ancora.isConnected){ clearInterval(vigia); box.remove(); } },500);
+}
 /* Nova rota: uma coleta e várias paradas numeradas na ordem de entrega */
 function abrirRota(op){
   const dl=h("datalist",{id:"dlEmpresasRota"},...S.empresas.map(e=>h("option",{value:e.nome})));
@@ -4313,7 +4320,7 @@ function abrirRota(op){
     const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},bt,
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); limparRascCentral(); }},"Descartar"));
     bt.addEventListener("click",()=>{ box.remove(); aplicarRascCentral(d); });
-    caixaParadas.before(box);
+    flutuarRascunho(box,caixaParadas);
   })();
   if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
   // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
@@ -4873,7 +4880,7 @@ function montarRotaPorFotos(restaurar){
     const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},h("span",{style:"font-size:13px",text:"Achei uma rota em andamento salva na sua conta."}),bt,
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); rascunhoRotaLimpar(); }},"Descartar"));
     bt.addEventListener("click",()=>{ box.remove(); if(!paradas.length) aplicar(r.paradas); });
-    caixa.before(box); } };
+    flutuarRascunho(box,caixa); } };
   if(restaurar){ aplicar(restaurar); return api; }
   desenhar();
   setTimeout(()=>btCam.click(),0);
