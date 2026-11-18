@@ -2626,6 +2626,29 @@ function celCliente(p,extra){
   const baixo=[bairro,marcas].filter(Boolean).join(" · ");
   return h("span",{class:"c",title:[end,p.cliente,p.obs].filter(Boolean).join(" · ")},h("b",{text:topo}),baixo?h("span",{class:"sub",text:baixo}):null);
 }
+/* observação do entregador: cartinha amarela (central e comércio) */
+function verObsEntregador(p){
+  abrirSheet("✉️ Observação do entregador",[
+    h("div",{style:"background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:12px;font-size:16px;white-space:pre-wrap;overflow-wrap:anywhere",text:p.obsFinalizacao||"—"}),
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:[p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):""),p.numero?"Pedido #"+p.numero:"",p.cliente].filter(Boolean).join(" · ")}),
+    (!comercio()&&num(p.adicionais)>0&&p.adicionalMotivo)?h("p",{style:"margin:0;font-size:14px",text:"Motivo do adicional: "+p.adicionalMotivo}):null]);
+}
+const btObsEnt=p=>p.obsFinalizacao?h("button",{class:"mini-bt",type:"button",title:"Observação do entregador",style:"background:#fef3c7;border-color:#f59e0b;color:#92400e",onclick:e=>{ e.stopPropagation(); verObsEntregador(p); }},"✉️ Obs."):null;
+/* adicional lançado pelo entregador: a central confirma ou tira */
+function precisaConfirmarAdic(p){ return central() && !S.limitada ? !!(p.adicionalAConfirmar && num(p.adicionais)>0) : !!(central() && p.adicionalAConfirmar && num(p.adicionais)>0); }
+async function resolverAdic(p,ok){
+  const upd=ok?{adicionalAConfirmar:false,adicionalConfirmado:true}:{adicionalAConfirmar:false,adicionais:0,adicionalMotivo:"",adicionalBairro:""};
+  Object.assign(upd,comRegistro(p,ok?"Adicional confirmado pela central":"Adicional retirado pela central"));
+  try{ await comRetry(()=>S.db.doc(p._path).update(upd)); toast(ok?"Adicional confirmado":"Adicional retirado"); }catch(e){ toast("Não foi possível salvar ("+(e&&e.code||"erro")+")."); }
+}
+function blocoAdicConfirmar(p,mini){
+  if(!precisaConfirmarAdic(p)) return null;
+  const n=num(p.adicionais);
+  const ok=h("button",{type:"button",style:"border:0;border-radius:8px;background:#16a34a;color:#fff;font-weight:800;padding:6px 10px;cursor:pointer",onclick:e=>{ e.stopPropagation(); resolverAdic(p,true); }},"✓ Confirmar");
+  const no=h("button",{type:"button",style:"border:1.5px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:800;padding:6px 10px;cursor:pointer",onclick:e=>{ e.stopPropagation(); resolverAdic(p,false); }},"✕ Tirar");
+  return h("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:10px;padding:8px 10px;color:#991b1b;font-weight:700;font-size:"+(mini?"12.5px":"14px")+";"+(mini?"grid-column:1/-1;margin-top:4px":"")},
+    h("span",{style:"flex:1;min-width:180px",text:"⚠ "+(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Entregador"))+" lançou +"+n+(n>1?" adicionais":" adicional")+(p.adicionalMotivo?" · motivo: "+p.adicionalMotivo:"")+" — confirme"}),ok,no);
+}
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
   const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
@@ -2633,6 +2656,7 @@ function linhaPedido(p){
   const acoes=h("span",{class:"c acoes-l"});
   if(comercio()){
     if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
+    if(p.obsFinalizacao) acoes.append(btObsEnt(p));
     const dest=destinoRecado(p);
     if(dest) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Mandar recado para o entregador",onclick:e=>{ e.stopPropagation(); abrirRecado(p,dest); }},"📣 Recado"));
     return h("div",{class:"linha-ped com"+(entregue?" fim":"")},
@@ -2652,7 +2676,9 @@ function linhaPedido(p){
   }
   if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
   if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
-  return h("div",{class:"linha-ped"+(entregue?" fim":"")},
+  if(p.obsFinalizacao) acoes.append(btObsEnt(p));
+  const linhaAdic=blocoAdicConfirmar(p,true);
+  const linhaEl=h("div",{class:"linha-ped"+(entregue?" fim":"")},
     h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")),
     cel(dataHoraCard(p),"num"),
     h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),p.numero?h("span",{class:"sub num",text:"#"+p.numero}):null),
@@ -2661,6 +2687,7 @@ function linhaPedido(p){
     h("span",{class:"c"},h("button",{type:"button",class:"ent-l"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},(p.entregadorId?nomeEnt(p.entregadorId):"Sem entregador")+(entregue?"":" ▾"))),
     cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r"),
     acoes);
+  return linhaAdic?h("div",{style:"display:flex;flex-direction:column;gap:2px"},linhaEl,linhaAdic):linhaEl;
 }
 function cartaoPedidoBase(p){
   const entregue=p.status==="entregue";
@@ -2706,7 +2733,9 @@ function cartaoPedidoBase(p){
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null),
     p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ "+nomeServico(p)}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
-    (entregue && p.obsFinalizacao)?h("div",{class:"obs",style:"font-style:normal;color:var(--ink)",text:"📝 Entregador: "+p.obsFinalizacao}):null,
+    p.obsFinalizacao?h("button",{type:"button",onclick:e=>{ e.stopPropagation(); verObsEntregador(p); },style:"display:flex;gap:8px;align-items:flex-start;text-align:left;width:100%;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:8px 10px;color:#78350f;font:inherit;font-size:14px;cursor:pointer"},
+      h("span",{style:"font-size:18px;flex:none",text:"✉️"}),h("span",{style:"overflow-wrap:anywhere",text:"Obs. do entregador: "+p.obsFinalizacao})):null,
+    blocoAdicConfirmar(p),
     rodapePag(p)
   );
   { const de=card.querySelector(".coleta .de");
@@ -4892,7 +4921,7 @@ function montarRotaPorFotos(restaurar,op){
           cliente:String(x.nome||(c&&c.nome)||"").trim(),clienteCodigo:(c&&c.codigo)||"",pedidoComercio:x.pedidoComercio||"",codigoComercio:x.codigoComercio||"",
           localizacao:x.loc||(endC&&endC.localizacao)||"",telefone:String(x.tel||"").trim(),endereco:endC?endC.endereco:String(x.end).trim(),entregadorId:S.eu,
           pagamento:x.pag,valorDinheiro:x.pag==="dinheiro"?num(x.valor):0,trocoPara:x.pag==="dinheiro"&&num(x.troco)>num(x.valor)?num(x.troco):0,valorNota:x.pag==="convenio"?num(x.valor):0,valorCartao:x.pag==="cartao"?num(x.valor):0,obs:x.obs||"",pegarReceita:!!x.receita,produtosReceita:x.receita?(x.produtos||[]):[],
-          adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome}:{}),
+          adicionais:(adRota.get(x)||{}).qtd||0,...((adRota.get(x)||{}).qtd?{adicionalMotivo:"Bairro "+adRota.get(x).b.nome,adicionalBairro:adRota.get(x).b.nome,adicionalAConfirmar:true}:{}),
           taxaCobrada:(central() && num(x.taxa)>0) ? num(x.taxa) : servicoTaxaFixa(x.servico,x.pag)?taxaFixaDe(x.servico,x.pag):taxaDaEntrega(x.empresa,x.bairro,taxaComercioPorNome(x.empresa)??TAXA_PADRAO), bairro:String(x.bairro||"").trim(),
           ...(!servicoTaxaFixa(x.servico,x.pag) && ehDelivery(x.empresa) && String(x.bairro||"").trim() ? (registrarBairroNovo(x.bairro),{adicionais:0,adicionalMotivo:"",adicionalBairro:"",taxaBairro:true}) : {}),
           ...(x.servico==="transferencia"?{tipoServico:"transferencia",transfDe:x.empresa||"",transfPara:String(x.nome||x.end||"").trim()}:{}),
@@ -5783,7 +5812,7 @@ function abrirPedido(p,arquivoComanda,pre){
       obs:fObs.value.trim(),
       ...(central()?{adicionais:Math.max(0,Math.min(9,Math.round(num(fAdic.value)))),adicionaisPelaCentral:Math.round(num(fAdic.value))>0}:{}),
       ...((central()||S.modo==="entregador") && adicOk===true && adicEscolhido ? {adicionalMotivo:"Bairro "+adicEscolhido.nome, adicionalBairro:adicEscolhido.nome} : {}),
-      ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd))} : {}),
+      ...(S.modo==="entregador" && novo && adicOk===true && adicEscolhido ? {adicionais:Math.round(num(adicEscolhido.qtd)),adicionalAConfirmar:num(adicEscolhido.qtd)>0} : {}),
       taxaCobrada: central() ? num(fTaxa.value) : servicoTaxaFixa(servico,pag) ? taxaFixaDe(servico,pag) : comercio() ? num(fTaxa.value) : (novo ? TAXA_PADRAO : num(p.taxaCobrada))
     };
     // comércio de delivery: taxa pela tabela de bairros e sem adicional de bairro (a central ainda pode mudar a taxa à mão)
@@ -5802,6 +5831,8 @@ function abrirPedido(p,arquivoComanda,pre){
       let reg=novo?{}:{registros:p.registros}; acoes.forEach(a=>{ reg=comRegistro(reg,a,{}); });
       dados.registros=reg.registros;
     }
+    if(S.modo==="entregador" && novo && num(dados.adicionais)>0){ dados.adicionalAConfirmar=true;
+      setTimeout(()=>avisarCentralAlteracao({...dados},["+"+num(dados.adicionais)+" adicional"+(num(dados.adicionais)>1?"is":"")+(dados.adicionalMotivo?" — "+dados.adicionalMotivo:"")+" (confirme)"],"lançou pedido com adicional").catch(()=>{}),1500); }
     salvar.disabled=true; salvar.textContent="Salvando…";
     { const atual=clienteSel();
       if(!telValido(fTel.value)){ /* sem telefone: não cadastra cliente (comanda sem telefone, entrega sem cadastro ou transferência) */ }
@@ -6118,7 +6149,8 @@ function abrirConfirmacao(p,op){
       }catch(e){ falhaFoto=(e&&(e.code||e.message))||"erro no envio"; console.warn("foto",e); }
     }
     ok.textContent="Finalizando…";
-    const upd={status:"entregue",entregueEm:new Date().toISOString(),entreguePor:S.uid||"",adicionais:adic,adicionalMotivo:adicAuto?(p.adicionalMotivo||"Lançado pela central"):adic?motivo.value.trim():""};
+    const upd={status:"entregue",entregueEm:new Date().toISOString(),entreguePor:S.uid||"",adicionais:adic,
+      ...(S.modo==="entregador" && !adicAuto && adic>0 && (adic!==Math.max(0,Math.round(num(p.adicionais))) || motivo.value.trim()!==String(p.adicionalMotivo||"").trim()) ? {adicionalAConfirmar:true} : {}),adicionalMotivo:adicAuto?(p.adicionalMotivo||"Lançado pela central"):adic?motivo.value.trim():""};
     const valRec = formaRec==="dinheiro" ? num(fValRec.value) : 0;
     const alterado = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(valRec-valAnunc)>0.009);
     Object.assign(upd,{pagamentoConfirmado:true,pagamentoAnunciado:anunc,valorAnunciado:valAnunc,pagamento:formaRec,valorDinheiro:valRec,pagamentoAlterado:alterado});
@@ -6161,6 +6193,7 @@ function abrirConfirmacao(p,op){
         if(upd.pagamento!==anunc) mud.push("pagamento: "+(PAG[anunc]||anunc)+" → "+(PAG[upd.pagamento]||upd.pagamento));
         if(valorEditado!==null) mud.push("valor recebido: "+fmt(valPedido)+" → "+fmt(valorEditado));
         else if(upd.pagamento==="dinheiro" && anunc==="dinheiro" && Math.abs(valRec-valAnunc)>0.009 && !upd.trocoDevolver && !(trocoEscolha==="dei")) mud.push("valor recebido: "+fmt(valAnunc)+" → "+fmt(valRec));
+        if(!mud.length && upd.obsFinalizacao) mud.push("deixou observação");
         if(mud.length) avisarCentralAlteracao({...p,...upd},mud).catch(e=>console.warn("aviso alteração",e));
       }catch(e){} }
       fechar();
@@ -8388,10 +8421,10 @@ function criarCampanha(){
 /* ---------- PIX PARA O COMÉRCIO ----------
    Entregador ficou com o dinheiro (desconta na fatura dele): vai um aviso para cada pessoa da central
    (recados/<id> com tipo "pix") dizendo que tem que mandar o valor da venda por Pix ao comércio. */
-async function avisarCentralAlteracao(p,mudancas){
+async function avisarCentralAlteracao(p,mudancas,prefixo){
   const uids=await uidsDaCentral(); if(!uids.length) return;
   const quem=S.euNome||"Entregador", agora=new Date().toISOString();
-  const texto=quem+" alterou o pedido ao finalizar: "+mudancas.join(" · ")+(p.obsFinalizacao?" · obs.: "+p.obsFinalizacao:"");
+  const texto=quem+" "+(prefixo||"alterou o pedido ao finalizar")+": "+mudancas.join(" · ")+(p.obsFinalizacao?" · obs.: "+p.obsFinalizacao:"");
   for(const uid of uids){
     const id="alt"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     await comRetry(()=>S.db.doc("recados/"+id).set({tipo:"alteracao",para:uid,de:quem,deUid:S.uid||"",pedidoId:p.id||"",pedidoPath:p._path||"",
