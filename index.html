@@ -3515,8 +3515,10 @@ function garantirClientes(){
 async function juntarPorEndereco(){
   const lista=(S.clientes||[]).filter(c=>c.telefone&&enderecosDe(c).length).slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
   const feitos=new Set();
+  let volta=0;
   for(const base of lista){
     if(feitos.has(base.id)) continue;
+    if(++volta%10===0) await new Promise(r=>setTimeout(r,0));   // deixa a tela respirar (não trava o app)
     const iguais=lista.filter(o=>o.id!==base.id && !feitos.has(o.id) && enderecosDe(o).some(x=>enderecosDe(base).some(y=>mesmoLugar(x.endereco,y.endereco))));
     if(!iguais.length) continue;
     const notas=[base.obsCliente].filter(Boolean), aliasTels=[...(base.aliasTels||[])], aliasIds=[...(base.aliasIds||[])];
@@ -3567,7 +3569,9 @@ async function normalizarClientes(col){
     await juntar("telefones",sn.docs.map(d=>({id:d.id,...d.data()})),t=>digTel(t)); }catch(e){} }
 }
 /* Cruzamento por endereço: compara rua + número sem acento, abreviação ou complemento */
-function chaveEndereco(e){
+const _cacheChaveEnd=new Map();
+function chaveEndereco(e){ e=String(e||""); const c=_cacheChaveEnd.get(e); if(c) return c; const r=_chaveEndereco(e); if(_cacheChaveEnd.size>5000) _cacheChaveEnd.clear(); _cacheChaveEnd.set(e,r); return r; }
+function _chaveEndereco(e){
   let t=" "+semAcento(e).replace(/[º°ª]/g," ").replace(/[.,;:\/\-]/g," ")+" ";
   const sin=[["gov|governador","governador"],["dr|doutor","doutor"],["pres|presidente","presidente"],["sta|santa","santa"],["sto|santo","santo"],["prof|professor","professor"],["cel|coronel","coronel"],["mal|marechal","marechal"],["cap|capitao","capitao"],["sen|senador","senador"],["dep|deputado","deputado"]];
   sin.forEach(([a,b])=>{ t=t.replace(new RegExp("\\b("+a+")\\b","g"),b); });
