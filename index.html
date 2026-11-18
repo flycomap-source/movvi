@@ -1051,16 +1051,18 @@ function reabrirJanelas(lista){
   if(lista.length) setTimeout(passo,300);
 }
 /* ---- botão/gesto "voltar" do celular ----
-   fecha a janela de cima; sem janela, volta para Entregas; na tela inicial pede confirmação
-   e só sai do app se voltar de novo */
-function camadaDeCima(){
-  const els=[...document.querySelectorAll(".veu,[data-tela-cheia],[role=dialog],.lightbox")].filter(e=>e.isConnected && !e.hidden && getComputedStyle(e).display!=="none");
-  if(!els.length) return null;
+   Cada janela aberta (e cada aba fora de Entregas) ganha um passo no histórico.
+   Voltar fecha a de cima, depois a de baixo… até a tela principal; lá pergunta se quer sair
+   e só sai se voltar mais uma vez.
+   O Chrome ignora passos criados sem toque do usuário, por isso os passos são criados logo
+   depois de um toque (clique/tecla), nunca sozinhos. */
+function camadasAbertas(){
+  const els=[...document.querySelectorAll(".veu,[data-tela-cheia],[role=dialog],.lightbox")].filter(e=>e.isConnected && e.id!=="confirmaSair" && !e.hidden && getComputedStyle(e).display!=="none");
   const z=e=>parseInt(getComputedStyle(e).zIndex)||0;
-  return els.reduce((a,b)=> z(b)>=z(a) ? b : a);
+  return els.map((e,i)=>[e,z(e),i]).sort((x,y)=>x[1]-y[1]||x[2]-y[2]).map(x=>x[0]);   // de baixo para cima
 }
+function camadaDeCima(){ const l=camadasAbertas(); return l.length?l[l.length-1]:null; }
 function fecharCamada(el){
-  if(el.id==="confirmaSair"){ el.remove(); return; }
   const bt=el.querySelector('[aria-label="Voltar"],[aria-label="Fechar"]');
   if(bt){ bt.click(); return; }
   if(el.classList.contains("veu")){ el.dispatchEvent(new MouseEvent("click",{bubbles:true})); if(el.isConnected) el.remove(); return; }
@@ -1068,25 +1070,40 @@ function fecharCamada(el){
   document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}));
   if(el.isConnected) el.remove();
 }
+const emTelaPrincipal=()=>typeof viewAtual==="undefined" || viewAtual==="entregas" || viewAtual==="acesso" || ["carregando","semacesso","desativado"].includes(S.modo);
+function passosQueFaltam(){ return camadasAbertas().length + (emTelaPrincipal()?0:1) + 1; }   // +1 = a "guarda" da tela principal
+let aparandoHist=false;
+function completarHistorico(){
+  if(document.getElementById("confirmaSair") || aparandoHist) return;
+  try{ let d=(history.state&&history.state.movviD)||0; const quer=passosQueFaltam();
+    if(d>quer){ aparandoHist=true; history.go(quer-d); return; }   // fechou janela pelo ← / ✕: tira os passos que sobraram
+    while(d<quer){ d++; history.pushState({movviD:d},""); } }catch(e){ aparandoHist=false; }
+}
 function iniciarVoltar(){
   if(iniciarVoltar.ok) return; iniciarVoltar.ok=true;
-  try{ history.replaceState({movvi:"base"},""); history.pushState({movvi:"guarda"},""); }catch(e){ return; }
-  const guarda=()=>{ try{ if(!history.state || history.state.movvi!=="guarda") history.pushState({movvi:"guarda"},""); }catch(e){} };
-  window.addEventListener("popstate",()=>{
-    const conf=document.getElementById("confirmaSair");
-    if(conf){ conf.remove(); try{ history.back(); }catch(e){} return; }   // voltou de novo: sai do app
+  // depois de cada toque, garante um passo para cada janela aberta
+  const depoisDoToque=()=>{ setTimeout(completarHistorico,80); setTimeout(completarHistorico,600); };
+  document.addEventListener("click",e=>{ if(e.isTrusted) depoisDoToque(); },true);
+  document.addEventListener("keydown",e=>{ if(e.isTrusted) depoisDoToque(); },true);
+  window.addEventListener("popstate",e=>{
+    if(aparandoHist){ aparandoHist=false; return; }
+    const d=(e.state&&e.state.movviD)||0;
+    const conf=document.getElementById("confirmaSair"); if(conf) conf.remove();
+    // fecha quantas etapas for preciso para ficar com o mesmo número de passos
+    let falta=Math.max(1,passosQueFaltam()-d), seg=0;
+    while(falta>1 && seg++<20){ const el=camadaDeCima(); if(el){ fecharCamada(el); falta--; } else if(!emTelaPrincipal()){ irPara("entregas"); falta--; } else break; }
     const el=camadaDeCima();
-    if(el){ fecharCamada(el); guarda(); return; }
-    if(typeof viewAtual!=="undefined" && viewAtual!=="entregas" && viewAtual!=="acesso" && !["carregando","semacesso","desativado"].includes(S.modo)){ irPara("entregas"); guarda(); return; }
-    // tela inicial: pergunta; a guarda NÃO volta, então o próximo "voltar" fecha o app
+    if(el){ fecharCamada(el); return; }
+    if(!emTelaPrincipal()){ irPara("entregas"); return; }
+    // tela principal: pergunta. Sem passo guardado, o próximo "voltar" fecha o app.
     const ficar=h("button",{class:"btn",type:"button",style:"flex:1"},"Continuar no app");
     const caixa=h("div",{id:"confirmaSair",role:"alertdialog","aria-label":"Sair do app?",style:"position:fixed;inset:0;z-index:10050;background:rgba(10,20,40,.45);display:grid;place-items:end center;padding:0 12px calc(18px + env(safe-area-inset-bottom,0px))"},
       h("div",{style:"width:min(100%,420px);background:var(--card,#fff);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.3)"},
         h("b",{style:"font-size:18px",text:"Quer mesmo sair do app?"}),
         h("span",{class:"muted",style:"font-size:14px",text:"Para sair, volte (ou arraste para o lado) mais uma vez."}),
         h("div",{style:"display:flex;gap:8px"},ficar)));
-    const fica=()=>{ caixa.remove(); guarda(); };
-    ficar.addEventListener("click",fica); caixa.addEventListener("click",e=>{ if(e.target===caixa) fica(); });
+    const fica=()=>{ caixa.remove(); completarHistorico(); };
+    ficar.addEventListener("click",fica); caixa.addEventListener("click",ev=>{ if(ev.target===caixa) fica(); });
     document.body.append(caixa);
   });
   window.addEventListener("pagehide",guardarTela);
