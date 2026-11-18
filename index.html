@@ -7633,8 +7633,42 @@ function abrirMapaEntregadores(){
       h("button",{type:"button",style:"margin-top:4px;border:0;border-radius:8px;background:#004AAD;color:#fff;font:700 13px system-ui;padding:7px 10px;cursor:pointer",onclick:()=>{
         const cad=(p.clienteCodigo&&(S.clientes||[]).find(c=>c.codigo===p.clienteCodigo))||(telValido(p.telefone)&&cliPorTel(p.telefone));
         try{ mapa.closePopup(); }catch(e){}
-        if(cad) editarCliente(cad); else abrirPedido(p); }},"✏️ Editar cliente"));
+        if(cad) editarCliente(cad); else abrirPedido(p); }},"✏️ Editar cliente"),
+      h("button",{type:"button",style:"border:0;border-radius:8px;background:#E67E22;color:#fff;font:700 13px system-ui;padding:7px 10px;cursor:pointer",onclick:()=>mudarPosCliente(p)},"📍 Mudar posição no mapa"));
     return div; };
+  // mudar a posição do cliente: arrasta o bonequinho (ou toca no mapa) e salva
+  let editandoPos=null;
+  const mudarPosCliente=p=>{
+    const mk=clis[p.id]; if(!mk||!mapa) return; try{ mapa.closePopup(); }catch(e){}
+    if(editandoPos) editandoPos.cancelar();
+    const antes=mk.getLatLng();
+    try{ mk.dragging.enable(); }catch(e){}
+    const tocar=e=>{ mk.setLatLng(e.latlng); };
+    mapa.on("click",tocar);
+    const salvar=h("button",{type:"button",style:"flex:1;border:0;border-radius:10px;background:#16a34a;color:#fff;font:800 15px system-ui;padding:10px;cursor:pointer"},"✓ Salvar posição");
+    const cancelar=h("button",{type:"button",style:"border:0;border-radius:10px;background:#e5e7eb;color:#111;font:700 15px system-ui;padding:10px 14px;cursor:pointer"},"Cancelar");
+    const barra=h("div",{style:"position:absolute;z-index:1000;left:8px;right:8px;bottom:8px;background:#fff;border-radius:14px;padding:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px"},
+      h("b",{style:"font-size:14px",text:"📍 "+(p.cliente||"Cliente")+": arraste o bonequinho ou toque no mapa onde fica a casa"}),
+      h("span",{style:"font-size:12px;color:#555",text:p.endereco||""}),
+      h("div",{style:"display:flex;gap:8px"},salvar,cancelar));
+    area.append(barra);
+    const sair=()=>{ try{ mk.dragging.disable(); }catch(e){} mapa.off("click",tocar); barra.remove(); editandoPos=null; };
+    editandoPos={id:p.id,cancelar:()=>{ mk.setLatLng(antes); sair(); }};
+    cancelar.addEventListener("click",()=>editandoPos&&editandoPos.cancelar());
+    salvar.addEventListener("click",async()=>{
+      const ll=mk.getLatLng(), lat=Math.round(ll.lat*1e6)/1e6, lng=Math.round(ll.lng*1e6)/1e6, txt=lat+", "+lng;
+      salvar.disabled=true; salvar.textContent="Salvando…";
+      try{
+        if(p._path) await comRetry(()=>S.db.doc(p._path).update({localizacao:txt}));
+        const k=chaveLocCli(p); if(k) S.db.doc("locCli/"+k).set({lat,lng,endereco:p.endereco||"",cliente:p.cliente||"",manual:true,em:new Date().toISOString()}).catch(()=>{});
+        const cad=(p.clienteCodigo&&(S.clientes||[]).find(c=>c.codigo===p.clienteCodigo))||(telValido(p.telefone)&&cliPorTel(p.telefone));
+        if(cad){ let achou=false; const ends=enderecosDe(cad).map(e=>{ if(!achou && (semAcento(e.endereco)===semAcento(p.endereco||"")||mesmoEndereco(e.endereco,p.endereco||""))){ achou=true; return {...e,localizacao:txt}; } return e; });
+          if(!achou && ends.length===1){ ends[0]={...ends[0],localizacao:txt}; achou=true; }
+          if(achou) await comRetry(()=>S.db.doc("clientes/"+cad.id).update({enderecos:ends,localizacao:(ends[0]||{}).localizacao||"",editadoEm:new Date().toISOString()})); }
+        cliLoc[p.id]={lat,lng,fonte:"posição marcada na central"}; sair(); toast("Posição de "+(p.cliente||"cliente")+" salva");
+      }catch(e){ salvar.disabled=false; salvar.textContent="✓ Salvar posição"; toast("Não foi possível salvar. Tente de novo."); }
+    });
+  };
   const desenharClientes=()=>{
     if(!mapa) return;
     const abertos=(S.pedidosDia||[]).filter(p=>!FECHADOS.includes(p.status) && !p.acertado && p.endereco && !ehTransf(p)), vivos=new Set();
@@ -7643,7 +7677,7 @@ function abrirMapaEntregadores(){
       if(loc===undefined){ cliLoc[p.id]=null; localDoCliente(p).then(l=>{ cliLoc[p.id]=l||false; desenharClientes(); }); return; }
       if(!loc) return;
       vivos.add(p.id);
-      if(clis[p.id]){ clis[p.id].setLatLng([loc.lat,loc.lng]).setIcon(iconeCli(p)); clis[p.id].setPopupContent(popCli(p)); }
+      if(clis[p.id]){ if(!(editandoPos&&editandoPos.id===p.id)){ clis[p.id].setLatLng([loc.lat,loc.lng]).setIcon(iconeCli(p)); } clis[p.id].setPopupContent(popCli(p)); }
       else clis[p.id]=window.L.marker([loc.lat,loc.lng],{icon:iconeCli(p),zIndexOffset:200}).addTo(mapa).bindPopup(popCli(p)); });
     Object.keys(clis).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(clis[k]); delete clis[k]; } });
     const nCli=Object.keys(clis).length; resumoCli.textContent=nCli?"🧍 "+nCli+(nCli===1?" cliente":" clientes")+" no mapa":"";
