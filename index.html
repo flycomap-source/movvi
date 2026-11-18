@@ -5119,7 +5119,7 @@ function abrirCameraTraseira(inp,aoFoto,op){
     const c=document.createElement("canvas"); c.width=video.videoWidth; c.height=video.videoHeight;
     c.getContext("2d").drawImage(video,0,0);
     if(multi){ video.style.opacity=".3"; setTimeout(()=>{ video.style.opacity=""; },120); }
-    c.toBlob(b=>{ if(!multi) fechar(); if(b) aoFoto(new File([b],"comanda.jpg",{type:"image/jpeg"})); if(multi){ qtd++; btSair.textContent="Pronto ("+qtd+(qtd>1?" fotos)":" foto)"); } },"image/jpeg",0.9);
+    c.toBlob(b=>{ if(!multi) fechar(); if(b) aoFoto(new File([b],"comanda.jpg",{type:"image/jpeg"})); if(multi){ qtd++; btSair.textContent="Pronto ("+qtd+")"; } },"image/jpeg",0.9);
   });
 }
 /* deixa a foto num formato aceito e num tamanho leve para a leitura */
