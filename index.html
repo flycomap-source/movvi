@@ -7719,24 +7719,30 @@ function abrirMapaEntrega(p){
     if(!jan.isConnected) return;
     area.replaceChildren(); const d=h("div",{style:"position:absolute;inset:0"}); area.append(d);
     mapa=L.map(d,{zoomControl:true});   // a vista é definida uma vez só, quando os pontos estiverem prontos (sem pulo de zoom)
+    // se o GPS ou a busca do endereço demorarem, não deixa o mapa em branco: abre em Unaí depois de 2,5 s
+    let vista=""; const abrirCidade=()=>{ if(vista || !jan.isConnected) return; vista="cidade"; mapa.setView([UNAI.lat,UNAI.lng],13,{animate:false}); };
+    const tempoCidade=setTimeout(abrirCidade,2500);
+    const limite=(pr,ms)=>Promise.race([pr,new Promise(r=>setTimeout(()=>r(null),ms))]);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(mapa);
     setTimeout(()=>{ try{ mapa.invalidateSize(); }catch(e){} },200);
     const pts=[];
     // as outras paradas da rota dele (numeradas), para ver a ordem
     const outras=(S.pedidosDia||[]).filter(x=>x.id!==p.id && x.entregadorId===p.entregadorId && !FECHADOS.includes(x.status) && x.endereco);
-    const [lc,me]=await Promise.all([localDoCliente(p),minhaPosicao()]);
+    const [lc,me]=await Promise.all([limite(localDoCliente(p).catch(()=>null),8000),limite(minhaPosicao(),4000)]);
     if(!jan.isConnected) return;
     if(lc){ cli=L.marker([lc.lat,lc.lng],{icon:pinoHtml("🏠 "+esc((p.cliente||"Cliente").split(/\s+/)[0])+(num(p.ordemEntrega)?" · "+num(p.ordemEntrega):""),"#dc2626"),zIndexOffset:500}).addTo(mapa)
         .bindPopup("<b>"+esc(p.cliente)+"</b><br>"+esc(p.endereco)+"<br><small>Ponto: "+lc.fonte+"</small>"); pts.push([lc.lat,lc.lng]); }
     if(me){ eu=L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa); pts.push([me.lat,me.lng]); }
     const temColeta=!p.emRotaEm && (p.coletaEmpresa||p.coletaEndereco);
     if(temColeta){ const k=slug(p.coletaEmpresa||p.coletaEndereco), c=(S.comercios||[]).find(x=>slug(x.nome)===slug(p.coletaEmpresa||""));
-      const g=c&&c.lat?{lat:c.lat,lng:c.lng}:(S.geo&&S.geo[k]&&S.geo[k].lat?S.geo[k]:await geocodificar({chave:k,endereco:(c&&c.endereco)||p.coletaEndereco||"",nome:p.coletaEmpresa||""}));
+      const g=c&&c.lat?{lat:c.lat,lng:c.lng}:(S.geo&&S.geo[k]&&S.geo[k].lat?S.geo[k]:await limite(geocodificar({chave:k,endereco:(c&&c.endereco)||p.coletaEndereco||"",nome:p.coletaEmpresa||""}).catch(()=>null),3000));
       if(g&&g.lat&&jan.isConnected){ L.marker([g.lat,g.lng],{icon:pinoHtml("🏪 Coleta","#E67E22")}).addTo(mapa); pts.push([g.lat,g.lng]); } }
     for(const x of outras.slice(0,8)){ const c=coordDeTexto(x.localizacao); const k=chaveLocCli(x); let g=c;
-      if(!g && k){ try{ const sn=await S.db.doc("locCli/"+k).get(); const dd=sn.exists?sn.data():null; if(dd&&dd.lat) g=dd; }catch(e){} }
+      if(!g && k){ try{ const sn=await limite(S.db.doc("locCli/"+k).get(),2000); if(!sn) continue; const dd=sn.exists?sn.data():null; if(dd&&dd.lat) g=dd; }catch(e){} }
       if(g&&jan.isConnected) L.marker([g.lat,g.lng],{icon:pinoHtml((num(x.ordemEntrega)?num(x.ordemEntrega)+" · ":"")+esc((x.cliente||"").split(/\s+/)[0]),"#6b7280")}).addTo(mapa).bindPopup("<b>"+esc(x.cliente)+"</b><br>"+esc(x.endereco)); }
-    if(pts.length>1) mapa.fitBounds(pts,{padding:[50,50],maxZoom:17,animate:false}); else if(pts.length===1) mapa.setView(pts[0],17,{animate:false}); else mapa.setView([UNAI.lat,UNAI.lng],13);
+    clearTimeout(tempoCidade);
+    if(!vista){ vista="pontos"; if(pts.length>1) mapa.fitBounds(pts,{padding:[50,50],maxZoom:17,animate:false}); else if(pts.length===1) mapa.setView(pts[0],17,{animate:false}); else mapa.setView([UNAI.lat,UNAI.lng],13); }
+    else if(lc){ mapa.setView([lc.lat,lc.lng],16); }   // demorou: já estava na cidade, vai até o cliente
     txt.textContent = lc ? (lc.fonte.includes("aproximado")?"⚠️ Ponto aproximado (busca pelo endereço). Se não bater, use o Google Maps.":"✓ Ponto do cliente: "+lc.fonte+".")
       : "Não achei este endereço no mapa do app. Use o Google Maps.";
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Sem internet para carregar o mapa. Use o Google Maps."})); });
