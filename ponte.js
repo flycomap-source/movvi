@@ -235,7 +235,8 @@
   const assets = Object.freeze({
     upload: async (blob) => {
       const tipo = blob.type || "image/jpeg";
-      const ext = tipo.includes("png") ? ".png" : tipo.includes("webp") ? ".webp" : tipo.includes("pdf") ? ".pdf" : ".jpg";
+      const ext = tipo.includes("png") ? ".png" : tipo.includes("webp") ? ".webp" : tipo.includes("pdf") ? ".pdf"
+        : tipo.startsWith("audio/") ? (tipo.includes("webm") ? ".webm" : tipo.includes("ogg") ? ".ogg" : tipo.includes("mpeg") ? ".mp3" : ".m4a") : ".jpg";
       const id = novoId() + ext;
       const { error } = await sb.storage.from("fotos").upload(id, blob, { contentType: tipo, upsert: false });
       if (error) throw erro(error);

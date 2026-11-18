@@ -1,5 +1,5 @@
 <!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}@keyframes bolhaEntra{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
-</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=12"></script></head><body>
+</style><meta name="theme-color" content="#004AAD"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png"><link rel="icon" type="image/png" sizes="192x192" href="icone-192.png"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script><script src="ponte.js?v=13"></script></head><body>
 
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -7912,17 +7912,17 @@ function avisarCelular(uids,texto,conv){
   uids.filter(Boolean).forEach(uid=>{ const rid="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
     S.db.doc("recados/"+rid).set({tipo:"chat",para:uid,de:central()?"Central":(S.euNome||"Entregador"),deUid:S.uid||"",conv,texto,criadoEm:ag,lidoEm:ag}).catch(()=>{}); });
 }
-async function enviarChat(conv,texto){
-  const ag=new Date().toISOString(), c=chatDoc(conv);
+async function enviarChat(conv,texto,extra){
+  const ag=new Date().toISOString(), c=chatDoc(conv); extra=extra||{};
   if(ehPar(c)){
     const outro=(c.participantes||[]).find(u=>u!==S.uid);
-    await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado:S.uid,nome:S.euNome||"Entregador",uid:S.uid||"",em:ag}));
+    await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado:S.uid,nome:S.euNome||"Entregador",uid:S.uid||"",em:ag,...extra}));
     await comRetry(()=>S.db.doc("chats/"+conv).update({ultima:texto,ultimaDe:S.uid,atualizadoEm:ag,["nl_"+outro]:true}));
     avisarCelular([outro],texto,conv); return;
   }
   const lado=central()?"central":"entregador";
   const nomeEnt=central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador");
-  await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado,nome:central()?"Central":nomeEnt,uid:S.uid||"",em:ag}));
+  await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado,nome:central()?"Central":nomeEnt,uid:S.uid||"",em:ag,...extra}));
   await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:""}));
   avisarCelular(lado==="central"?[conv]:await uidsDaCentral(),texto,conv);
 }
@@ -7932,7 +7932,8 @@ function balao(m,meu,comNome){
   return h("div",{style:"max-width:85%;width:fit-content;align-self:"+(meu?"flex-end":"flex-start")+";background:"+(meu?"var(--royal)":"var(--card,#fff)")+";color:"+(meu?"#fff":"var(--ink)")+";border-radius:14px;padding:6px 10px;box-shadow:0 1px 2px rgba(0,0,0,.08)"},
     comNome&&!meu?h("div",{style:"font-size:11.5px;font-weight:800;color:var(--royal)",text:m.nome||""}):null,
     h("div",{style:"display:flex;align-items:flex-end;gap:8px"},
-      h("span",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.3",text:m.texto}),
+      m.audio ? h("audio",{controls:true,preload:"none",src:m.audio,style:"height:40px;max-width:230px"})
+        : h("span",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.3",text:m.texto}),
       h("span",{style:"font-size:10.5px;opacity:.7;white-space:nowrap;flex:none;line-height:1.6",text:horaCurta(m.em)})));
 }
 function abrirChat(conv,chegou){
@@ -7949,14 +7950,17 @@ function abrirChat(conv,chegou){
   const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",title:"Voltar",style:"font-size:22px"},"←");
   const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
-  const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,env);
+  // 🎤 áudio: toca para gravar, toca de novo para enviar (✕ cancela)
+  const btMic=h("button",{class:"btn",type:"button","aria-label":"Gravar áudio",title:"Gravar áudio",style:"flex:none;padding:0 14px;font-size:22px;background:var(--laranja);border-color:var(--laranja)"},"🎤");
+  const gravBar=h("div",{hidden:true,style:"display:flex;align-items:center;gap:8px;background:#fee2e2;border-radius:12px;padding:8px 10px"});
+  const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;flex-direction:column;gap:6px"},gravBar,h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,btMic,env));
   const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["chat",conv]),"aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btMin,h("b",{style:"flex:1;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"💬 "+tituloChat(conv)}),btFim),
     lista,soLer?null:chips,rodape);
   document.body.append(jan);
   let unsub=null, primeira=true, fechada=false;
   const marcarLida=()=>{ if(soLer) return; S.db.doc("chats/"+conv).update(par?{["nl_"+S.uid]:false}:central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
-  const fechar=()=>{ if(fechada) return; fechada=true; if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
+  const fechar=()=>{ if(fechada) return; fechada=true; try{ pararGrav(false); }catch(e){} if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
   unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
     const ms=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>!(m.lado==="sistema" && /^Conversa encerrada/.test(m.texto||""))).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
     lista.replaceChildren(...(ms.length?ms.map(m=>m.lado==="sistema"
@@ -7974,6 +7978,39 @@ function abrirChat(conv,chegou){
     env.disabled=false; };
   env.addEventListener("click",mandar);
   txt.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); mandar(); } });
+  let grav=null;
+  const pararGrav=(enviar)=>{ if(!grav) return; const g=grav; g.enviar=enviar; clearInterval(g.tic); try{ g.rec.state!=="inactive"&&g.rec.stop(); }catch(e){} };
+  btMic.addEventListener("click",async()=>{
+    if(grav){ pararGrav(true); return; }
+    if(!(navigator.mediaDevices&&window.MediaRecorder)){ toast("Este celular não deixa gravar áudio pelo app."); return; }
+    let st; try{ st=await navigator.mediaDevices.getUserMedia({audio:true}); }catch(e){ toast("Libere o microfone para o app nas permissões do celular."); return; }
+    const tipo=["audio/webm;codecs=opus","audio/mp4","audio/ogg;codecs=opus","audio/webm"].find(t=>{ try{ return MediaRecorder.isTypeSupported(t); }catch(e){ return false; } })||"";
+    const rec=new MediaRecorder(st,tipo?{mimeType:tipo,audioBitsPerSecond:24000}:undefined), partes=[], t0=Date.now();
+    const tempo=h("b",{class:"num",style:"color:#b91c1c",text:"0:00"}), cancelar=h("button",{class:"mini",type:"button","aria-label":"Cancelar áudio"},"✕");
+    gravBar.replaceChildren(h("span",{style:"font-size:18px",text:"🔴"}),tempo,h("span",{style:"flex:1;font-size:13px",text:"Gravando… toque em ➤ para enviar"}),cancelar);
+    gravBar.hidden=false; btMic.textContent="➤"; btMic.style.background="#16a34a"; btMic.style.borderColor="#16a34a"; btMic.setAttribute("aria-label","Enviar áudio");
+    grav={rec,enviar:false,tic:setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); tempo.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); if(s>=120) pararGrav(true); },500)};
+    cancelar.addEventListener("click",()=>pararGrav(false));
+    rec.ondataavailable=e=>{ if(e.data&&e.data.size) partes.push(e.data); };
+    rec.onstop=async()=>{
+      st.getTracks().forEach(t=>t.stop());
+      const enviar=grav&&grav.enviar, dur=Math.max(1,Math.round((Date.now()-t0)/1000)); grav=null;
+      gravBar.hidden=true; btMic.textContent="🎤"; btMic.style.background="var(--laranja)"; btMic.style.borderColor="var(--laranja)"; btMic.setAttribute("aria-label","Gravar áudio");
+      if(!enviar || !partes.length) return;
+      if(dur<1){ toast("Áudio muito curto."); return; }
+      btMic.disabled=true; btMic.textContent="⏳";
+      try{
+        if(!S.assets && S.use) S.assets=await S.use("assets");
+        if(!S.assets) throw {code:"sem permissão"};
+        const blob=new Blob(partes,{type:(rec.mimeType||tipo||"audio/webm").split(";")[0]});
+        const r=await S.assets.upload(blob);
+        const rot="🎤 Áudio ("+Math.floor(dur/60)+":"+String(dur%60).padStart(2,"0")+")";
+        await enviarChat(conv,rot,{audio:r.url,audioId:r.id,dur});
+      }catch(e){ toast("Não foi possível enviar o áudio ("+(e&&(e.code||e.message)||"erro")+")."); }
+      btMic.disabled=false; btMic.textContent="🎤";
+    };
+    rec.start(1000);
+  });
   // botão "voltar" do celular fecha a conversa; o ← da tela também desfaz esse passo do histórico
   const voltarCel=()=>{ porVoltar=true; fechar(); };
   let porVoltar=false;
