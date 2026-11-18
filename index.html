@@ -4202,6 +4202,15 @@ async function proximoNumero(qtd){
   }
   throw {code:"numeracao_ocupada"};
 }
+/* câmera e galeria flutuando lá embaixo (perto do polegar) enquanto a tela de escanear está aberta */
+function barraScan(ancora,bts){
+  const barra=h("div",{style:"position:fixed;left:10px;right:10px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:9980;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px;margin:0 auto"});
+  bts.filter(Boolean).forEach(b=>{ b.classList.remove("full","lar"); b.hidden=false; b.style.cssText+=";box-shadow:0 6px 18px rgba(0,0,0,.3);padding:14px 8px;font-weight:800;font-size:15px;white-space:nowrap"; barra.append(b); });
+  const espaco=h("div",{style:"height:76px;flex:none"}); ancora.append(espaco);
+  document.body.append(barra);
+  const vigia=setInterval(()=>{ if(!ancora.isConnected){ clearInterval(vigia); barra.remove(); return; }
+    const topo=camadaDeCima(); barra.hidden=!!(topo && !topo.contains(ancora)); },300);
+}
 /* aviso "rota em andamento": flutua lá embaixo, perto do polegar; some quando a tela fecha */
 function flutuarRascunho(box,ancora){
   box.style.cssText+=";position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:9990;max-width:520px;margin:0 auto;background:var(--card,#fff);border:2px solid var(--laranja);box-shadow:0 10px 30px rgba(0,0,0,.3);animation:bolhaEntra .2s ease-out";
@@ -4250,8 +4259,8 @@ function abrirRota(op){
   const scanCam=h("input",{type:"file",accept:"image/*",capture:"environment",hidden:true});
   const scanGal=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true});
   const scanSt=h("div",{class:"muted",style:"font-size:13px",hidden:true});
-  const btScan=h("button",{class:"btn lar full",type:"button",hidden:!S.sample},"📷 Escanear comanda");
-  const btScanGal=h("button",{class:"btn sec full",type:"button",hidden:!S.sample},"Escolher fotos das comandas");
+  const btScan=h("button",{class:"btn lar full",type:"button",hidden:!S.sample},"📷 Escanear");
+  const btScanGal=h("button",{class:"btn sec full",type:"button",hidden:!S.sample},"🖼 Galeria");
   let filaScan=Promise.resolve(), lendo=0;
   const vazia=st=>!st.cli.value.trim()&&!st.end.value.trim()&&!st.tel.value.trim();
   async function lerParaParada(f){
@@ -4312,8 +4321,9 @@ function abrirRota(op){
       h("div",{class:"linha"},h("div",{class:"campo"},h("label",{for:"rTaxa",text:"Taxa por entrega (R$)"}),fTaxa),h("div",{class:"campo"},h("label",{for:"rData",text:"Data"}),fData))),
     h("div",{class:"campo"},h("label",{for:"rEnt",text:"Entregador (opcional)"}),fEnt),
     h("div",{class:"eyebrow",text:"Paradas na ordem de entrega"}),
-    S.sample?h("div",{style:"display:flex;flex-direction:column;gap:8px"},btScan,btScanGal,scanCam,scanGal,scanSt):null,
+    S.sample?h("div",{style:"display:flex;flex-direction:column;gap:8px"},scanCam,scanGal,scanSt):null,
     caixaParadas, addBt, msg, salvar]);
+  if(S.sample) barraScan(caixaParadas.parentElement||caixaParadas,[btScan,btScanGal]);
   (async()=>{
     let d=null; try{ d=JSON.parse(ls.get(chaveRC)||"null"); }catch(e){}
     if(!d){ const r=docRC(); if(r){ try{ const sn=await comTempo(r.get(),2500); if(sn&&sn!=="__tempo"&&sn.exists) d=sn.data(); }catch(e){} } }
@@ -4680,8 +4690,8 @@ function montarRotaPorFotos(restaurar){
   const vazio=h("p",{class:"muted",style:"margin:0;text-align:center",text:"Fotografe cada comanda. Pode tirar todas em seguida."});
   const inpCam=h("input",{type:"file",accept:"image/*",capture:"environment",hidden:true});
   const inpGal=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true});
-  const btCam=h("button",{class:"btn lar full",type:"button"},"📷 Fotografar comandas");
-  const btGal=h("button",{class:"btn sec full",type:"button"},"Escolher fotos da galeria");
+  const btCam=h("button",{class:"btn lar full",type:"button"},"📷 Escanear");
+  const btGal=h("button",{class:"btn sec full",type:"button"},"🖼 Galeria");
   const btOrdem=h("button",{class:"btn sec full",type:"button",hidden:true},"🧭 Organizar a melhor ordem");
   const infoOrdem=h("div",{class:"muted",style:"font-size:13px",hidden:true});
   const msg=h("div",{class:"aviso",hidden:true});
@@ -4833,8 +4843,9 @@ function montarRotaPorFotos(restaurar){
   }
   btOrdem.addEventListener("click",organizar);
   const fechar=abrirSheet("Escanear comandas",[
-    h("div",{style:"display:flex;flex-direction:column;gap:8px"},btCam,btGal,inpCam,inpGal),
+    h("div",{style:"display:none"},inpCam,inpGal),
     vazio, caixa, btOrdem, infoOrdem, totAdic, msg, salvar]);
+  barraScan(caixa.parentElement||caixa,[btCam,btGal]);
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     for(let i=0;i<paradas.length;i++){ const x=paradas[i];
@@ -4926,8 +4937,8 @@ function abrirPorDemanda(op){
   const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
   const cam=h("input",{type:"file",accept:"image/*",capture:"environment",hidden:true});
   const gal=h("input",{type:"file",accept:"image/*",multiple:true,hidden:true});
-  const btCam=h("button",{class:"btn lar",type:"button"},"📷 Tirar fotos");
-  const btGal=h("button",{class:"btn sec",type:"button"},"🖼 Da galeria");
+  const btCam=h("button",{class:"btn lar",type:"button"},"📷 Escanear");
+  const btGal=h("button",{class:"btn sec",type:"button"},"🖼 Galeria");
   const btLancar=h("button",{class:"btn full",type:"button",hidden:true});
   function resumoDe(r){
     if(!r) return "";
@@ -4976,7 +4987,8 @@ function abrirPorDemanda(op){
   btGal.addEventListener("click",()=>{ gal.value=""; gal.click(); });
   gal.addEventListener("change",()=>{ [...(gal.files||[])].forEach(ler); gal.value=""; });
   desenhar();
-  const fechar=abrirSheet("Lançar por demanda",[info,h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},btCam,btGal),cam,gal,lista,btLancar]);
+  const fechar=abrirSheet("Escanear comandas",[info,cam,gal,lista,btLancar]);
+  barraScan(lista.parentElement||lista,[btCam,btGal]);
   if(op&&op.galeria) setTimeout(()=>btGal.click(),0); else if(op&&op.camera) setTimeout(()=>btCam.click(),0);
 }
 /* "Escanear comandas": um botão só. Várias comandas → rota (entregador/central); uma só → entrega normal.
@@ -8727,7 +8739,8 @@ function cadastrarPelaComanda(){
   });
   const fechar=abrirSheet("Cadastrar pela comanda",[
     h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Fotografe as comandas. O app pega o telefone e o endereço das Observações. Se o telefone das Observações for o mesmo do cadastro no cabeçalho, também pega o nome completo e o código do cliente no comércio. Confira e toque em Cadastrar."}),
-    h("div",{style:"display:flex;flex-direction:column;gap:8px"},btCam,btGal,inpCam,inpGal),caixa,msg,salvar]);
+    h("div",{style:"display:none"},inpCam,inpGal),caixa,msg,salvar]);
+  barraScan(caixa.parentElement||caixa,[btCam,btGal]);
   desenhar();
 }
 function renderCadClientes(){
