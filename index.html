@@ -7536,7 +7536,7 @@ function abrirMapaEntregadores(){
     lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
     h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · bonequinho de camisa vermelha = cliente com entrega em aberto. Toque no cliente para ver e editar."}));
   document.body.append(jan);
-  let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];
+  let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=false, pos=[];   // mapa fica parado onde abriu (sem zoom automático)
   const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
   const situacaoPed=p=>p.emRotaEm?"🛵 Em rota"+(p.entregadorId?" · "+nomeEnt(p.entregadorId):""):p.entregadorId?"⏳ Indo coletar · "+nomeEnt(p.entregadorId):"🕐 Aguardando entregador";
   const iconeLoja=(pt)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;background:#004AAD;color:#fff;font:800 12px system-ui;padding:4px 8px 4px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap">'+(pt.ehComercio?"🏪":"📦")+' '+String(pt.nome).replace(/^farm[aá]cia\s+/i,"").replace(/[<>&]/g,"").slice(0,22)+' <span style="background:#E67E22;border-radius:999px;padding:0 6px;margin-left:2px">'+pt.pedidos.length+'</span></div>'});
@@ -7621,7 +7621,7 @@ function abrirMapaEntregadores(){
     const todosCli=(tent)=>{ if(!(S.clientes||[]).length && tent<15) return setTimeout(()=>todosCli(tent+1),700);
     try{ const pts=[]; (S.clientes||[]).forEach(c=>enderecosDe(c).forEach(e=>{ const ll=coordDeTexto(e.localizacao); if(!ll) return; pts.push([ll.lat,ll.lng]);
         L.circleMarker([ll.lat,ll.lng],{radius:7,color:"#fff",weight:2,fillColor:"#1E3FAE",fillOpacity:.9}).addTo(mapa).bindPopup("<b>"+String(c.nome||"Cliente").replace(/[<>&]/g,"")+"</b><br>"+String(e.endereco||"").replace(/[<>&]/g,"")); }));
-      if(pts.length){ mapa.fitBounds(pts,{padding:[30,30]}); resumoCli.textContent="🔵 "+pts.length+" endereços de clientes no mapa"; } }catch(e){} }; todosCli(0);
+      if(pts.length){ resumoCli.textContent="🔵 "+pts.length+" endereços de clientes no mapa"; } }catch(e){} }; todosCli(0);
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Não foi possível carregar o mapa agora (sem internet?). A lista acima continua mostrando quem está disponível."})); });
 }
 
