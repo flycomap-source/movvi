@@ -1168,8 +1168,23 @@ function renderQuem(){
   b.textContent = (S.modo==="entregador"||comercio()) ? S.euNome : S.modo==="carregando" ? "Carregando…" : "Sem acesso";
 }
 $("#btnQuem").addEventListener("click",()=>{ if(central()) abrirMenuCentral(); else if(comercio()||S.modo==="entregador") abrirConta(); });
+/* central só de pedidos (entregador com permissão): ver, editar, trocar entregador e acompanhar */
+function abrirMenuCentralPedidos(){
+  const item=(icone,titulo,desc,acao)=>{ const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:12px 14px"},
+      h("span",{style:"font-size:20px;width:26px;text-align:center;flex:none",text:icone}),
+      h("span",{style:"display:flex;flex-direction:column;gap:1px;min-width:0"},h("span",{text:titulo}),desc?h("span",{style:"font-size:12px;font-weight:500;color:var(--muted)",text:desc}):null));
+    b.addEventListener("click",acao); return b; };
+  mostrarPagina("Central · pedidos",S.euNome||"",[
+    h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Acesso só aos pedidos: ver, editar, trocar o entregador e acompanhar. Faturas, equipe e configurações ficam com a central."}),
+    item("☰","Entregas do dia","Tela principal com todos os status",()=>irPara("entregas")),
+    item("＋","Novo pedido","Lançar uma entrega",()=>{ irPara("entregas"); abrirPedido(null); }),
+    item("🗺️","Mapa dos entregadores","Onde cada entregador disponível está agora",()=>abrirMapaEntregadores()),
+    item("🧭","Rota dos entregadores","Organizar a ordem das entregas de cada entregador",()=>abrirRotaCentral()),
+    item("🛵","Voltar para o meu app de entregador","Sai da central e volta para as suas entregas",()=>{ try{ sessionStorage.removeItem("movvi.centralPedidos"); }catch(e){} location.reload(); })]);
+}
 /* Menu da central: todas as opções num só lugar */
 function abrirMenuCentral(){
+  if(S.limitada) return abrirMenuCentralPedidos();
   const item=(icone,titulo,desc,acao)=>{
     const b=h("button",{class:"btn sec full",type:"button",style:"justify-content:flex-start;text-align:left;gap:12px;padding:12px 14px"},
       h("span",{style:"font-size:20px;width:26px;text-align:center;flex:none",text:icone}),
@@ -3105,6 +3120,7 @@ async function compartilharCliente(c,col){
 S.listasEnt={}; let tDistrib=null, distribuindo=false;
 function agendarDistribuicao(){ clearTimeout(tDistrib); tDistrib=setTimeout(distribuirBase,2000); }
 async function distribuirBase(){
+  if(S.limitada) return;   // central só de pedidos não faz manutenção da base
   if(distribuindo||!central()||!S.db) return; distribuindo=true; let nGrav=0;
   try{
     const ativosUid=S.equipe.filter(e=>e.uid && e.ativo!==false);
@@ -3315,6 +3331,7 @@ function abrirMeuMenu(){
     comercio()?null:item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
     S.modo==="entregador"?item("💬","Mensagens","Conversas com a central e com colegas",()=>abrirMensagens()):null,
+    (S.modo==="entregador"&&S.euAcessoCentral)?item("🖥","Abrir central (pedidos)","Ver todos os pedidos, editar e trocar de entregador",()=>{ try{ sessionStorage.setItem("movvi.centralPedidos","1"); }catch(e){} location.reload(); }):null,
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
     window.movviSupabase?item("🔔","Avisos com o app fechado",avisosAtivos()?"Ativados neste celular · toque para testar":"Receber aviso de entrega nova mesmo com o app fechado",async()=>{ if(await ativarAvisos()) testarAviso(); pintarAvisoPush(); }):null,
     item("⎋","Sair","Volta para a tela de login",sair)].filter(Boolean));
@@ -3527,6 +3544,7 @@ function garantirClientes(){
 /* cadastros com o mesmo endereço (mesmo abreviado: Av = Avenida, José L. Adjuto = José Luiz Adjuto, mesmo apto)
    viram um só: fica o primeiro cadastro; os outros telefones e nomes vão para as observações */
 async function juntarPorEndereco(){
+  if(S.limitada) return;
   const lista=(S.clientes||[]).filter(c=>c.telefone&&enderecosDe(c).length).slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
   const feitos=new Set();
   let volta=0;
@@ -3561,6 +3579,7 @@ async function juntarPorEndereco(){
 /* telefone é a base do cadastro: junta cadastros que ficaram com o telefone escrito de outro jeito (ex.: sem o 9) */
 const migrouCli={}; let tJuntar=null, juntando=false;
 async function normalizarClientes(col){
+  if(S.limitada) return;
   if(migrouCli[col]||col!==colClientesAtual) return; migrouCli[col]=true;
   const juntar=async(colecao,docs,idDe)=>{
     for(const c of docs){
@@ -6899,6 +6918,7 @@ const decisaoFat=g=>((S.fatDecis||{})[chaveFat(g.tipo,g.quem,g.f)]||{}).status||
 const semResposta=g=>!g.pago && !decisaoFat(g);
 let fatCache={f:"",em:0,grupos:[]}, fatBuscando=false;
 async function verificarFaturasFechadas(soRedesenhar){
+  if(S.limitada) return;
   const av=$("#avisoFatura"); if(!av) return;
   if(!central()||!S.db){ av.hidden=true; return; }
   const [a,f]=ultimaSemanaFechada();
@@ -8178,6 +8198,7 @@ $("#btnFaleCentral").addEventListener("click",()=>abrirFaleCentral());
    (das mãos do entregador, da central, por Pix ou abatido na fatura). Ao confirmar, o pedido fica verde na central. */
 let dinComBuscando=false;
 async function verificarDinComercio(){
+  if(S.limitada) return;
   const av=$("#avisoDinCom"); if(!av) return;
   if(!comercio()||!S.db){ av.hidden=true; return; }
   if(dinComBuscando) return; dinComBuscando=true;
@@ -8673,7 +8694,7 @@ async function aprovar(sol, alvoId, taxaNova){
 async function sincronizarVinculo(m, mud){
   if(!m.uid) return;
   const n={...m,...mud};
-  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional,grupo:grupoDe(n),fechamento:n.fechamento==="mensal"?"mensal":"semanal"}));
+  await comRetry(()=>S.db.doc("vinculos/"+m.uid).set({equipeId:m.id,nome:n.nome,taxa:num(n.taxa),ativo:n.ativo!==false,semAdicional:!!n.semAdicional,acessoCentral:!!n.acessoCentral,grupo:grupoDe(n),fechamento:n.fechamento==="mensal"?"mensal":"semanal"}));
 }
 /* ---------- CADASTROS: clientes · entregadores · comércios ---------- */
 /* número de ordem de cadastro (000001, 000002…), pela data em que foi cadastrado */
@@ -9093,6 +9114,7 @@ function editarEntregador(e){
   const fG=h("select",{class:"inp",id:"eeG"},h("option",{value:"movvi",text:"Movvi+ (vê todos os pedidos)"}),h("option",{value:"outros",text:"Outros (só pedidos pagos e em dinheiro)"}));
   fG.value=grupoDe(e);
   const fSA=h("input",{type:"checkbox",id:"eeSA"}); fSA.checked=!!e.semAdicional;
+  const fAC=h("input",{type:"checkbox",id:"eeAC"}); fAC.checked=!!e.acessoCentral;
   const fF=h("select",{class:"inp",id:"eeF"},h("option",{value:"semanal",text:"Fechamento semanal (fecha todo domingo)"}),h("option",{value:"mensal",text:"Fechamento mensal (fecha no último dia do mês)"}));
   fF.value=e.fechamento==="mensal"?"mensal":"semanal";
   const fP=h("input",{class:"inp",id:"eeP",value:e.pix||"",placeholder:"CPF, telefone, e-mail ou chave aleatória",autocomplete:"off"});
@@ -9109,6 +9131,7 @@ function editarEntregador(e){
     h("div",{class:"campo"},h("label",{for:"eeG",text:"Grupo"}),fG),
     h("div",{class:"campo"},h("label",{for:"eeF",text:"Fatura"}),fF),
     h("label",{class:"manter",style:"justify-content:flex-start"},fSA," Faz parte da central (não recebe adicionais nem bônus)"),
+    h("label",{class:"manter",style:"justify-content:flex-start"},fAC," Pode abrir a central só para ver e editar pedidos (continua entregador, recebe normal)"),
     h("div",{class:"campo"},h("label",{for:"eeP",text:"Chave Pix (para pagamento)"}),fP),
     h("div",{class:"campo"},h("label",{for:"eeTel",text:"Telefone / WhatsApp"}),fTel),
     msg,ok];
@@ -9130,14 +9153,14 @@ function editarEntregador(e){
   const fechar=abrirSheet(novo?"Cadastrar entregador":"Editar "+e.nome,corpo);
   ok.addEventListener("click",async()=>{
     const primeiroNome=fN.value.trim().replace(/\s+/g," "), sobrenome=fSob.value.trim().replace(/\s+/g," "), nome=(primeiroNome+" "+sobrenome).trim();
-    const taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, pix=fP.value.trim(), telefone=fTel.value.trim(), fechamento=fF.value==="mensal"?"mensal":"semanal"; msg.hidden=true;
+    const taxa=num(fT.value), grupo=fG.value||"movvi", semAdicional=fSA.checked, acessoCentral=fAC.checked, pix=fP.value.trim(), telefone=fTel.value.trim(), fechamento=fF.value==="mensal"?"mensal":"semanal"; msg.hidden=true;
     if(!primeiroNome){ msg.hidden=false; msg.textContent="Informe o nome."; fN.focus(); return; }
     if(!sobrenome){ msg.hidden=false; msg.textContent="Informe o sobrenome."; fSob.focus(); return; }
     ok.disabled=true;
     try{
-      const d={nome,primeiroNome,sobrenome,taxa,grupo,semAdicional,pix,telefone,fechamento};
+      const d={nome,primeiroNome,sobrenome,taxa,grupo,semAdicional,acessoCentral,pix,telefone,fechamento};
       if(novo) await comRetry(()=>S.db.collection("equipe").add({...d,ativo:true,criadoEm:new Date().toISOString()}));
-      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional,fechamento}); }
+      else { await comRetry(()=>S.db.doc("equipe/"+e.id).update(d)); await sincronizarVinculo(e,{nome,taxa,grupo,semAdicional,acessoCentral,fechamento}); }
       fechar(); toast(novo?"Entregador cadastrado":"Entregador atualizado");
     }catch(err){ ok.disabled=false; msg.hidden=false; msg.textContent="Não foi possível salvar ("+(err&&err.code||"erro")+")."; }
   });
@@ -9212,10 +9235,14 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
   db.collection("comercios").onSnapshot(snap=>{ S.categoriaCom=Object.fromEntries(snap.docs.map(d=>d.data()||{}).filter(c=>c.nome).map(c=>[slug(c.nome),c.categoria||"farmacia"])); },()=>{});
   db.doc("config/adicionais").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; S.bairrosAdic=Array.isArray(d.bairros)?d.bairros.filter(b=>b&&b.nome&&num(b.qtd)>0):[]; },()=>{});
   db.collection("empresas").onSnapshot(snap=>{ S.empresas=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome).sort((a,b)=>a.nome.localeCompare(b.nome)); },()=>{});
-  if(S.admin){
+  // entregador com permissão que tocou em "Abrir central (pedidos)": central só de pedidos
+  if(!S.admin && S.uid){ let quer=false; try{ quer=sessionStorage.getItem("movvi.centralPedidos")==="1"; }catch(e){}
+    if(quer){ try{ const vs=await db.doc("vinculos/"+S.uid).get(); const v=vs&&vs.exists?vs.data():null;
+      if(v && v.ativo!==false && v.acessoCentral){ S.limitada=true; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; } else sessionStorage.removeItem("movvi.centralPedidos"); }catch(e){} } }
+  if(S.admin || S.limitada){
     S.modo="central"; aplicarModo();
-    ouvirRecados();   // recados, avisos de Pix, transferências e bate-papo com os entregadores
-    exigirSenha("central");
+    if(!S.limitada){ ouvirRecados();   // recados, avisos de Pix, transferências e bate-papo com os entregadores
+      exigirSenha("central"); }
     db.collection("equipe").onSnapshot(snap=>{
       S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome);
       renderQuem(); renderChips(); renderEquipe(); renderAcertos(); renderPedidos();
@@ -9227,17 +9254,17 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       renderComercios(); reassinarExtras();
     },e=>console.warn(e));
     let primeiraSol=true;
-    db.collection("solicitacoes").onSnapshot(snap=>{
+    if(!S.limitada) db.collection("solicitacoes").onSnapshot(snap=>{
       if(!primeiraSol && snap.docChanges().some(c=>c.type==="added")) alerta("Novo pedido de acesso na aba Equipe");
       primeiraSol=false;
       S.solicitacoes=snap.docs.map(d=>({id:d.id,...d.data()})); renderSolicitacoes();
     },()=>{});
-    db.collection("aceites").onSnapshot(snap=>{
+    if(!S.limitada) db.collection("aceites").onSnapshot(snap=>{
       snap.docs.map(d=>({id:d.id,...d.data()})).filter(a=>(a.status==="aceita"||a.status==="em_rota"||a.status==="entregue") && a.syncEstado!==a.status).forEach(sincronizarAceite);
     },e=>console.warn("aceites",e));
     db.collection("status").onSnapshot(snap=>{ S.disp=Object.fromEntries(snap.docs.map(d=>[d.id,(d.data()||{}).disponivel!==false])); renderEquipe(); atualizarControle(); },()=>{});
-    db.collection("senhas").onSnapshot(snap=>{ S.usuarios=Object.fromEntries(snap.docs.map(d=>[d.id,(d.data()||{}).usuario||""])); renderEquipe(); renderComercios(); },()=>{});
-    db.collection("acertos").orderBy("criadoEm","desc").limit(60).onSnapshot(snap=>{ S.acertos=snap.docs.map(d=>({id:d.id,...d.data()})); renderAcertos(); },()=>{});
+    if(!S.limitada) db.collection("senhas").onSnapshot(snap=>{ S.usuarios=Object.fromEntries(snap.docs.map(d=>[d.id,(d.data()||{}).usuario||""])); renderEquipe(); renderComercios(); },()=>{});
+    if(!S.limitada) db.collection("acertos").orderBy("criadoEm","desc").limit(60).onSnapshot(snap=>{ S.acertos=snap.docs.map(d=>({id:d.id,...d.data()})); renderAcertos(); },()=>{});
     assinarDia();
   }else{
     if(!S.uid){ S.modo="semacesso"; aplicarModo(); return; }
@@ -9247,7 +9274,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       const antes=S.modo;
       if(v && v.ativo!==false && v.tipo==="comercio"){ S.modo="comercio"; S.euNome=v.nome||"Comércio"; S.euEndereco=v.endereco||""; S.euTaxa=num(v.taxa??TAXA_PADRAO); S.euCategoria=v.categoria||"farmacia";
         if(!S.subEquipeCom) S.subEquipeCom=db.collection("equipe").onSnapshot(snap=>{ S.equipe=snap.docs.map(d=>({id:d.id,...d.data()})).filter(e=>e.nome); assinarDia(); },()=>{}); }
-      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; S.euFechamento=v.fechamento==="mensal"?"mensal":"semanal"; S.euGrupo=v.grupo==="outros"?"outros":"movvi"; }
+      else if(v && v.ativo!==false){ S.modo="entregador"; S.eu=v.equipeId; S.euNome=v.nome||"Entregador"; S.euTaxa=num(v.taxa); S.euSemAdicional=!!v.semAdicional; S.euAcessoCentral=!!v.acessoCentral; if(!v.acessoCentral) try{ sessionStorage.removeItem("movvi.centralPedidos"); }catch(e){} S.euFechamento=v.fechamento==="mensal"?"mensal":"semanal"; S.euGrupo=v.grupo==="outros"?"outros":"movvi"; }
       else if(v){ S.modo="desativado"; }
       else { S.modo="semacesso"; }
       if(antes!==S.modo){ aplicarModo(); assinarOfertas(); if(S.modo==="entregador"||S.modo==="comercio") exigirSenha(S.modo).then(()=>setTimeout(saudacaoDoDia,600)); } else renderQuem();
