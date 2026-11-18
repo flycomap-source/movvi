@@ -7944,14 +7944,15 @@ function abrirChat(conv,chegou){
   const meuLado = par ? S.uid : (central()?"central":"entregador");
   const lista=h("div",{style:"flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:5px;padding:10px;background:var(--bg,#f2f3f7);border-radius:12px"});
   const txt=h("textarea",{class:"inp",rows:"2",maxlength:"500",placeholder:"Escreva a mensagem",style:"resize:none;flex:1;min-height:44px"});
-  const env=h("button",{class:"btn",type:"button",style:"flex:none;padding:0 16px"},"Enviar");
+  const env=h("button",{class:"btn",type:"button","aria-label":"Enviar",title:"Enviar",style:"flex:none;width:44px;min-width:44px;height:44px;padding:0;border-radius:50%;font-size:20px;display:grid;place-items:center;align-self:flex-end"},"➤");
   const prontos = central() ? ["Ok, entendido 👍","Me liga, por favor"] : par ? ["Me liga, por favor"] : ["Cliente não atende","Me liga, por favor"];
   const chips=h("div",{style:"display:flex;flex-wrap:wrap;gap:6px"},...prontos.map(x=>h("button",{class:"chip",type:"button",onclick:()=>{ txt.value=x; txt.focus(); }},x)));
   const btMin=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",title:"Voltar",style:"font-size:22px"},"←");
   const btFim=par?null:h("button",{class:"btn sec",type:"button",style:"padding:6px 10px;font-size:13px;border-color:var(--bad);color:var(--bad)"},"Encerrar");
   const n=Object.keys(S.chatJanelas).length;
   // 🎤 áudio: toca para gravar, toca de novo para enviar (✕ cancela)
-  const btMic=h("button",{class:"btn",type:"button","aria-label":"Gravar áudio",title:"Gravar áudio",style:"flex:none;padding:0 14px;font-size:22px;background:var(--laranja);border-color:var(--laranja)"},"🎤");
+  const MIC_EST="flex:none;width:40px;min-width:40px;height:44px;padding:0;border:0;background:transparent;font-size:24px;display:grid;place-items:center;cursor:pointer;align-self:flex-end;border-radius:50%";
+  const btMic=h("button",{type:"button","aria-label":"Gravar áudio",title:"Gravar áudio",style:MIC_EST},"🎤");
   const gravBar=h("div",{hidden:true,style:"display:flex;align-items:center;gap:8px;background:#fee2e2;border-radius:12px;padding:8px 10px"});
   const rodape=soLer?h("p",{class:"muted",style:"margin:0;font-size:12px;text-align:center",text:"Só leitura: conversa entre entregadores."}):h("div",{style:"display:flex;flex-direction:column;gap:6px"},gravBar,h("div",{style:"display:flex;gap:8px;align-items:stretch"},txt,btMic,env));
   const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["chat",conv]),"aria-label":"Conversa com "+tituloChat(conv),style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
@@ -7988,14 +7989,14 @@ function abrirChat(conv,chegou){
     const rec=new MediaRecorder(st,tipo?{mimeType:tipo,audioBitsPerSecond:24000}:undefined), partes=[], t0=Date.now();
     const tempo=h("b",{class:"num",style:"color:#b91c1c",text:"0:00"}), cancelar=h("button",{class:"mini",type:"button","aria-label":"Cancelar áudio"},"✕");
     gravBar.replaceChildren(h("span",{style:"font-size:18px",text:"🔴"}),tempo,h("span",{style:"flex:1;font-size:13px",text:"Gravando… toque em ➤ para enviar"}),cancelar);
-    gravBar.hidden=false; btMic.textContent="➤"; btMic.style.background="#16a34a"; btMic.style.borderColor="#16a34a"; btMic.setAttribute("aria-label","Enviar áudio");
+    gravBar.hidden=false; btMic.textContent="➤"; btMic.style.background="#16a34a"; btMic.style.color="#fff"; btMic.style.fontSize="20px"; btMic.setAttribute("aria-label","Enviar áudio");
     grav={rec,enviar:false,tic:setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); tempo.textContent=Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); if(s>=120) pararGrav(true); },500)};
     cancelar.addEventListener("click",()=>pararGrav(false));
     rec.ondataavailable=e=>{ if(e.data&&e.data.size) partes.push(e.data); };
     rec.onstop=async()=>{
       st.getTracks().forEach(t=>t.stop());
       const enviar=grav&&grav.enviar, dur=Math.max(1,Math.round((Date.now()-t0)/1000)); grav=null;
-      gravBar.hidden=true; btMic.textContent="🎤"; btMic.style.background="var(--laranja)"; btMic.style.borderColor="var(--laranja)"; btMic.setAttribute("aria-label","Gravar áudio");
+      gravBar.hidden=true; btMic.textContent="🎤"; btMic.style.cssText=MIC_EST; btMic.setAttribute("aria-label","Gravar áudio");
       if(!enviar || !partes.length) return;
       if(dur<1){ toast("Áudio muito curto."); return; }
       btMic.disabled=true; btMic.textContent="⏳";
