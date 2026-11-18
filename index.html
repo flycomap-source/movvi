@@ -4317,12 +4317,15 @@ function abrirRota(op){
   })();
   if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
   // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
-  const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=paradas.length; salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
-  new MutationObserver(rotuloSalvar).observe(caixaParadas,{childList:true}); rotuloSalvar();
+  const preenchidas=()=>paradas.filter(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim()).length;
+  const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=preenchidas(); salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
+  new MutationObserver(rotuloSalvar).observe(caixaParadas,{childList:true,subtree:true}); caixaParadas.addEventListener("input",rotuloSalvar); rotuloSalvar();
   salvar.addEventListener("click",async()=>{
     msg.hidden=true;
     const lista=paradas.map(st=>({cliente:st.cli.value.trim(),telefone:st.tel.value.trim(),endereco:st.end.value.trim(),bairro:st.bai.value.trim(),numero:"",pagamento:st.pag,valorDinheiro:st.pag==="dinheiro"?num(st.din.value):0,obs:st.obs.value.trim(),pegarReceita:st.rec.checked,produtosReceita:st.rec.checked?(st.produtos||[]):[]}));
     // empresa de coleta é opcional (não precisa estar cadastrada)
+    // paradas vazias (sem nome, endereço nem telefone) não contam
+    for(let i=lista.length-1;i>=0;i--) if(!lista[i].cliente && !lista[i].endereco && !lista[i].telefone){ lista.splice(i,1); }
     if(!lista.length){ msg.hidden=false; msg.textContent="Escaneie ou adicione pelo menos uma comanda."; return; }
     if(lista.length===1){   // só uma comanda: vira uma entrega normal (abre o formulário para conferir e lançar)
       const x=lista[0]; limparRascCentral(); fechar();
