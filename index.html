@@ -1036,14 +1036,21 @@ function restaurarTela(){
   }catch(e){ S.telaRestaurada=true; }
     reabrirJanelas(t.janelas||[]); },0);
 }
+const MARCA_MAPA="movvi.mapaReabrindo";
+function mapaPodeReabrir(){ try{ const t=+localStorage.getItem(MARCA_MAPA)||0; if(t && Date.now()-t<10*60000){ localStorage.removeItem(MARCA_MAPA); return false; } }catch(e){} return true; }
+function marcarMapaReabrindo(){ try{ localStorage.setItem(MARCA_MAPA,String(Date.now())); setTimeout(()=>{ try{ localStorage.removeItem(MARCA_MAPA); }catch(e){} },15000); }catch(e){} }
 function reabrirJanelas(lista){
   const ped=id=>(S.pedidosDia||[]).find(p=>p.id===id)||Object.values(S.fontesDia||{}).flat().find(p=>p&&p.id===id);
   const abre={
     chat:conv=>{ if(!conv) return true; if(!(chatDoc(conv)||conv===S.uid)) return false; abrirChat(conv,false); return true; },
     mensagens:()=>{ abrirMensagens(); return true; },
     detalhes:id=>{ const p=ped(id); if(!p) return false; abrirDetalhes(p); return true; },
-    // mapas não reabrem sozinhos depois de atualizar (se o mapa travar, o app não fica preso nele)
+    // mapas reabrem depois de atualizar, com proteção: se a última vez que o mapa reabriu sozinho o app travou
+    // (a marca não foi apagada em 15 s), desta vez não reabre e o app volta para a tela principal
+    mapaEntregadores:()=>{ if(!mapaPodeReabrir()) return true; if(!(S.pedidosDia||[]).length && Date.now()-reabrirJanelas.t0<6000) return false; marcarMapaReabrindo(); abrirMapaEntregadores(); return true; },
+    mapaEntrega:id=>{ if(!mapaPodeReabrir()) return true; const p=ped(id); if(!p) return false; marcarMapaReabrindo(); abrirMapaEntrega(p); return true; },
     rotaCentral:()=>{ abrirRotaCentral(); return true; }};
+  reabrirJanelas.t0=Date.now();
   let i=0, tent=0;
   const passo=()=>{
     while(i<lista.length){
