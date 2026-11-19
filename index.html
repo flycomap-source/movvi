@@ -2618,8 +2618,14 @@ function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" 
 /* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
 /* endereço com o bairro no fim (quando o bairro ainda não está escrito no endereço) */
 /* bairro do pedido: o salvo; senão o que vem depois de " - " no endereço; senão um bairro conhecido escrito no endereço; senão o do cadastro do cliente */
+const _cacheBairroPed=new Map();
 function bairroDoPedido(p){
   if(!p) return ""; const b0=String(p.bairro||"").trim(); if(b0) return b0;
+  const ch=(p.endereco||"")+"|"+(p.telefone||"")+"|"+(p.clienteCodigo||"");
+  const c=_cacheBairroPed.get(ch), ag=Date.now(); if(c && (c.r || ag-c.t<20000)) return c.r;
+  const r=bairroDoPedidoCalc(p); if(_cacheBairroPed.size>3000) _cacheBairroPed.clear(); _cacheBairroPed.set(ch,{r,t:ag}); return r;
+}
+function bairroDoPedidoCalc(p){
   const end=String(p.endereco||"").replace(/\s*\([^)]*\)\s*/g," ").trim(), partes=end.split(/\s+-\s+/);
   if(partes.length>1){ const b=partes.slice(1).map(x=>x.replace(/,?\s*una[ií](?:[\s,]|$).*$/i,"").replace(/,?\s*\d{5}-?\d{3}.*$/,"").trim()).filter(x=>x&&!/^[\d\s-]+$/.test(x)&&!/^(unai|mg|apto|ap\b|casa|bloco|lote|qd|quadra)/i.test(semAcento(x).trim())).join(" - ").trim(); if(b) return b; }
   try{ const b=bairroNoEndereco(end); if(b) return b; }catch(e){}
@@ -3735,7 +3741,9 @@ function bairrosConhecidos(){
   (S.pedidosDia||[]).forEach(p=>add(p.bairro)); (S.clientes||[]).forEach(c=>add(c.bairro));
   return [...set.values()].sort((a,b)=>a.localeCompare(b));
 }
-function bairroNoEndereco(end){ const alvo=normBairro(end||""); let melhor="",tam=0; bairrosConhecidos().forEach(b=>{ const n=normBairro(b); if(n.trim() && alvo.includes(n) && n.length>tam){ melhor=b; tam=n.length; } }); return melhor; }
+let _bairrosNorm=null,_bairrosNormEm=0;
+function bairrosNormalizados(){ const ag=Date.now(); if(!_bairrosNorm || ag-_bairrosNormEm>20000){ _bairrosNorm=bairrosConhecidos().map(b=>[b,normBairro(b)]).filter(x=>x[1].trim()); _bairrosNormEm=ag; } return _bairrosNorm; }
+function bairroNoEndereco(end){ const alvo=normBairro(end||""); let melhor="",tam=0; bairrosNormalizados().forEach(([b,n])=>{ if(alvo.includes(n) && n.length>tam){ melhor=b; tam=n.length; } }); return melhor; }
 /* campo de bairro com lista para escolher: ao tocar mostra os bairros cadastrados; digitando, filtra */
 function comListaBairros(inp){
   inp.removeAttribute("list"); inp.setAttribute("autocomplete","off");
