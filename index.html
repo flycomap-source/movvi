@@ -5331,7 +5331,7 @@ function abrirPedido(p,arquivoComanda,pre){
   // entrega nova entra sempre no dia de hoje (só a central pode lançar num dia que escolheu na tela)
   const novo=!p; p=p||{pagamento:"dinheiro",entregadorId:central()?(S.filtro!=="todos"?S.filtro:""):S.eu,data:central()?S.dia:hoje(),...(pre||{})};
   let pag=p.pagamento||"dinheiro";
-  let outrosServ = (p.servicoTipo && p.servicoTipo!=="entrega") || p.tipoServico==="transferencia" || pag==="convenio";
+  let outrosServ = (p.servicoTipo && p.servicoTipo!=="entrega") || p.tipoServico==="transferencia";   // "assinar nota" sozinho é entrega
   const subServ = "outros";
   const fNum=h("input",{class:"inp num",id:"pNum",readonly:true,tabindex:"-1",style:"background:var(--bg);color:var(--muted)",value:novo?"Automático":(p.numero?"#"+p.numero:"—")});
   const fData=h("input",{class:"inp",type:"date",id:"pData",value:p.data||S.dia});
@@ -5688,7 +5688,7 @@ function abrirPedido(p,arquivoComanda,pre){
     onclick:()=>{ servSub=k; if(k==="convenio") pag="convenio"; else if(pag==="convenio") pag="pix"; atuServ(); }},t)));
   const campoServDesc=h("div",{class:"campo",hidden:true},gradeSub,h("label",{for:"pServDesc",text:"Observação (o que é para fazer)"}),fServDesc,
     h("span",{class:"muted num",style:"font-size:12px","data-preco-outros":"1"}));
-  btEntrega.addEventListener("click",()=>{ outrosServ=false; servSub=""; servico="entrega"; if(pag==="convenio") pag="dinheiro"; atuServ(); });
+  btEntrega.addEventListener("click",()=>{ outrosServ=false; servSub=""; servico="entrega"; atuServ(); });   // mantém o pagamento escolhido (pode ser entrega com assinar nota)
   btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; servico="entrega"; if(pag==="dinheiro" && !num(fDin.value)) pag="pix"; atuServ(); try{ fServDesc.focus(); }catch(e){} });
   function sincServ(){
     if(servico==="transferencia") outrosServ=true;   // "Assinar nota" no pagamento NÃO muda para outros serviços
