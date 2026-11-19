@@ -2662,17 +2662,20 @@ const btObsEnt=p=>p.obsFinalizacao?h("button",{class:"mini-bt",type:"button",tit
 /* adicional lançado pelo entregador: a central confirma ou tira */
 function precisaConfirmarAdic(p){ return central() && !S.limitada ? !!(p.adicionalAConfirmar && num(p.adicionais)>0) : !!(central() && p.adicionalAConfirmar && num(p.adicionais)>0); }
 async function resolverAdic(p,ok){
-  const upd=ok?{adicionalAConfirmar:false,adicionalConfirmado:true}:{adicionalAConfirmar:false,adicionais:0,adicionalMotivo:"",adicionalBairro:""};
-  Object.assign(upd,comRegistro(p,ok?"Adicional confirmado pela central":"Adicional retirado pela central"));
+  // tirar = volta para os adicionais que já valiam antes do entregador acrescentar (ex.: tinha 4, ele pôs +2 → volta para 4)
+  const antes=Math.max(0,Math.round(num(p.adicionaisAntes))), atual=Math.max(0,Math.round(num(p.adicionais)));
+  const upd=ok?{adicionalAConfirmar:false,adicionalConfirmado:true}
+    :{adicionalAConfirmar:false,adicionais:Math.min(antes,atual),adicionalMotivo:antes?String(p.adicionalMotivoAntes||p.adicionalMotivo||""):"",...(antes?{}:{adicionalBairro:""})};
+  Object.assign(upd,comRegistro(p,ok?"Adicional confirmado pela central":(antes?"Adicional do entregador retirado pela central (voltou para "+Math.min(antes,atual)+")":"Adicional retirado pela central")));
   try{ await comRetry(()=>S.db.doc(p._path).update(upd)); toast(ok?"Adicional confirmado":"Adicional retirado"); }catch(e){ toast("Não foi possível salvar ("+(e&&e.code||"erro")+")."); }
 }
 function blocoAdicConfirmar(p,mini){
   if(!precisaConfirmarAdic(p)) return null;
-  const n=num(p.adicionais);
+  const nTot=Math.max(0,Math.round(num(p.adicionais))), nAntes=Math.min(nTot,Math.max(0,Math.round(num(p.adicionaisAntes)))), n=nTot-nAntes;
   const ok=h("button",{type:"button",style:"border:0;border-radius:8px;background:#16a34a;color:#fff;font-weight:800;padding:6px 10px;cursor:pointer",onclick:e=>{ e.stopPropagation(); resolverAdic(p,true); }},"✓ Confirmar");
-  const no=h("button",{type:"button",style:"border:1.5px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:800;padding:6px 10px;cursor:pointer",onclick:e=>{ e.stopPropagation(); resolverAdic(p,false); }},"✕ Tirar");
+  const no=h("button",{type:"button",style:"border:1.5px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:800;padding:6px 10px;cursor:pointer",onclick:e=>{ e.stopPropagation(); resolverAdic(p,false); }},nAntes?"✕ Tirar os +"+n:"✕ Tirar");
   return h("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:10px;padding:8px 10px;color:#991b1b;font-weight:700;font-size:"+(mini?"12.5px":"14px")+";"+(mini?"grid-column:1/-1;margin-top:4px":"")},
-    h("span",{style:"flex:1;min-width:180px",text:"⚠ "+(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Entregador"))+" lançou +"+n+(n>1?" adicionais":" adicional")+(p.adicionalMotivo?" · motivo: "+p.adicionalMotivo:"")+" — confirme"}),ok,no);
+    h("span",{style:"flex:1;min-width:180px",text:"⚠ "+(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Entregador"))+" lançou +"+n+(n>1?" adicionais":" adicional")+(nAntes?" (já tinha "+nAntes+", ficaria "+nTot+")":"")+(p.adicionalMotivo?" · motivo: "+p.adicionalMotivo:"")+" — confirme"}),ok,no);
 }
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
@@ -6181,7 +6184,10 @@ function abrirConfirmacao(p,op){
     }
     ok.textContent="Finalizando…";
     const upd={status:"entregue",entregueEm:new Date().toISOString(),entreguePor:S.uid||"",adicionais:adic,
-      ...(S.modo==="entregador" && !adicAuto && adic>0 && (adic!==Math.max(0,Math.round(num(p.adicionais))) || motivo.value.trim()!==String(p.adicionalMotivo||"").trim()) ? {adicionalAConfirmar:true} : {}),adicionalMotivo:adicAuto?(p.adicionalMotivo||"Lançado pela central"):adic?motivo.value.trim():""};
+      ...(S.modo==="entregador" && !adicAuto && adic>0 && (adic!==Math.max(0,Math.round(num(p.adicionais))) || motivo.value.trim()!==String(p.adicionalMotivo||"").trim()) ? {adicionalAConfirmar:true,
+        /* quantos adicionais já valiam antes do entregador mexer: se a central tirar, volta para esse número */
+        adicionaisAntes:p.adicionalAConfirmar?Math.max(0,Math.round(num(p.adicionaisAntes))):Math.max(0,Math.round(num(p.adicionais))),
+        adicionalMotivoAntes:p.adicionalAConfirmar?String(p.adicionalMotivoAntes||""):String(p.adicionalMotivo||"")} : {}),adicionalMotivo:adicAuto?(p.adicionalMotivo||"Lançado pela central"):adic?motivo.value.trim():""};
     const valRec = formaRec==="dinheiro" ? num(fValRec.value) : 0;
     const alterado = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(valRec-valAnunc)>0.009);
     Object.assign(upd,{pagamentoConfirmado:true,pagamentoAnunciado:anunc,valorAnunciado:valAnunc,pagamento:formaRec,valorDinheiro:valRec,pagamentoAlterado:alterado});
