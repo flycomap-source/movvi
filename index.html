@@ -7784,6 +7784,11 @@ function geocodificar(pt){
   });
   return geoFila.then(()=>S.geo[pt.chave]);
 }
+/* troca só o endereço mostrado (sem recarregar): .../movvi/maps com o mapa aberto, .../movvi/ fechado */
+function urlMapa(aberto){
+  try{ if(!central()) return; const base=location.pathname.replace(/maps\/?$/,"").replace(/[^\/]*$/,"");
+    const alvo=aberto?base+"maps":base; if(location.pathname!==alvo) history.replaceState(history.state,"",alvo+location.search+location.hash); }catch(e){}
+}
 function abrirMapaEntregadores(){
   const area=h("div",{style:"flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative"},h("p",{class:"muted",style:"margin:auto;padding:20px;text-align:center",text:"Carregando o mapa…"}));
   const lista=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;flex:none"});
@@ -7881,7 +7886,10 @@ function abrirMapaEntregadores(){
     const nLoj=pts.reduce((a,pt)=>a+pt.pedidos.length,0);
     resumoLoj.textContent=pts.length?"🏪 "+pts.length+(pts.length===1?" local":" locais")+" com "+nLoj+(nLoj===1?" pedido em aberto":" pedidos em aberto"):"Nenhum pedido em aberto";
   };
-  const fechar=()=>{ if(unsub) unsub(); if(unsubGeo) unsubGeo(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); };
+  const fechar=()=>{ if(unsub) unsub(); if(unsubGeo) unsubGeo(); clearInterval(tic); try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); urlMapa(false); };
+  // na central o endereço vira .../movvi/maps enquanto o mapa está aberto (link direto do mapa)
+  urlMapa(true);
+  { const ob=new MutationObserver(()=>{ if(!jan.isConnected){ ob.disconnect(); urlMapa(false); } }); setTimeout(()=>{ if(jan.isConnected) ob.observe(document.body,{childList:true,subtree:true}); else urlMapa(false); },0); }
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
   const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
   const desenhar=()=>{
