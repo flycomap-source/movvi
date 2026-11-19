@@ -2490,11 +2490,11 @@ function fmtMin(m){ if(m===null||m===undefined) return "—"; if(m<60) return m+
 function tempoMedio(lst){ const v=lst.map(minutosTotais).filter(x=>x!==null); return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null; }
 /* tempo total fica só nos relatórios */
 function selTempo(p){ return null; }
-/* entregador: a borda do card pisca em vermelho quando a etapa atual passa de 10 minutos */
-const MIN_ALERTA=10;
+/* entregador: a borda do card pisca quando a etapa atual demora: coletar/aceitar 10 min, em rota 30 min */
+const MIN_ALERTA=10, MIN_ALERTA_ROTA=30;
 function marcarAtrasos(){
   const agora=Date.now();
-  document.querySelectorAll(".ped[data-desde]").forEach(c=>{ const t=Date.parse(c.dataset.desde); c.classList.toggle("atrasado", !isNaN(t) && agora-t>=MIN_ALERTA*60000); });
+  document.querySelectorAll(".ped[data-desde]").forEach(c=>{ const t=Date.parse(c.dataset.desde), lim=c.dataset.emRota==="1"?MIN_ALERTA_ROTA:MIN_ALERTA; c.classList.toggle("atrasado", !isNaN(t) && agora-t>=lim*60000); });
 }
 setInterval(marcarAtrasos,20000);
 function iniciais(t){ const w=String(t||"").trim().split(/\s+/).filter(x=>!/^(de|da|do|das|dos|e)$/i.test(x)); return ((w[0]||"?")[0]+((w[1]||"")[0]||"")).toUpperCase(); }
@@ -2715,7 +2715,7 @@ function cartaoPedidoBase(p){
           (g.adic>0||g.bonus>0)?h("span",{class:"num",style:"margin-top:3px;font-size:12px;font-weight:900;background:var(--ok);color:#fff;border-radius:7px;padding:2px 8px;white-space:nowrap;box-shadow:0 2px 6px rgba(23,132,90,.3)",text:"Total "+fmt(g.total)}):null); })()
       : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(naTela(()=>ganhoPedido(p)))}))
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
-  const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde}:{})},
+  const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde,"data-em-rota":p.emRotaEm?"1":"0"}:{})},
     central()
       ? h("button",{type:"button",class:"ped-ent"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},
           "🛵 "+(p.entregadorId?nomeEnt(p.entregadorId)+(p._path&&p._path.startsWith("pedidos/")?" (sem app)":""):"Sem entregador")+(entregue?"":"  ▾"))
