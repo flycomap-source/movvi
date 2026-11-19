@@ -1032,7 +1032,8 @@ function restaurarTela(){
     try{ localStorage.removeItem(MARCA_MAPA); }catch(e){}
     setTimeout(()=>reabrirJanelas([["mapaEntregadores"]]),0); return; }
   const t=TELA_SALVA;
-  if(!t || t.modo!==S.modo || !t.v || t.v==="acesso"){ S.telaRestaurada=true; guardarTela(); return; }
+  // "pagina" é uma tela montada na hora (ex.: cadastro de comércios): não dá para reabrir vazia, volta para a principal
+  if(!t || t.modo!==S.modo || !t.v || t.v==="acesso" || t.v==="pagina"){ S.telaRestaurada=true; guardarTela(); if(t && t.v==="pagina" && t.janelas && t.janelas.length) reabrirJanelas(t.janelas); return; }
   setTimeout(()=>{ try{
     if(t.v==="acerto" && t.fat) fatTipo=t.fat;
     S.telaRestaurada=true;
