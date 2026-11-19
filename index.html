@@ -2617,7 +2617,19 @@ const COLS_COM=["Situação","Hora","Pedido","Endereço","Pagamento","Entregador
 function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" com":"")},...(comercio()?COLS_COM:COLS_CEN).map(c=>h("span",{text:c}))); }
 /* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
 /* endereço com o bairro no fim (quando o bairro ainda não está escrito no endereço) */
-function endComBairro(p){ const e=String((p&&p.endereco)||"").trim(), b=String((p&&p.bairro)||"").trim();
+/* bairro do pedido: o salvo; senão o que vem depois de " - " no endereço; senão um bairro conhecido escrito no endereço; senão o do cadastro do cliente */
+function bairroDoPedido(p){
+  if(!p) return ""; const b0=String(p.bairro||"").trim(); if(b0) return b0;
+  const end=String(p.endereco||"").replace(/\s*\([^)]*\)\s*/g," ").trim(), partes=end.split(/\s+-\s+/);
+  if(partes.length>1){ const b=partes.slice(1).map(x=>x.replace(/,?\s*una[ií](?:[\s,]|$).*$/i,"").replace(/,?\s*\d{5}-?\d{3}.*$/,"").trim()).filter(x=>x&&!/^[\d\s-]+$/.test(x)&&!/^(unai|mg|apto|ap\b|casa|bloco|lote|qd|quadra)/i.test(semAcento(x).trim())).join(" - ").trim(); if(b) return b; }
+  try{ const b=bairroNoEndereco(end); if(b) return b; }catch(e){}
+  try{ const cad=(p.clienteCodigo&&(S.clientes||[]).find(c=>c.codigo===p.clienteCodigo))||(p.telefone&&cliPorTel(p.telefone));
+    if(cad){ const x=enderecosDe(cad).find(y=>semAcento(y.endereco)===semAcento(p.endereco)||mesmoEndereco(y.endereco,p.endereco||""));
+      if(x){ if(x.bairro) return String(x.bairro).trim(); const pp=String(x.endereco).split(/\s+-\s+/); if(pp.length>1){ const b=pp.slice(1).map(z=>z.replace(/,?\s*una[ií](?:[\s,]|$).*$/i,"").replace(/,?\s*\d{5}-?\d{3}.*$/,"").trim()).filter(z=>z&&!/^(unai|mg)\b/i.test(semAcento(z))).join(" - "); if(b) return b; } }
+      if(cad.bairro) return String(cad.bairro).trim(); } }catch(e){}
+  return "";
+}
+function endComBairro(p){ const e=String((p&&p.endereco)||"").trim(), b=bairroDoPedido(p);
   if(!b) return e; if(!e) return b; if(semAcento(e).includes(semAcento(b))) return e; return e+" - "+b; }
 function celCliente(p,extra){
   const entregue=p.status==="entregue";
@@ -2625,7 +2637,7 @@ function celCliente(p,extra){
     (!entregue && posNaRota(p))?(()=>{ const r=posNaRota(p); return "🧭"+r.n+"/"+r.de+(r.coleta?" coletar":""); })():p.rotaOrdem?"Parada "+p.rotaOrdem:"", p.obs?"📝":"", extra||""].filter(Boolean).join(" ");
   // em cima a rua (endereço), embaixo o bairro — o nome do cliente aparece ao clicar
   const end=String(p.endereco||"").trim(), partes=end.replace(/\s*\([^)]*\)\s*/g," ").trim().split(/\s+-\s+/);
-  const rua=partes[0]||"", bairro=String(p.bairro||partes.slice(1).join(" - ")||"").trim();
+  const rua=partes[0]||"", bairro=bairroDoPedido(p);
   const nomeAlt=p.cliente||(ehTransf(p)?((p.transfDe||p.transfPara)?(p.transfDe||"?")+" → "+(p.transfPara||"?"):"Transferência"):"—");
   const topo=rua||nomeAlt;
   const baixo=[bairro,marcas].filter(Boolean).join(" · ");
