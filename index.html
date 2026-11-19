@@ -8074,10 +8074,13 @@ function abrirChat(conv,chegou){
     primeira=false;
   },()=>{});
   const mandar=async()=>{ const t=txt.value.trim(); if(!t) return; env.disabled=true;
-    try{ await enviarChat(conv,t); txt.value=""; txt.focus(); }catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
+    try{ await enviarChat(conv,t); txt.value=""; trocaBotao(); txt.focus(); }catch(e){ toast("Não foi possível enviar ("+(e&&e.code||"erro")+")."); }
     env.disabled=false; };
   env.addEventListener("click",mandar);
   txt.addEventListener("keydown",e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); mandar(); } });
+  // campo vazio: só o microfone; começou a digitar: vira o botão de enviar
+  const trocaBotao=()=>{ const tem=!!txt.value.trim(); if(typeof grav!=="undefined" && grav) return; env.hidden=!tem; btMic.hidden=tem; };
+  txt.addEventListener("input",trocaBotao); setTimeout(trocaBotao,0);
   let grav=null;
   const pararGrav=(enviar)=>{ if(!grav) return; const g=grav; g.enviar=enviar; clearInterval(g.tic); try{ g.rec.state!=="inactive"&&g.rec.stop(); }catch(e){} };
   btMic.addEventListener("click",async()=>{
