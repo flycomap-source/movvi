@@ -1024,8 +1024,13 @@ function guardarTela(){
   try{ if(S.modo && !["carregando","semacesso","desativado"].includes(S.modo)){
     const j=JSON.stringify({v:viewAtual,fat:typeof fatTipo!=="undefined"?fatTipo:"",rel:typeof relTipo!=="undefined"?relTipo:"",modo:S.modo,janelas:janelasAbertas(),em:Date.now()});
     sessionStorage.setItem("movvi.telaAtual",j); localStorage.setItem("movvi.telaAtual",j); } }catch(e){} }
+/* link direto: .../movvi/maps abre o mapa dos entregadores (central) */
+const ABRIR_LINK=(()=>{ try{ const a=new URLSearchParams(location.search).get("abrir")||""; if(a){ const u=new URL(location.href); u.searchParams.delete("abrir"); history.replaceState(history.state,"",u.pathname+(u.search||"")+u.hash); } return a; }catch(e){ return ""; } })();
 function restaurarTela(){
   if(S.telaRestaurada || !S.modo || ["carregando","semacesso","desativado"].includes(S.modo)) return;
+  if(ABRIR_LINK==="mapa" && central() && !restaurarTela.linkFeito){ restaurarTela.linkFeito=true; S.telaRestaurada=true;
+    try{ localStorage.removeItem(MARCA_MAPA); }catch(e){}
+    setTimeout(()=>reabrirJanelas([["mapaEntregadores"]]),0); return; }
   const t=TELA_SALVA;
   if(!t || t.modo!==S.modo || !t.v || t.v==="acesso"){ S.telaRestaurada=true; guardarTela(); return; }
   setTimeout(()=>{ try{
