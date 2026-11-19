@@ -7788,6 +7788,7 @@ function geocodificar(pt){
 /* troca só o endereço mostrado (sem recarregar): .../movvi/maps com o mapa aberto, .../movvi/ fechado */
 function urlMapa(aberto){
   try{ if(!central()) return; const base=location.pathname.replace(/maps\/?$/,"").replace(/[^\/]*$/,"");
+    if(!aberto && document.querySelector('[data-janela=\'["mapaEntregadores"]\']')) aberto=true; // outro mapa ainda aberto
     const alvo=aberto?base+"maps":base; if(location.pathname!==alvo) history.replaceState(history.state,"",alvo+location.search+location.hash); }catch(e){}
 }
 function abrirMapaEntregadores(){
