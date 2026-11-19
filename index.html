@@ -166,6 +166,8 @@ nav.abas{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card
 .sheet{background:var(--bg);width:100%;max-width:560px;max-height:92%;overflow-y:auto;border-radius:20px 20px 0 0;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
 .veu.pagina{align-items:stretch;background:var(--bg)}
+/* computador: janelas no meio da tela (no celular continuam subindo de baixo) */
+@media (min-width:900px){ .veu:not(.pagina){align-items:center;padding:24px} .veu:not(.pagina) .sheet{border-radius:20px;max-height:86vh;padding-block:16px 18px;box-shadow:0 20px 60px rgba(0,0,0,.35)} }
 .veu.pagina .sheet{max-width:none;height:100%!important;max-height:100%!important;border-radius:0;padding-top:calc(14px + env(safe-area-inset-top,0px))}
 .sheet .alca{width:44px;height:5px;border-radius:9px;background:var(--line);align-self:center}
 .sheet .cab{display:flex;align-items:center;justify-content:space-between;gap:10px}
