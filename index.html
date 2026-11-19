@@ -1182,6 +1182,7 @@ function abrirMenuCentralPedidos(){
     item("＋","Novo pedido","Lançar uma entrega",()=>{ irPara("entregas"); abrirPedido(null); }),
     item("🗺️","Mapa dos entregadores","Onde cada entregador disponível está agora",()=>abrirMapaEntregadores()),
     item("🧭","Rota dos entregadores","Organizar a ordem das entregas de cada entregador",()=>abrirRotaCentral()),
+    item("📥","Recados recebidos","Ver de novo os recados e avisos que chegaram",()=>abrirRecados()),
     item("🛵","Voltar para o meu app de entregador","Sai da central e volta para as suas entregas",()=>{ try{ sessionStorage.removeItem("movvi.centralPedidos"); }catch(e){} location.reload(); })]);
 }
 /* Menu da central: todas as opções num só lugar */
@@ -1208,6 +1209,7 @@ function abrirMenuCentral(){
     item("✍","Notas a devolver","Notas de convênio assinadas que ainda não voltaram ao comércio",()=>abrirNotasPendentes()),
     item("▤","Relatórios","Entregadores, comércios e pedidos",()=>abrirEscolhaRelatorio()),
     item("🎁","Campanhas de bônus","Bônus para os entregadores: hoje, na semana ou todo dia",()=>abrirCampanhas()),
+    item("📥","Recados recebidos","Ver de novo os recados e avisos que chegaram",()=>abrirRecados()),
     item("📣","Avisar entregadores","Mandar uma notificação para os entregadores",()=>abrirAvisoEntregadores("")),
     item("🗺️","Mapa dos entregadores","Onde cada entregador disponível está agora",()=>abrirMapaEntregadores()),
     item("🧭","Rota dos entregadores","Organizar a ordem das entregas de cada entregador",()=>abrirRotaCentral()),
@@ -3382,6 +3384,7 @@ function abrirMeuMenu(){
     item("👤","Meus dados","Nome, usuário e senha",()=>abrirConta()),
     comercio()?null:item("R$","Minhas faturas",tipo==="central"?"Entregadores, comércios e dinheiro":tipo==="comercio"?"Taxas de entrega do período":"Semana a semana e dinheiro",()=>{ if(central()) abrirEscolhaFatura(); else if(comercio()) irPara("relatorios"); else irPara("acerto"); }),
     item(tipo==="entregador"?"📊":"☰",tipo==="entregador"?"Relatórios":"Meus pedidos",tipo==="central"?"Relatórios de entregadores, comércios e pedidos":tipo==="entregador"?"Entregas e adicionais, dia por dia":"Pedidos do período, com filtros",()=>{ if(central()) abrirEscolhaRelatorio(); else if(S.modo==="entregador") abrirMeusPedidosMes(hoje().slice(0,7)); else irPara("relatorios"); }),
+    item("📣","Recados","Ver de novo os recados e avisos que chegaram",()=>abrirRecados()),
     S.modo==="entregador"?item("💬","Mensagens","Conversas com a central e com colegas",()=>abrirMensagens()):null,
     (S.modo==="entregador"&&S.euAcessoCentral)?item("🖥","Abrir central (pedidos)","Ver todos os pedidos, editar e trocar de entregador",()=>{ try{ sessionStorage.setItem("movvi.centralPedidos","1"); }catch(e){} location.reload(); }):null,
     item("🔊","Testar som","Toca o alerta de pedido novo",()=>testarSom()),
@@ -8544,6 +8547,27 @@ function empilhar(cont,novoNoInicio){
   arruma();
 }
 function pilhaRecados(){ let p=document.getElementById("pilhaRecados"); if(!p){ p=h("div",{id:"pilhaRecados",style:"position:fixed;top:calc(env(safe-area-inset-top,0px) + "+(innerWidth>=900?"80px":"12px")+");left:50%;transform:translateX(-50%);width:min(94vw,460px);box-sizing:border-box;z-index:9997;display:flex;flex-direction:column;align-items:stretch;gap:8px;pointer-events:none"}); document.body.append(p); empilhar(p,false); } return p; }
+/* histórico de recados: tudo que chegou para mim (avisos, recados, respostas, alterações), do mais novo para o mais antigo */
+async function abrirRecados(){
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:10px"},h("p",{class:"muted",style:"margin:0",text:"Carregando…"}));
+  abrirSheet("📣 Recados",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Todos os recados e avisos que chegaram para você nos últimos 7 dias."}),lista]);
+  let todos=[];
+  try{ const sn=await S.db.collection("recados").where("para","==",S.uid).get(); todos=sn.docs.map(d=>({id:d.id,...d.data()})); }
+  catch(e){ lista.replaceChildren(h("p",{class:"muted",style:"margin:0",text:"Não foi possível carregar os recados agora."})); return; }
+  const desde=Date.now()-7*86400000;
+  todos=todos.filter(r=>r.tipo!=="chat"&&r.tipo!=="teste"&&String(r.texto||"").trim()&&(Date.parse(r.criadoEm)||0)>=desde)
+    .sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0,80);
+  if(!todos.length){ lista.replaceChildren(h("p",{class:"muted",style:"margin:0",text:"Nenhum recado nos últimos 7 dias."})); return; }
+  const rot=r=>r.tipo==="alteracao"?"✏️ Alteração no pedido":r.tipo==="aviso"?"📢 Aviso":r.tipo==="resposta"?"↩ Resposta":r.tipo==="pix"?"💸 Pix ao comércio":r.tipo==="transf"?"🔁 Transferência":"📣 Recado";
+  lista.replaceChildren(...todos.map(r=>{
+    const quando=r.criadoEm?new Date(r.criadoEm).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+    const resp=(r.deUid&&r.deUid!==S.uid&&r.tipo!=="pix")?h("button",{class:"btn sec",type:"button",style:"padding:6px 12px;font-size:14px;align-self:flex-end",onclick:()=>abrirResposta(r)},"↩ Responder"):null;
+    return h("div",{style:"border:1.5px solid var(--line);border-left:4px solid var(--laranja,#E67E22);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;background:var(--card,#fff)"},
+      h("div",{style:"display:flex;justify-content:space-between;gap:8px;font-size:12px;font-weight:800;color:var(--laranja-ink,#9a4a00)"},h("span",{text:rot(r)+" · "+(r.de||"Central")}),h("span",{class:"muted",style:"font-weight:600",text:quando})),
+      h("div",{style:"font-size:16px;font-weight:700;line-height:1.3;white-space:pre-wrap;overflow-wrap:anywhere",text:r.texto||""}),
+      [r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente,r.endereco].filter(Boolean).length?h("div",{class:"muted",style:"font-size:12px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente,r.endereco].filter(Boolean).join(" · ")}):null,
+      resp); }));
+}
 function mostrarRecado(r,semSom){
   if(!r || S.recadosMostrados.has(r.id)) return;
   S.recadosMostrados.add(r.id);
@@ -8555,7 +8579,7 @@ function mostrarRecado(r,semSom){
     h("div",{style:"display:flex;gap:8px;align-items:flex-start"},
       h("div",{style:"flex:1;min-width:0"},
         h("div",{style:"font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--laranja-ink)",text:(r.tipo==="alteracao"?"✏️ Alteração no pedido · ":r.tipo==="aviso"?"📢 Aviso da ":r.tipo==="resposta"?"↩ Resposta de ":"📣 Recado de ")+(r.de||"Central")}),
-        h("div",{style:"font-size:17px;font-weight:800;line-height:1.3;overflow-wrap:anywhere",text:r.texto||""}),
+        h("div",{style:"font-size:17px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;cursor:pointer",title:"Ver todos os recados",onclick:()=>{ try{ fechar(); }catch(e){} abrirRecados(); },text:r.texto||""}),
         h("div",{class:"muted",style:"font-size:12px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente].filter(Boolean).join(" · ")})),x),
     r.deUid?h("div",{style:"display:flex;justify-content:flex-end"},resp):null);
   const fixo=r.tipo==="alteracao";   // alteração feita pelo entregador: fica na tela até a central fechar
