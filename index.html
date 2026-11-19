@@ -812,7 +812,7 @@ function verProdutosReceita(p){
     h("p",{style:"margin:0;font-weight:700;color:var(--bad)",text:"Pegue a receita destes produtos controlados:"}),
     prods.length?h("ul",{style:"margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:16px;font-weight:700"},...prods.map(x=>h("li",{text:x})))
       :h("p",{class:"muted",style:"margin:0",text:"Os produtos não foram informados. Confira com a farmácia."}),
-    (p.cliente||p.endereco)?h("p",{class:"muted",style:"margin:0;font-size:13px",text:(p.cliente?p.cliente+" · ":"")+(p.endereco||"")}):null]);
+    (p.cliente||p.endereco)?h("p",{class:"muted",style:"margin:0;font-size:13px",text:(p.cliente?p.cliente+" · ":"")+endComBairro(p)}):null]);
 }
 function pillReceita(p){
   if(!p.pegarReceita) return null;
@@ -2467,14 +2467,14 @@ function blocoRota(p){
             const link=mapa?h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no Google Maps",style:"flex:1;min-width:0;display:flex;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()})
               :h("span",{class:p.cliente?"end":"emp",style:"flex:1;min-width:0"});
             if(mapa) link.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" ");
-            link.append(p.endereco);
+            link.append(endComBairro(p));
             const bt=h("button",{type:"button",title:"Ver no mapa do app","aria-label":"Ver no mapa do app",onclick:e=>{ e.stopPropagation(); abrirMapaEntrega(p); },
               style:"flex:none;width:40px;height:36px;border:1.5px solid var(--royal);border-radius:10px;background:var(--royal-bg,#eef4ff);display:grid;place-items:center;cursor:pointer;padding:0"});
             bt.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5l5.5-2.5 7 2.5L21 4v13.5L15.5 20l-7-2.5L3 20z" fill="#dbeafe" stroke="#004AAD" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 4v13.5M15.5 6.5V20" stroke="#004AAD" stroke-width="1.4"/><circle cx="12" cy="11" r="2.6" fill="#dc2626"/></svg>';
             return h("div",{style:"display:flex;align-items:flex-start;gap:8px;align-self:stretch"},link,bt); })()
         :p.endereco?(mapa?(()=>{ const a=h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no mapa",style:"display:flex;align-self:stretch;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()});
-            a.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" "); a.append(p.endereco); return a; })()
-          :h("span",{class:p.cliente?"end":"emp",text:p.endereco})):null,
+            a.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" "); a.append(endComBairro(p)); return a; })()
+          :h("span",{class:p.cliente?"end":"emp",text:endComBairro(p)})):null,
         zap?(()=>{ const d=digTel(p.telefone), celular=d.length===11&&d[2]==="9";
           if(!celular) return h("a",{class:"num",href:"tel:"+(d.length>=10?"+55"+d:d),title:"Telefone fixo",style:"color:var(--ink)!important;font-weight:700;align-self:flex-start",onclick:e=>e.stopPropagation(),text:p.telefone});
           const a=h("a",{class:"num",href:zap,target:"_blank",rel:"noopener",title:"WhatsApp do cliente",style:"display:inline-flex;align-items:center;gap:6px;color:#1FAF55!important;font-weight:800;text-decoration:underline;text-underline-offset:3px;align-self:flex-start",onclick:e=>e.stopPropagation()});
@@ -2616,6 +2616,9 @@ const COLS_CEN=["Situação","Hora","Coleta","Endereço","Pagamento","Entregador
 const COLS_COM=["Situação","Hora","Pedido","Endereço","Pagamento","Entregador",""];
 function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" com":"")},...(comercio()?COLS_COM:COLS_CEN).map(c=>h("span",{text:c}))); }
 /* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
+/* endereço com o bairro no fim (quando o bairro ainda não está escrito no endereço) */
+function endComBairro(p){ const e=String((p&&p.endereco)||"").trim(), b=String((p&&p.bairro)||"").trim();
+  if(!b) return e; if(!e) return b; if(semAcento(e).includes(semAcento(b))) return e; return e+" - "+b; }
 function celCliente(p,extra){
   const entregue=p.status==="entregue";
   const marcas=[(p.data && p.data<hoje() && !entregue)?"⚠ "+diaCurto(p.data):"", ehTransf(p)?"🔁":"", p.pegarReceita?"℞":"",
@@ -4645,7 +4648,7 @@ function abrirOrdemEntregas(ent,op){
             style:"flex:none;width:30px;height:30px;border-radius:50%;border:0;background:var(--bad);color:#fff;font-size:22px;font-weight:900;line-height:1;display:grid;place-items:center;cursor:pointer;padding:0"},"−"),
           h("span",{class:"parada-n num",style:"width:auto;min-width:36px;padding:0 6px;border-radius:14px;"+(n?"":"background:var(--muted)"),text:n?n+"/"+total:"sem nº"}),
           h("b",{style:"flex:1;min-width:0",text:(p.cliente||p.telefone||"Entrega")+(p.numero?" · #"+p.numero:"")})),
-        h("span",{style:"font-size:14px",text:"📍 "+(p.endereco||"Sem endereço")}),
+        h("span",{style:"font-size:14px",text:"📍 "+(endComBairro(p)||"Sem endereço")}),
         h("span",{class:"muted",style:"font-size:12px",text:(p.emRotaEm?"Já coletada"+(p.coletaEmpresa?" · "+p.coletaEmpresa:""):"Coletar em "+(p.coletaEmpresa||p.coletaEndereco||"—"))}),
         p.emRotaEm?null:h("span",{style:"font-size:12.5px;font-weight:800;color:var(--laranja-ink);margin-top:4px",text:"🏁 Ordem da entrega (vale depois de coletar)"}),
         chipsPosicao(base+1,total,n,usados,k=>{
@@ -5940,7 +5943,7 @@ function abrirConfirmacao(p,op){
   const msg=h("div",{class:"aviso",hidden:true});
   const resumo=h("div",{class:"painel",style:"gap:4px"},
     h("b",{style:"font-size:18px",text:p.cliente||"Cliente sem nome"}),
-    p.endereco?h("span",{text:p.endereco}):null,
+    p.endereco?h("span",{text:endComBairro(p)}):null,
     p.telefone?h("span",{class:"num muted",text:p.telefone}):null);
   // pagamento: confirma o anunciado ou troca de forma simples
   const anunc=p.pagamentoAnunciado||p.pagamento||"dinheiro";
@@ -7760,7 +7763,7 @@ function abrirMapaEntregadores(){
   const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 2px 2px rgba(0,0,0,.45));line-height:0">'+SVG_BONECO+'</div>'});
   const popCli=p=>{ const div=h("div",{style:"display:flex;flex-direction:column;gap:4px;min-width:180px;font:13px system-ui"},
       h("b",{style:"font-size:14px",text:p.cliente||"Cliente"}),
-      h("span",{text:p.endereco||""}),
+      h("span",{text:endComBairro(p)}),
       p.telefone?h("span",{class:"num",text:p.telefone}):null,
       h("span",{style:"color:#555",text:(p.numero?"#"+p.numero+" · ":"")+(p.coletaEmpresa||"")+" · "+situacaoPed(p)}),
       h("button",{type:"button",style:"margin-top:4px;border:0;border-radius:8px;background:#004AAD;color:#fff;font:700 13px system-ui;padding:7px 10px;cursor:pointer",onclick:()=>{
@@ -7782,7 +7785,7 @@ function abrirMapaEntregadores(){
     const cancelar=h("button",{type:"button",style:"border:0;border-radius:10px;background:#e5e7eb;color:#111;font:700 15px system-ui;padding:10px 14px;cursor:pointer"},"Cancelar");
     const barra=h("div",{style:"position:absolute;z-index:1000;left:8px;right:8px;bottom:8px;background:#fff;border-radius:14px;padding:10px;box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:8px"},
       h("b",{style:"font-size:14px",text:"📍 "+(p.cliente||"Cliente")+": arraste o bonequinho ou toque no mapa onde fica a casa"}),
-      h("span",{style:"font-size:12px;color:#555",text:p.endereco||""}),
+      h("span",{style:"font-size:12px;color:#555",text:endComBairro(p)}),
       h("div",{style:"display:flex;gap:8px"},salvar,cancelar));
     area.append(barra);
     const sair=()=>{ try{ mk.dragging.disable(); }catch(e){} mapa.off("click",tocar); barra.remove(); editandoPos=null; };
@@ -7898,7 +7901,7 @@ function abrirMapaEntrega(p){
   const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["mapaEntrega",p&&p.id||""]),"aria-label":"Mapa da entrega",style:"position:fixed;z-index:9996;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,
       h("div",{style:"flex:1;min-width:0;display:flex;flex-direction:column"},h("b",{style:"font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:"🏠 "+(p.cliente||"Cliente")}),
-        h("span",{class:"muted",style:"font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:p.endereco||""}))),
+        h("span",{class:"muted",style:"font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:endComBairro(p)}))),
     area,txt,h("div",{style:"display:flex;gap:8px"},btEu,btG));
   document.body.append(jan);
   let mapa=null, eu=null, cli=null;
