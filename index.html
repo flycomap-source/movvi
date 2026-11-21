@@ -2383,8 +2383,10 @@ function abrirStatus(p){
   const agora=()=>new Date().toISOString();
   const atual=nomeStatus(p);
   // pedido de rota: muda todas as paradas que ainda não foram entregues; pedido sozinho: só ele
-  const grupo = p.rotaId ? S.pedidosDia.filter(x=>x.rotaId===p.rotaId && x.status!=="cancelado" && (x.status!=="entregue" || x.id===p.id)) : [p];
-  const emRota = grupo.length>1;
+  const grupoRota = p.rotaId ? S.pedidosDia.filter(x=>x.rotaId===p.rotaId && x.status!=="cancelado" && (x.status!=="entregue" || x.id===p.id)) : [p];
+  // pedido de rota: a central escolhe se muda só esta entrega ou todas as paradas (padrão: só esta)
+  let soEsta = grupoRota.length>1;
+  let grupo = soEsta?[p]:grupoRota, emRota = grupo.length>1;
   const sync=(x,st)=>{ if(x.viaOferta) S.db.doc("aceites/"+x.id).update(st).catch(()=>{}); };
   const opcoes=[
     ["Disponível para todos","Tira do entregador e volta para quem aceitar primeiro",null],
@@ -2395,21 +2397,32 @@ function abrirStatus(p){
   ];
   const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"});
   // trocar o entregador
-  const pendentes=grupo.filter(x=>x.status!=="entregue");
+  const pendentes=grupoRota.filter(x=>x.status!=="entregue");
   const selTroca=h("select",{class:"inp",id:"trocaEnt"},h("option",{value:"",text:"Escolher outro entregador"}),
     ...ativos().filter(e=>e.id!==p.entregadorId).map(e=>h("option",{value:e.id,text:e.nome+(e.uid?(S.disp[e.uid]===false?" · indisponível":"")+(S.online.has(e.uid)?" · on-line":""):" (sem acesso ao app)")})));
   const btTroca=h("button",{class:"btn",type:"button"},"Trocar");
   const blocoTroca = pendentes.length ? h("div",{class:"painel"},
     h("b",{text:"Substituir entregador"}),
-    h("span",{class:"muted",style:"font-size:13px",text:"Atual: "+nomeEnt(p.entregadorId)+(emRota?" · vale para as "+pendentes.length+" paradas pendentes":"")+". O novo entregador recebe o alerta e precisa aceitar."}),
+    h("span",{class:"muted",style:"font-size:13px",text:"Atual: "+nomeEnt(p.entregadorId)+(pendentes.length>1?" · vale para o que estiver marcado acima (só esta ou a rota toda)":"")+". O novo entregador recebe o alerta e precisa aceitar."}),
     selTroca) : null;
   selTroca.addEventListener("change",async()=>{
     if(!selTroca.value) return;
     selTroca.disabled=true;
-    try{ await trocarEntregador(pendentes, selTroca.value); fechar(); toast("Entrega passada para "+nomeEnt(selTroca.value)); }
+    try{ await trocarEntregador(grupo.filter(x=>x.status!=="entregue"), selTroca.value); fechar(); toast("Entrega passada para "+nomeEnt(selTroca.value)); }
     catch(e){ selTroca.disabled=false; selTroca.value=""; toast("Não foi possível trocar ("+(e&&e.code||"erro")+")."); }
   });
-  const fechar=abrirSheet("Mudar status",[h("p",{class:"muted",style:"margin:0",text:(emRota?"Rota com "+grupo.length+" paradas · a mudança vale para todas":(p.numero?"#"+p.numero+" · ":"")+(p.cliente||""))+" · agora: "+atual}),lista,blocoTroca]);
+  const cab=h("p",{class:"muted",style:"margin:0"});
+  const atualizaCab=()=>{ cab.textContent=(emRota?"Rota com "+grupo.length+" paradas · a mudança vale para todas":(p.numero?"#"+p.numero+" · ":"")+(p.cliente||p.endereco||""))+" · agora: "+atual; };
+  let escolha=null;
+  if(grupoRota.length>1){
+    const btSo=h("button",{type:"button",class:"btn",style:"flex:1;padding:8px 10px;font-size:14px"},"Só esta entrega");
+    const btTodas=h("button",{type:"button",class:"btn sec",style:"flex:1;padding:8px 10px;font-size:14px"},"Todas as "+grupoRota.length+" da rota");
+    const marca=()=>{ btSo.className="btn"+(soEsta?"":" sec"); btTodas.className="btn"+(soEsta?" sec":""); grupo=soEsta?[p]:grupoRota; emRota=grupo.length>1; atualizaCab(); };
+    btSo.addEventListener("click",()=>{ soEsta=true; marca(); }); btTodas.addEventListener("click",()=>{ soEsta=false; marca(); });
+    escolha=h("div",{class:"painel",style:"gap:6px"},h("b",{style:"font-size:14px",text:"Esta entrega faz parte de uma rota. Mudar:"}),h("div",{style:"display:flex;gap:8px"},btSo,btTodas));
+  }
+  atualizaCab();
+  const fechar=abrirSheet("Mudar status",[cab,escolha,lista,blocoTroca]);
   opcoes.forEach(([rot,desc,upd,ac])=>{
     const b=h("button",{class:"btn "+(rot===atual?"":"sec")+" full",type:"button",style:"flex-direction:column;align-items:flex-start;text-align:left;gap:2px"+(rot==="Cancelar pedido"?";color:var(--bad)":"")},
       h("span",{text:rot+(rot===atual?" (atual)":"")}),h("span",{style:"font-size:12px;font-weight:500;opacity:.8",text:desc}));
