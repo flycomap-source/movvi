@@ -6991,7 +6991,10 @@ async function calcularFatura(){
     catch(e){ bt.disabled=false; toast("Não foi possível registrar ("+(e&&e.code||"erro")+")."); } };
   const confirma=(bt,texto,acao)=>{ let armado=false; const orig=bt.textContent;
     bt.addEventListener("click",()=>{ if(!armado){ armado=true; bt.textContent=texto; setTimeout(()=>{ if(armado){ armado=false; bt.textContent=orig; } },4000); return; } armado=false; acao(); }); };
-  const cards=linhas.map((w,i)=>{
+  // central › entregador › por semana: só as semanas em aberto (as pagas ficam escondidas e não somam no total)
+  const soAberto=central()&&!com&&porSemana, nPagas=linhas.filter(w=>w.pago).length;
+  const visiveis=soAberto&&!S.fatVerPagas?linhas.filter(w=>!w.pago):linhas;
+  const cards=visiveis.map(w=>{ const i=linhas.indexOf(w);
     const st = !w.fechada ? h("span",{class:"pill",text:"Em andamento · fecha "+diaCurto(w.f)})
       : !w.itens.length ? h("span",{class:"pill acert",text:"Sem entregas"})
       : w.pago ? h("span",{class:"pill ok",text:(com?"Recebido":"Pago")+" em "+diaCurto(isoDia(new Date(w.pagoEm)))})
@@ -7023,7 +7026,7 @@ async function calcularFatura(){
     }
     return card;
   });
-  const total=linhas.reduce((s,w)=>s+w.valor,0);
+  const total=soAberto?linhas.reduce((s,w)=>s+(w.pago?0:w.aberto),0):linhas.reduce((s,w)=>s+w.valor,0);
   const abertasFech=linhas.filter(w=>w.fechada&&w.itens.length&&!w.pago);
   const aPagar=abertasFech.reduce((s,w)=>s+w.aberto,0);
   const pagoTot=linhas.reduce((s,w)=>s+w.valor-w.aberto,0);
@@ -7031,14 +7034,16 @@ async function calcularFatura(){
   const tot=(rot,val,cls)=>h("div",{class:"tot"+(cls?" "+cls:"")},h("span",{text:rot}),h("b",{class:"num",text:val}));
   const kpi=(rot,val,cls)=>h("div",{class:"kpi"+(cls?" "+cls:"")},h("span",{text:rot}),h("b",{class:"num",text:val}));
   $("#fatCards").replaceChildren(...[
-    kpi(fatModo==="periodo"?"Total do período":"Total do mês",fmt(total),"destaque"),
+    kpi(soAberto?"Total em aberto":fatModo==="periodo"?"Total do período":"Total do mês",fmt(total),"destaque"),
     kpi(porSemana?(com?"A receber (semanas fechadas)":central()?"A pagar (semanas fechadas)":"A receber (semanas fechadas)"):(com?"A receber":"A pagar"),fmt(aPagar)),
     kpi(com?"Já recebido":"Já pago",fmt(pagoTot)),
     porSemana?kpi("Semana em andamento",fmt(emAndamento)):kpi("Entregas",String(linhas.reduce((s2,w)=>s2+w.itens.length,0))),
     (S.modo==="entregador" && fatTipo==="entregador") ? kpiDinheiroComigo() : null,
     (S.modo==="entregador" && fatTipo==="entregador") ? kpiNotasDevolver() : null].filter(Boolean));
   $("#fatCards").hidden=false;
-  out.replaceChildren(h("h3",{style:"margin:0",text:nome}),...cards);
+  const btPagas=soAberto&&nPagas?h("button",{class:"btn sec full",type:"button",style:"font-size:13px;padding:8px",onclick:()=>{ S.fatVerPagas=!S.fatVerPagas; calcularFatura(); }},
+    S.fatVerPagas?"Esconder as semanas já pagas":"Ver as semanas já pagas ("+nPagas+")"):null;
+  out.replaceChildren(h("h3",{style:"margin:0",text:nome}),...(cards.length?cards:[h("p",{class:"muted",style:"margin:0",text:"Nenhuma semana em aberto. Tudo pago ✓"})]),...(btPagas?[btPagas]:[]));
   // fatura do comércio: dinheiro dele que está com a central (ele tem a receber) e que pode ser abatido da fatura
   if(com){
     const comCen=ps.filter(p=>dinComCentral(p)>0), totCen=comCen.reduce((s,p)=>s+dinComCentral(p),0);
@@ -7087,10 +7092,13 @@ async function calcularFaturaGeral(out,com,mes){
   const linhas=[...m].map(([k,itens])=>{ const aj=com?0:ajusteTransf(k,de,ate); return {k,nome:nomeDe(k),n:itens.length,total:valorDe(itens)+aj,pago:valorDe(itens.filter(p=>p[campo])),
     aPagar:valorDe(itens.filter(p=>!p[campo]&&fechado(p)))+aj,andamento:valorDe(itens.filter(p=>!p[campo]&&!fechado(p)))}; })
     .sort((a,b)=>b.aPagar-a.aPagar||a.nome.localeCompare(b.nome));
+  // entregadores por semana: só o que está em aberto (quem já recebeu tudo sai da lista e o pago não soma)
+  const soAberto=!com&&porSemana;
+  if(soAberto){ linhas.forEach(l=>{ l.total=Math.round((l.aPagar+l.andamento)*100)/100; }); for(let i=linhas.length-1;i>=0;i--) if(linhas[i].total<=0) linhas.splice(i,1); }
   const soma=f=>linhas.reduce((s,l)=>s+l[f],0);
   const kpi=(rot,val,cls)=>h("div",{class:"kpi"+(cls?" "+cls:"")},h("span",{text:rot}),h("b",{class:"num",text:val}));
   cardsEl.replaceChildren(...[
-    kpi(fatModo==="periodo"?"Valor total do período":"Valor total do mês",fmt(soma("total")),"destaque"),
+    kpi(soAberto?"Total em aberto":fatModo==="periodo"?"Valor total do período":"Valor total do mês",fmt(soma("total")),"destaque"),
     kpi(porSemana?(com?"A receber (semanas fechadas)":"A pagar (semanas fechadas)"):(com?"A receber":"A pagar"),fmt(soma("aPagar"))),
     kpi(com?"Já recebido":"Já pago",fmt(soma("pago"))),
     porSemana?kpi("Semana em andamento",fmt(soma("andamento"))):null,
@@ -7107,7 +7115,7 @@ async function calcularFaturaGeral(out,com,mes){
       h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;align-items:center"},st,
         h("span",{class:"quem-ped",text:l.n+(l.n===1?" entrega":" entregas")+(l.pago?" · "+(com?"recebido ":"pago ")+fmt(l.pago):"")})));
     card.addEventListener("click",()=>escolher(l)); return card;
-  }):[h("p",{class:"muted",style:"margin:0",text:fatModo==="periodo"?"Nenhuma entrega neste período.":"Nenhuma entrega neste mês."})]));
+  }):[h("p",{class:"muted",style:"margin:0",text:soAberto?"Nenhuma fatura em aberto. Tudo pago ✓":fatModo==="periodo"?"Nenhuma entrega neste período.":"Nenhuma entrega neste mês."})]));
 }
 /* ---------- FATURAS FECHADAS: aviso e "foi pago?" (entregador e comércio) ---------- */
 function ultimaSemanaFechada(){ const t=hoje(), d=deIso(t).getDay(); const f=somaDias(t,-(d===0?7:d)); return [somaDias(f,-6),f]; }
