@@ -4527,7 +4527,9 @@ function posNaRota(p){
   if(!(num(p.ordemQtd)>=2 && (num(p.ordemEntrega)>0||num(p.ordemColeta)>0))) return null;
   const l=(entregasAbertasPorEntregador()[S.modo==="entregador"?S.eu:p.entregadorId]||[]).slice().sort(cmpSeq);
   const i=l.findIndex(x=>x._path===p._path); if(i<0) return null;
-  return {n:i+1,de:l.length,coleta:coletaPendente(p),ent:num(p.ordemEntrega)};
+  // número fixo, igual ao do papel: a entrega 2 continua sendo a 2 depois que a 1 é finalizada (2/4, 3/4, 4/4)
+  const ent=num(p.ordemEntrega), de=Math.max(num(p.ordemQtd),l.length,ent);
+  return {n:(!coletaPendente(p)&&ent>0)?ent:i+1,de,coleta:coletaPendente(p),ent};
 }
 async function numerarEntregas(){
   // a numeração agora é só manual (o entregador ou a central toca no número de cada entrega em "Rota de entregas")
@@ -4637,7 +4639,7 @@ function abrirRotaCentral(){
       bt.addEventListener("click",()=>{ fechar(); abrirOrdemEntregas(k); });
       return h("div",{class:"painel",style:"gap:8px"},
         h("div",{style:"display:flex;align-items:center;gap:10px"},h("b",{style:"flex:1;font-size:17px",text:"🛵 "+nomeEnt(k)+" · "+l.length+(l.length===1?" entrega":" entregas")}),l.length>=2?bt:null),
-        ...l.map((p,i)=>{ const [st,cor]=situ(p), n=(num(p.ordemEntrega)>0||coletaPendente(p))?i+1:0;
+        ...l.map((p,i)=>{ const [st,cor]=situ(p), n=(!coletaPendente(p)&&num(p.ordemEntrega)>0)?num(p.ordemEntrega):coletaPendente(p)?i+1:0;
           return h("button",{type:"button",onclick:()=>abrirDetalhes(p),style:"all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)"},
             h("span",{class:"parada-n num",style:"flex:none;"+(n?"":"background:var(--muted)"),text:n?String(n):"—"}),
             h("span",{style:"flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"},
