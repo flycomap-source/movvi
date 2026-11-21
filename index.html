@@ -2761,7 +2761,8 @@ function linhaPedido(p){
         const g=partesGanho(p), tit="Taxa do comércio "+fmt(taxaVisivel(p)||0)+" · entregador: taxa "+fmt(g.base)+(g.adic>0?" + adicionais "+fmt(g.adic):"")+(g.bonus>0?" + bônus "+fmt(g.bonus):"")+" = "+fmt(g.total);
         return h("span",{class:"c num r",title:tit,style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
           h("span",{text:taxaVisivel(p)?fmt(taxaVisivel(p)):"—"}),
-          g.total>0?h("span",{style:"font-size:11.5px;font-weight:800;color:var(--ok);white-space:nowrap",text:"🛵 "+fmt(g.total)}):null); })()
+          g.base>0?h("span",{style:"font-size:11.5px;font-weight:700;white-space:nowrap",text:fmt(g.base)}):null,
+          g.total>0&&g.total!==g.base?h("span",{style:"font-size:11.5px;font-weight:800;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); })()
       :cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r"),
     acoes);
   return linhaAdic?h("div",{style:"display:flex;flex-direction:column;gap:2px"},linhaEl,linhaAdic):linhaEl;
@@ -2791,7 +2792,8 @@ function cartaoPedidoBase(p){
       : h("span",{class:"num",style:"font-size:16px;font-weight:900;color:var(--ok)",text:fmt(naTela(()=>ganhoPedido(p)))}))
       : central() ? (()=>{ const g=partesGanho(p); return h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
           taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null,
-          g.total>0?h("span",{class:"num",title:"Total do entregador (taxa + adicionais + bônus)",style:"font-size:12px;font-weight:900;color:var(--ok);white-space:nowrap",text:"🛵 "+fmt(g.total)}):null); })()
+          g.base>0?h("span",{class:"num",style:"font-size:12px;font-weight:700;white-space:nowrap",text:fmt(g.base)}):null,
+          g.total>0&&g.total!==g.base?h("span",{class:"num",style:"font-size:12px;font-weight:900;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); })()
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde,"data-em-rota":p.emRotaEm?"1":"0"}:{})},
     central()
