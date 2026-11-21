@@ -2651,9 +2651,6 @@ function telaLarga(){ return !!(MQ_LARGA && MQ_LARGA.matches); }
 const emLinhas = () => (central()||comercio()) && telaLarga();
 function aplicarTelaLarga(){ document.body.classList.toggle("tela-larga", emLinhas()); }
 if(MQ_LARGA){ const f=()=>{ aplicarTelaLarga(); if(typeof renderPedidos==="function") renderPedidos(); }; if(MQ_LARGA.addEventListener) MQ_LARGA.addEventListener("change",f); else if(MQ_LARGA.addListener) MQ_LARGA.addListener(f); }
-const COLS_CEN=["Situação","Hora","Coleta","Endereço","Pagamento","Entregador","Taxa",""];
-const COLS_COM=["Situação","Hora","Pedido","Endereço","Pagamento","Entregador",""];
-function cabecalhoLinhas(){ return h("div",{class:"linha-ped cab"+(comercio()?" com":"")},...(comercio()?COLS_COM:COLS_CEN).map(c=>h("span",{text:c}))); }
 /* célula do cliente: nome em cima, bairro/endereço e marcadores embaixo (o resto aparece ao clicar) */
 /* endereço com o bairro no fim (quando o bairro ainda não está escrito no endereço) */
 /* bairro do pedido: o salvo; senão o que vem depois de " - " no endereço; senão um bairro conhecido escrito no endereço; senão o do cadastro do cliente */
@@ -2721,49 +2718,105 @@ function blocoAdicConfirmar(p,mini){
   return h("div",{style:"display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#fee2e2;border:1.5px solid #dc2626;border-radius:10px;padding:8px 10px;color:#991b1b;font-weight:700;font-size:"+(mini?"12.5px":"14px")+";"+(mini?"grid-column:1/-1;margin-top:4px":"")},
     h("span",{style:"flex:1;min-width:180px",text:"⚠ "+(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Entregador"))+" lançou +"+n+(n>1?" adicionais":" adicional")+(nAntes?" (já tinha "+nAntes+", ficaria "+nTot+")":"")+(p.adicionalMotivo?" · motivo: "+p.adicionalMotivo:"")+" — confirme"}),ok,no);
 }
+/* ===== Lista do computador (linhas) com colunas escolhidas ===== */
+// cada coluna: chave, título, largura no grid, e se aparece para central e/ou comércio
+const COLUNAS=[
+  {k:"sit",t:"Situação",w:"130px",cen:1,com:1},
+  {k:"hora",t:"Hora",w:"62px",cen:1,com:1},
+  {k:"coleta",t:"Coleta",w:"minmax(110px,1fr)",cen:1,com:0},
+  {k:"pedido",t:"Pedido",w:"80px",cen:1,com:1},
+  {k:"end",t:"Endereço",w:"minmax(170px,2fr)",cen:1,com:1},
+  {k:"bairro",t:"Bairro",w:"minmax(90px,1fr)",cen:1,com:1},
+  {k:"cliente",t:"Cliente",w:"minmax(120px,1.2fr)",cen:1,com:1},
+  {k:"tel",t:"Telefone",w:"124px",cen:1,com:1},
+  {k:"pag",t:"Pagamento",w:"minmax(120px,1fr)",cen:1,com:1},
+  {k:"ent",t:"Entregador",w:"minmax(130px,170px)",cen:1,com:1},
+  {k:"taxa",t:"Taxa",w:"78px",cen:1,com:0},
+  {k:"taxaEnt",t:"Taxa entregador",w:"96px",cen:1,com:0},
+  {k:"obs",t:"Observação",w:"minmax(120px,1.5fr)",cen:1,com:1},
+  {k:"atend",t:"Atendente",w:"minmax(90px,1fr)",cen:1,com:1},
+  {k:"acoes",t:"",w:"150px",cen:1,com:1,fixa:1}
+];
+const COLS_PADRAO={cen:["sit","hora","coleta","end","pag","ent","taxa","taxaEnt","acoes"],com:["sit","hora","pedido","end","pag","ent","acoes"]};
+const perfilCols=()=>comercio()?"com":"cen";
+function colunasDisponiveis(){ const pf=perfilCols(); return COLUNAS.filter(c=>c[pf]); }
+function colunasEscolhidas(){
+  const pf=perfilCols(), disp=colunasDisponiveis().map(c=>c.k);
+  let l=null; try{ l=JSON.parse(localStorage.getItem("movvi.colunas."+pf)||"null"); }catch(e){}
+  if(!Array.isArray(l)||!l.length) l=COLS_PADRAO[pf];
+  l=l.filter(k=>disp.includes(k)); if(!l.includes("acoes")) l.push("acoes");
+  return disp.filter(k=>l.includes(k));   // sempre na ordem padrão das colunas
+}
+function estiloColunas(){
+  const cols=colunasEscolhidas(), w=cols.map(k=>COLUNAS.find(c=>c.k===k).w).join(" ");
+  let st=document.getElementById("estiloColunas"); if(!st){ st=document.createElement("style"); st.id="estiloColunas"; document.head.append(st); }
+  const css=".linha-ped.dyn{grid-template-columns:"+w+"}"; if(st.textContent!==css) st.textContent=css;
+  return cols;
+}
+function abrirColunas(){
+  const pf=perfilCols(), atual=new Set(colunasEscolhidas());
+  const itens=colunasDisponiveis().filter(c=>!c.fixa).map(c=>{ const cb=h("input",{type:"checkbox",checked:atual.has(c.k),style:"width:20px;height:20px"});
+    cb.addEventListener("change",()=>{ cb.checked?atual.add(c.k):atual.delete(c.k); });
+    return {c,cb,el:h("label",{style:"display:flex;align-items:center;gap:10px;padding:8px 4px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--line)"},cb,c.t)}; });
+  const todas=h("button",{type:"button",class:"btn sec",style:"flex:1"},"Marcar todas");
+  const padrao=h("button",{type:"button",class:"btn sec",style:"flex:1"},"Voltar ao padrão");
+  todas.addEventListener("click",()=>itens.forEach(x=>{ x.cb.checked=true; atual.add(x.c.k); }));
+  padrao.addEventListener("click",()=>{ atual.clear(); COLS_PADRAO[pf].forEach(k=>atual.add(k)); itens.forEach(x=>x.cb.checked=atual.has(x.c.k)); });
+  const salvar=h("button",{type:"button",class:"btn full"},"Mostrar essas colunas");
+  const fechar=abrirSheet("Colunas da lista",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Escolha o que aparece na lista de entregas no computador. Fica salvo neste computador."}),
+    h("div",{style:"display:flex;gap:8px"},todas,padrao),h("div",{},...itens.map(x=>x.el)),salvar]);
+  salvar.addEventListener("click",()=>{ atual.add("acoes"); try{ localStorage.setItem("movvi.colunas."+pf,JSON.stringify([...atual])); }catch(e){} fechar(); estiloColunas(); renderPedidos(); });
+}
 function linhaPedido(p){
   const entregue=p.status==="entregue", st=statusCard(p);
   const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
   const pag=(p.pagamento==="pix"?"Pago":PAG[p.pagamento]||"—")+(valorACobrar(p)&&p.pagamento!=="pix"?" "+fmt(valorACobrar(p)):"");
   const acoes=h("span",{class:"c acoes-l"});
+  const cols=estiloColunas();
+  const C={};   // cada coluna é montada só se estiver escolhida
+  const faz=(k,fn)=>{ if(cols.includes(k)) C[k]=fn(); };
+  let linhaAdic=null;
   if(comercio()){
     if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
     if(p.obsFinalizacao) acoes.append(btObsEnt(p));
     const dest=destinoRecado(p);
     if(dest) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Mandar recado para o entregador",onclick:e=>{ e.stopPropagation(); abrirRecado(p,dest); }},"📣 Recado"));
-    return h("div",{class:"linha-ped com"+(entregue?" fim":"")},
-      h("span",{class:"c"},h("span",{class:"badge-l",style:"background:"+st.c+";display:inline-block",text:st.t})),
-      cel(dataHoraCard(p),"num"),
-      cel(p.numero?"#"+p.numero:"","num forte"),
-      celCliente(p),
-      cel(pag,p.pagamento==="dinheiro"?"din":""),
-      cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""),
-      acoes);
+    faz("sit",()=>h("span",{class:"c"},h("span",{class:"badge-l",style:"background:"+st.c+";display:inline-block",text:st.t})));
+    faz("ent",()=>cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""));
+    faz("pedido",()=>cel(p.numero?"#"+p.numero:"","num forte"));
+    faz("end",()=>celCliente(p));
+  }else{
+    if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
+    if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
+    if(p.obsFinalizacao) acoes.append(btObsEnt(p));
+    linhaAdic=blocoAdicConfirmar(p,true);
+    faz("sit",()=>h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")));
+    faz("coleta",()=>h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),(p.numero&&!cols.includes("pedido"))?h("span",{class:"sub num",text:"#"+p.numero}):null));
+    faz("pedido",()=>cel(p.numero?"#"+p.numero:"","num forte"));
+    faz("end",()=>celCliente(p,num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":""));
+    faz("ent",()=>h("span",{class:"c"},h("button",{type:"button",class:"ent-l"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},(p.entregadorId?nomeEnt(p.entregadorId):"Sem entregador")+(entregue?"":" ▾"))));
+    faz("taxa",()=>cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r","Taxa cobrada do comércio"));
+    faz("taxaEnt",()=>{ const g=partesGanho(p), tit="Entregador: taxa "+fmt(g.base)+(g.adic>0?" + adicionais "+fmt(g.adic):"")+(g.bonus>0?" + bônus "+fmt(g.bonus):"")+" = "+fmt(g.total);
+      return h("span",{class:"c num r",title:tit,style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
+        h("span",{text:g.base>0?fmt(g.base):"—"}),
+        g.total>0&&g.total!==g.base?h("span",{style:"font-size:12px;font-weight:800;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); });
   }
-  if(!entregue && !pedidoMorto(p)){
-    const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
-    // 🧭 e "+ Rota" saíram da lista do computador: a ordem abre tocando no 🧭 do endereço, e a rota fica dentro de Editar
-  }
-  if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
-  if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
-  if(p.obsFinalizacao) acoes.append(btObsEnt(p));
-  const linhaAdic=blocoAdicConfirmar(p,true);
-  const linhaEl=h("div",{class:"linha-ped"+(entregue?" fim":"")},
-    h("span",{class:"c"},h("button",{type:"button",class:"badge-l",style:"background:"+st.c,onclick:e=>{ e.stopPropagation(); abrirStatus(p); }},st.t+" ▾")),
-    cel(dataHoraCard(p),"num"),
-    h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),p.numero?h("span",{class:"sub num",text:"#"+p.numero}):null),
-    celCliente(p,num(p.adicionais)>0?"+"+num(p.adicionais)+" adic.":""),
-    (central()&&entregue&&dinPendCentral(p)!==null)?h("span",{class:"c"},botaoDinCentral(p,true)):cel(pag,p.pagamento==="dinheiro"?"din":""),
-    h("span",{class:"c"},h("button",{type:"button",class:"ent-l"+(p.entregadorId?"":" sem"),onclick:e=>{ e.stopPropagation(); abrirTrocaEntregador(p); }},(p.entregadorId?nomeEnt(p.entregadorId):"Sem entregador")+(entregue?"":" ▾"))),
-    central()?(()=>{ // central: taxa do comércio em cima e, embaixo em verde, o total do entregador (taxa + adicionais + bônus)
-        const g=partesGanho(p), tit="Taxa do comércio "+fmt(taxaVisivel(p)||0)+" · entregador: taxa "+fmt(g.base)+(g.adic>0?" + adicionais "+fmt(g.adic):"")+(g.bonus>0?" + bônus "+fmt(g.bonus):"")+" = "+fmt(g.total);
-        return h("span",{class:"c num r",title:tit,style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
-          h("span",{text:taxaVisivel(p)?fmt(taxaVisivel(p)):"—"}),
-          g.base>0?h("span",{style:"font-size:11.5px;font-weight:700;white-space:nowrap",text:fmt(g.base)}):null,
-          g.total>0&&g.total!==g.base?h("span",{style:"font-size:11.5px;font-weight:800;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); })()
-      :cel(taxaVisivel(p)?fmt(taxaVisivel(p)):"","num r"),
-    acoes);
+  faz("hora",()=>cel(dataHoraCard(p),"num"));
+  faz("pag",()=>(central()&&entregue&&dinPendCentral(p)!==null)?h("span",{class:"c"},botaoDinCentral(p,true)):cel(pag,p.pagamento==="dinheiro"?"din":""));
+  faz("bairro",()=>cel(bairroDoPedido(p)||""));
+  faz("cliente",()=>cel(p.cliente||""));
+  faz("tel",()=>cel(p.telefone?telComDDD(p.telefone):"","num"));
+  faz("obs",()=>cel(p.obs||""));
+  faz("atend",()=>cel(p.atendente||""));
+  C.acoes=acoes;
+  const linhaEl=h("div",{class:"linha-ped dyn"+(comercio()?" com":"")+(entregue?" fim":"")},...cols.map(k=>C[k]||cel("")));
   return linhaAdic?h("div",{style:"display:flex;flex-direction:column;gap:2px"},linhaEl,linhaAdic):linhaEl;
+}
+function cabecalhoLinhas(){
+  const cols=estiloColunas();
+  return h("div",{class:"linha-ped cab dyn"+(comercio()?" com":"")},...cols.map(k=>k==="acoes"
+    ? h("span",{class:"c",style:"display:flex;justify-content:flex-end"},h("button",{type:"button",class:"mini-bt",title:"Escolher as colunas da lista",style:"text-transform:none;letter-spacing:0",onclick:e=>{ e.stopPropagation(); abrirColunas(); }},"⚙ Colunas"))
+    : h("span",{text:COLUNAS.find(c=>c.k===k).t})));
 }
 function cartaoPedidoBase(p){
   const entregue=p.status==="entregue";
