@@ -2742,9 +2742,7 @@ function linhaPedido(p){
   }
   if(!entregue && !pedidoMorto(p)){
     const emRota=!!(p.entregadorId && (p.emRotaEm || p.rotaId));
-    if(p.entregadorId && (entregasAbertasPorEntregador()[p.entregadorId]||[]).length>=2) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Organizar a ordem das entregas de "+nomeEnt(p.entregadorId),onclick:e=>{ e.stopPropagation(); abrirOrdemEntregas(p.entregadorId); }},"🧭"));
-    if(emRota) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Acrescentar mais pedidos nesta rota",onclick:e=>{ e.stopPropagation(); acrescentarPedidosNaRota(p); }},"+ Rota"));
-    else if(!p.rotaId) acoes.append(h("button",{class:"mini-bt",type:"button",title:"Adicionar a uma rota",onclick:e=>{ e.stopPropagation(); escolherRota(p); }},"+ Rota"));
+    // 🧭 e "+ Rota" saíram da lista do computador: a ordem abre tocando no 🧭 do endereço, e a rota fica dentro de Editar
   }
   if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
   if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
@@ -5845,6 +5843,11 @@ function abrirPedido(p,arquivoComanda,pre){
       h("div",{class:"campo"},lblTel,fTel)),
     central()?h("div",{class:"campo"},h("label",{for:"pEnt",text:novo?"Entregador (opcional)":"Entregador"}),fEnt):null,
     novo&&central()&&fRota.options.length>1?h("div",{class:"campo"},h("label",{for:"pRota",text:"Adicionar a uma rota (opcional)"}),fRota):null,
+    // editar (central): o botão "+ Rota" que ficava na lista agora fica aqui
+    (!novo&&central()&&p._path&&p.status!=="entregue")?(()=>{ const emRotaP=!!(p.entregadorId&&(p.emRotaEm||p.rotaId));
+      if(!emRotaP && p.rotaId) return null;
+      return h("button",{type:"button",class:"btn sec full",onclick:()=>{ if(emRotaP) acrescentarPedidosNaRota(p); else escolherRota(p); }},
+        emRotaP?"+ Rota · acrescentar outros pedidos nesta rota":"+ Rota · colocar este pedido numa rota"); })():null,
     /* comércio: a taxa não aparece (vários funcionários usam); vale a taxa cadastrada pela central */
     S.modo==="entregador"?h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between;align-items:center"},h("span",{class:"muted",text:"Sua taxa nesta entrega"}),h("b",{class:"num",style:"font-size:18px",text:fmt(num(S.euTaxa)||TAXA_MINIMA)})):null,
     (blocoPagForm.append(
