@@ -672,6 +672,17 @@ const diaSemana = s => deIso(s).toLocaleDateString("pt-BR",{weekday:"long"});
 const diaCurto = s => { const [y,m,d]=s.split("-"); return d+"/"+m; };
 const num = v => { if(v===undefined||v===null||v==="") return 0; const n=parseFloat(String(v).replace(/\s|R\$/g,"").replace(/\.(?=\d{3}(\D|$))/g,"").replace(",",".")); return isFinite(n)?n:0; };
 const fmtInput = v => (Number(v)||0) ? (Number(v)).toFixed(2).replace(".",",") : "";
+/* valores em dinheiro: digita só os números e a vírgula dos centavos entra sozinha (1 → 0,01 · 1250 → 12,50 · 126981 → 1.269,81).
+   Vale para todo campo de valor (inputmode decimal); um campo pode sair da regra com data-sem-mascara. */
+function mascaraDinheiro(t){ const d=String(t||"").replace(/\D/g,"").replace(/^0+(?=\d)/,""); if(!d || /^0+$/.test(d)) return "";
+  const c=d.padStart(3,"0"), inteiro=c.slice(0,-2).replace(/^0+(?=\d)/,""), cent=c.slice(-2);
+  return inteiro.replace(/\B(?=(\d{3})+(?!\d))/g,".")+","+cent; }
+document.addEventListener("input",e=>{ const el=e.target;
+  if(!el || el.tagName!=="INPUT" || el.getAttribute("inputmode")!=="decimal" || el.type==="number" || el.hasAttribute("data-sem-mascara")) return;
+  const novo=mascaraDinheiro(el.value); if(novo!==el.value){ el.value=novo; try{ el.setSelectionRange(novo.length,novo.length); }catch(_){} } },true);
+// ao entrar no campo, o cursor vai para o fim (os números entram sempre pela direita)
+document.addEventListener("focusin",e=>{ const el=e.target; if(el && el.tagName==="INPUT" && el.getAttribute("inputmode")==="decimal" && el.type!=="number" && !el.hasAttribute("data-sem-mascara"))
+  setTimeout(()=>{ try{ el.setSelectionRange(el.value.length,el.value.length); }catch(_){} },0); },true);
 const slug = s => String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80);
 function h(tag, props, ...kids){
   const el=document.createElement(tag);
