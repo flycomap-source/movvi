@@ -4437,7 +4437,8 @@ function abrirRota(op){
       campoCliente(st.cli,st.end,null,st.tel), st.end, st.baiW, st.tel, h("div",{class:"linha"},st.sel,st.din),
       h("label",{style:"display:flex;align-items:center;gap:8px;font-weight:700"},st.rec,"Pegar receita"), st.obs)));
   }
-  novaParada(); novaParada();
+  // escanear: começa com uma parada só (as lidas vão entrando); rota manual: duas em branco
+  if(op&&op.escanear){ novaParada(); } else { novaParada(); novaParada(); }
   const addBt=h("button",{class:"btn sec full",type:"button",onclick:novaParada},"+ Adicionar parada");
   // escanear comandas: cada foto vira uma parada preenchida
   const scanCam=h("input",{type:"file",accept:"image/*",capture:"environment",hidden:true});
@@ -4469,6 +4470,8 @@ function abrirRota(op){
       st.produtos=Array.isArray(r.produtosControlados)?r.produtosControlados.map(x=>String(x).trim()).filter(Boolean):[];
       st.rec.checked=r.pegarReceita===true||r.pegarReceita==="true"||st.produtos.length>0;
       if(!fEmp.value.trim() && r.empresa){ const e=acharEmpresa(r.empresa); if(e){ fEmp.value=e; fEmp.dispatchEvent(new Event("change")); } }
+      // tira as paradas que ficaram em branco (não aparecem "2 paradas" quando só tem uma comanda)
+      for(let i=paradas.length-1;i>=0;i--) if(paradas[i]!==st && vazia(paradas[i])) paradas.splice(i,1);
       desenhar();
     }catch(e){ toast(e&&e.code==="rate_limited"?"Muitas leituras seguidas. Tente de novo em instantes.":"Não foi possível ler uma comanda. Preencha à mão."); }
     lendo--; scanSt.textContent=lendo?"Lendo "+lendo+(lendo>1?" comandas…":" comanda…"):"Pronto. Confira as paradas e toque em Escanear para a próxima."; 
@@ -4492,11 +4495,13 @@ function abrirRota(op){
       st.din.value=o.din||""; st.obs.value=o.obs||""; st.rec.checked=!!o.rec; st.produtos=o.produtos||[]; });
     desenhar(); toast("Rota recuperada: "+d.paradas.length+(d.paradas.length>1?" paradas":" parada"));
   }
-  btScan.addEventListener("click",()=>abrirCameraTraseira(scanCam,ler,{multi:true,aoFechar:q=>{ if(!q && !paradas.some(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim())) fechar(); }}));
+  // uma comanda só: quando terminar de ler, abre direto a entrega normal para conferir e lançar
+  const seForUma=qtd=>{ if(qtd!==1) return; filaScan=filaScan.then(()=>{ if(paradas.filter(st=>!vazia(st)).length===1 && document.body.contains(salvar)) salvar.click(); }); };
+  btScan.addEventListener("click",()=>abrirCameraTraseira(scanCam,ler,{multi:true,aoFechar:q=>{ if(!q && !paradas.some(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim())) fechar(); else seForUma(q); }}));
   scanCam.addEventListener("change",()=>{ const f=scanCam.files&&scanCam.files[0]; scanCam.value=""; if(f) ler(f); });
   btScanGal.addEventListener("click",()=>{ scanGal.value=""; scanGal.click(); });
   scanGal.addEventListener("cancel",()=>{ if(!paradas.some(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim())) fechar(); });
-  scanGal.addEventListener("change",()=>{ [...(scanGal.files||[])].forEach(ler); scanGal.value=""; });
+  scanGal.addEventListener("change",()=>{ const fs=[...(scanGal.files||[])]; const antes=paradas.filter(st=>!vazia(st)).length; fs.forEach(ler); scanGal.value=""; if(!antes) seForUma(fs.length); });
   const msg=h("div",{class:"aviso",hidden:true});
   const salvar=h("button",{class:"btn full",type:"button"},"Criar rota");
   const fechar=abrirSheet(op&&op.escanear?"Escanear comandas":"Nova rota",[
@@ -4519,7 +4524,7 @@ function abrirRota(op){
     bt.addEventListener("click",()=>{ box.remove(); aplicarRascCentral(d); });
     flutuarRascunho(box,caixaParadas);
   })();
-  if(op&&op.arquivos) setTimeout(()=>op.arquivos.forEach(ler),0); else if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
+  if(op&&op.arquivos) setTimeout(()=>{ op.arquivos.forEach(ler); seForUma(op.arquivos.length); },0); else if(op&&op.escanear&&S.sample) setTimeout(()=>btScan.click(),0);
   // botão muda sozinho: 1 comanda = entrega normal; 2 ou mais = rota
   const preenchidas=()=>paradas.filter(st=>st.cli.value.trim()||st.end.value.trim()||st.tel.value.trim()).length;
   const rotuloSalvar=()=>{ if(salvar.disabled) return; const n=preenchidas(); salvar.textContent=n<=1?"Lançar entrega":"Criar rota ("+n+" entregas)"; };
