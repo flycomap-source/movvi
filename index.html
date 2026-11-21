@@ -2992,16 +2992,25 @@ function cartaoSolicitacaoLoja(p){
     const pq="padding:2px 5px;font-size:11px";
     rec.className="mini-bt"; rec.style.cssText=pq;
     const acoes=h("span",{class:"c acoes-l",style:"display:flex;gap:3px;overflow:visible"},rota?null:h("button",{class:"mini-bt",type:"button",style:pq,onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec);
-    return h("div",{class:"linha-ped"},
-      h("span",{class:"c"},h("span",{class:"badge-l",style:"background:var(--laranja);display:inline-block",text:p.publicado?"Aguardando":"Enviando…"})),
-      cel((p.data!==hoje()?diaCurto(p.data)+" ":"")+hora,"num"),
-      h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),p.numero?h("span",{class:"sub num",text:"#"+p.numero}):null),
-      (()=>{ const nome=rota?par.map(x=>x.cliente).filter(Boolean).join(", "):(p.cliente||""), baixo=[rota?"":(p.bairro||p.endereco||""),det].filter(Boolean).join(" · ");
-        return h("span",{class:"c",title:[nome,rota?par.map(x=>x.endereco).filter(Boolean).join(" · "):p.endereco,det].filter(Boolean).join(" · ")},h("b",{text:nome||"—"}),baixo?h("span",{class:"sub",text:baixo}):null); })(),
-      cel(pag,p.pagamento==="dinheiro"?"din":""),
-      h("span",{class:"c"},sel),
-      cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"),
-      acoes);
+    // segue as mesmas colunas escolhidas em ⚙ Colunas
+    const cols=estiloColunas(), C={};
+    const faz=(k,fn)=>{ if(cols.includes(k)) C[k]=fn(); };
+    faz("sit",()=>h("span",{class:"c"},h("span",{class:"badge-l",style:"background:var(--laranja);display:inline-block",text:p.publicado?"Aguardando":"Enviando…"})));
+    faz("hora",()=>cel((p.data!==hoje()?diaCurto(p.data)+" ":"")+hora,"num"));
+    faz("coleta",()=>h("span",{class:"c",title:p.coletaEmpresa||p.coletaEndereco||""},h("b",{text:p.coletaEmpresa||p.coletaEndereco||"—"}),(p.numero&&!cols.includes("pedido"))?h("span",{class:"sub num",text:"#"+p.numero}):null));
+    faz("pedido",()=>cel(p.numero?"#"+p.numero:"","num forte"));
+    faz("end",()=>{ const nome=rota?par.map(x=>x.cliente).filter(Boolean).join(", "):(p.cliente||""), baixo=[rota?"":(p.bairro||p.endereco||""),det].filter(Boolean).join(" · ");
+        return h("span",{class:"c",title:[nome,rota?par.map(x=>x.endereco).filter(Boolean).join(" · "):p.endereco,det].filter(Boolean).join(" · ")},h("b",{text:(rota?nome:(p.endereco||nome))||"—"}),baixo?h("span",{class:"sub",text:rota?baixo:[p.bairro||"",det].filter(Boolean).join(" · ")}):null); });
+    faz("bairro",()=>cel(rota?"":(p.bairro||"")));
+    faz("cliente",()=>cel(rota?par.map(x=>x.cliente).filter(Boolean).join(", "):(p.cliente||"")));
+    faz("tel",()=>cel(rota?"":(p.telefone?telComDDD(p.telefone):""),"num"));
+    faz("pag",()=>cel(pag,p.pagamento==="dinheiro"?"din":""));
+    faz("ent",()=>h("span",{class:"c"},sel));
+    faz("taxa",()=>cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"));
+    faz("obs",()=>cel(p.obs||""));
+    faz("atend",()=>cel(p.atendente||""));
+    C.acoes=acoes;
+    return h("div",{class:"linha-ped dyn"},...cols.map(k=>C[k]||cel("")));
   }
   return h("div",{class:"solic-loja"},
     h("div",{class:"topo"},h("span",{class:"pill pend",text:p.publicado?"Enviado aos entregadores":"Enviando aos entregadores…"}),h("span",{class:"quem-ped num",text:espera!==null?"há "+fmtMin(espera):""})),
