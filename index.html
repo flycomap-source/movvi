@@ -5855,6 +5855,16 @@ function abrirPedido(p,arquivoComanda,pre){
       campoDin, campoCartao, campoNota, avisoValor,
       h("div",{class:"campo"},h("span",{class:"lbl",text:"Tem que pegar a receita?"}),segRec)), blocoPagForm),
     h("div",{class:"nota"},h("label",{for:"pObs",class:"lbl",text:"Observações para o entregador"}),fObs),
+    // comércio: vê a taxa só aqui, na hora de lançar (na lista e nos cards ela não aparece)
+      (comercio()&&novo)?(()=>{ const el=h("div",{class:"painel",style:"flex-direction:row;justify-content:space-between;align-items:center;padding:10px 14px"},h("b",{text:"Taxa da entrega"}),h("b",{class:"num",style:"font-size:18px"}));
+        const calc=()=>{ let t; try{
+            if(servicoTaxaFixa(servico,pag)) t=taxaFixaDe(servico,pag);
+            else { const emp=((typeof fCli!=="undefined"&&fCli._empresa)?fCli._empresa():"")||S.euNome||""; t=(ehDelivery(emp)&&fBairro.value.trim())?taxaBairroDelivery(fBairro.value.trim()):Math.max(num(S.euTaxa),TAXA_MIN_COMERCIO); }
+          }catch(e){ t=Math.max(num(S.euTaxa),TAXA_MIN_COMERCIO); }
+          el.lastElementChild.textContent=fmt(t||0); };
+        // atualiza enquanto o formulário estiver aberto (muda com o serviço e o bairro)
+        let n=0; const tic=setInterval(()=>{ n++; if(!el.isConnected && n>5){ clearInterval(tic); return; } if(el.isConnected) calc(); },700);
+        calc(); return el; })():null,
     msg, salvar
   ];
   if(!novo && !p.acertado && central() && p.status!=="excluido"){
