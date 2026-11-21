@@ -764,7 +764,18 @@ function taxaVisivel(p){
   return num(p.taxaCobrada);
 }
 /* entregador: taxa dele (R$ 6), bônus (o que passa da taxa: % da central / 75% da taxa), adicionais e o total em verde */
-function partesGanho(p){ return naTela(()=>partesGanhoCalc(p)); }
+function partesGanho(p){ return naTela(()=>comercio()?partesGanhoComercio(p):partesGanhoCalc(p)); }
+/* comércio: vê quanto o entregador ganha no pedido (taxa do entregador + adicionais + bônus), calculado com a taxa padrão do entregador */
+function partesGanhoComercio(p){
+  const min=TAXA_MINIMA;
+  let unit=min;
+  if(!(p&&p.taxaFixaCentral)){
+    if(!num(p.taxaCobrada) && num(p.valorEntrega)) unit=Math.max(min,num(p.valorEntrega));
+    else unit=Math.round(Math.max(min,num(p.taxaCobrada)*PCT_ENTREGADOR)*(1+Math.max(0,num(p.bonusPct))/100)*100)/100;
+  }
+  const base=Math.min(unit,min), adic=Math.max(0,(unidades(p)-1))*VALOR_ADICIONAL;
+  return {base, bonus:Math.max(0,Math.round((unit-base)*100)/100), adic, total:Math.round((unit+adic)*100)/100};
+}
 function partesGanhoCalc(p){
   if(p._rotaTot!==undefined) return {base:p._rotaBase,bonus:Math.max(0,Math.round((p._rotaTot-p._rotaBase)*100)/100),adic:0,total:p._rotaTot};
   const unit=ganhoUnit(p), base=Math.min(unit,(central()?taxaEnt(p.entregadorId):num(S.euTaxa))||TAXA_MINIMA);
@@ -2732,12 +2743,12 @@ const COLUNAS=[
   {k:"pag",t:"Pagamento",w:"minmax(120px,1fr)",cen:1,com:1},
   {k:"ent",t:"Entregador",w:"minmax(130px,170px)",cen:1,com:1},
   {k:"taxa",t:"Taxa",w:"78px",cen:1,com:0},
-  {k:"taxaEnt",t:"Taxa entregador",w:"96px",cen:1,com:0},
+  {k:"taxaEnt",t:"Taxa entregador",w:"96px",cen:1,com:1},
   {k:"obs",t:"Observação",w:"minmax(120px,1.5fr)",cen:1,com:1},
   {k:"atend",t:"Atendente",w:"minmax(90px,1fr)",cen:1,com:1},
   {k:"acoes",t:"",w:"150px",cen:1,com:1,fixa:1}
 ];
-const COLS_PADRAO={cen:["sit","hora","coleta","end","pag","ent","taxa","taxaEnt","acoes"],com:["sit","hora","pedido","end","pag","ent","acoes"]};
+const COLS_PADRAO={cen:["sit","hora","coleta","end","pag","ent","taxa","taxaEnt","acoes"],com:["sit","hora","pedido","end","pag","ent","taxaEnt","acoes"]};
 const perfilCols=()=>comercio()?"com":"cen";
 function colunasDisponiveis(){ const pf=perfilCols(); return COLUNAS.filter(c=>c[pf]); }
 function colunasEscolhidas(){
@@ -2785,6 +2796,10 @@ function linhaPedido(p){
     faz("ent",()=>cel(p.entregadorNome||(p.entregadorId?nomeEnt(p.entregadorId):"Aguardando"),""));
     faz("pedido",()=>cel(p.numero?"#"+p.numero:"","num forte"));
     faz("end",()=>celCliente(p));
+    faz("taxaEnt",()=>{ const g=partesGanho(p);
+      return h("span",{class:"c num r",style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
+        h("span",{text:g.base>0?fmt(g.base):"—"}),
+        g.total>0&&g.total!==g.base?h("span",{style:"font-size:12px;font-weight:800;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); });
   }else{
     if(!p.acertado && !entregue && !pedidoMorto(p)) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"));
     if(entregue && p.fotoId) acoes.append(h("button",{class:"mini-bt",type:"button",onclick:e=>{ e.stopPropagation(); verFoto(p); }},"📷 Foto"));
@@ -2845,6 +2860,9 @@ function cartaoPedidoBase(p){
           taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null,
           g.base>0?h("span",{class:"num",style:"font-size:12px;font-weight:700;white-space:nowrap",text:fmt(g.base)}):null,
           g.total>0&&g.total!==g.base?h("span",{class:"num",style:"font-size:12px;font-weight:900;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); })()
+      : comercio() ? (()=>{ const g=partesGanho(p); return g.base>0?h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
+          h("span",{class:"num",style:"font-size:12px;font-weight:700;white-space:nowrap",text:fmt(g.base)}),
+          g.total>0&&g.total!==g.base?h("span",{class:"num",style:"font-size:12px;font-weight:900;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null):null; })()
       : taxaVisivel(p)?h("span",{class:"num",style:"font-size:13px;font-weight:800",text:"Taxa "+fmt(taxaVisivel(p))}):null);
   const card=h("div",{class:"ped "+(entregue?"entregue":"pendente"),style:"--st:"+st.c+(desde?";--pisca:"+corPisca:""),...(desde?{"data-desde":desde,"data-em-rota":p.emRotaEm?"1":"0"}:{})},
     central()
