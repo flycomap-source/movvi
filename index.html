@@ -3007,6 +3007,11 @@ function cartaoSolicitacaoLoja(p){
     faz("pag",()=>cel(pag,p.pagamento==="dinheiro"?"din":""));
     faz("ent",()=>h("span",{class:"c"},sel));
     faz("taxa",()=>cel(num(p.taxaCobrada)?fmt(p.taxaCobrada):"","num r"));
+    faz("taxaEnt",()=>{ let g; try{ g=partesGanho(p); }catch(e){ g={base:TAXA_MINIMA,total:TAXA_MINIMA,adic:0,bonus:0}; }
+      if(!(g.base>0)){ g={...g,base:TAXA_MINIMA}; if(!(g.total>0)) g.total=TAXA_MINIMA; }
+      return h("span",{class:"c num r",title:"Entregador: taxa "+fmt(g.base)+(g.adic>0?" + adicionais "+fmt(g.adic):"")+(g.bonus>0?" + bônus "+fmt(g.bonus):"")+" = "+fmt(g.total),style:"display:flex;flex-direction:column;align-items:flex-end;gap:1px"},
+        h("span",{text:fmt(g.base)}),
+        g.total>g.base?h("span",{style:"font-size:12px;font-weight:800;color:var(--ok);white-space:nowrap",text:fmt(g.total)}):null); });
     faz("obs",()=>cel(p.obs||""));
     faz("atend",()=>cel(p.atendente||""));
     C.acoes=acoes;
