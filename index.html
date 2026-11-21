@@ -6993,7 +6993,7 @@ async function calcularFatura(){
     bt.addEventListener("click",()=>{ if(!armado){ armado=true; bt.textContent=texto; setTimeout(()=>{ if(armado){ armado=false; bt.textContent=orig; } },4000); return; } armado=false; acao(); }); };
   // central › entregador › por semana: só as semanas em aberto (as pagas ficam escondidas e não somam no total)
   const soAberto=central()&&!com&&porSemana, nPagas=linhas.filter(w=>w.pago).length;
-  const visiveis=soAberto&&!S.fatVerPagas?linhas.filter(w=>!w.pago):linhas;
+  const visiveis=soAberto&&!S.fatVerPagas?linhas.filter(w=>!w.pago&&(w.itens.length||!w.fechada||w.ajTransf)):linhas;
   const cards=visiveis.map(w=>{ const i=linhas.indexOf(w);
     const st = !w.fechada ? h("span",{class:"pill",text:"Em andamento · fecha "+diaCurto(w.f)})
       : !w.itens.length ? h("span",{class:"pill acert",text:"Sem entregas"})
