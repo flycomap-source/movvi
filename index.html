@@ -8150,6 +8150,16 @@ function abrirMapaEntrega(p){
     const outras=(S.pedidosDia||[]).filter(x=>x.id!==p.id && x.entregadorId===p.entregadorId && !FECHADOS.includes(x.status) && x.endereco);
     const [lc,me]=await Promise.all([limite(localDoCliente(p).catch(()=>null),8000),limite(minhaPosicao(),4000)]);
     if(!jan.isConnected) return;
+    // sem ponto confiável (só a busca aproximada do mapa do app, que às vezes cai longe): mostra o mapa do Google,
+    // o mesmo ponto do endereço azul que abre o Google Maps
+    if((!lc || String(lc.fonte).includes("aproximado")) && p.endereco){
+      clearTimeout(tempoCidade); vista="google"; try{ mapa.remove(); }catch(e){} mapa=null;
+      const e=String(p.endereco).trim(), q=/una[ií]/i.test(e)?e:e+", "+CIDADE_PADRAO;   // igual ao linkMaps
+      area.replaceChildren(h("iframe",{src:"https://maps.google.com/maps?q="+encodeURIComponent(q)+"&z=17&hl=pt-BR&output=embed",title:"Mapa do Google",loading:"eager",referrerpolicy:"no-referrer-when-downgrade",
+        style:"position:absolute;inset:0;width:100%;height:100%;border:0"}));
+      btEu.hidden=true; txt.textContent="📍 Mapa do Google: o mesmo ponto do endereço azul (Google Maps).";
+      return;
+    }
     if(lc){ cli=L.marker([lc.lat,lc.lng],{icon:pinoHtml("🏠 "+esc((p.cliente||"Cliente").split(/\s+/)[0])+(num(p.ordemEntrega)?" · "+num(p.ordemEntrega):""),"#dc2626"),zIndexOffset:500}).addTo(mapa)
         .bindPopup("<b>"+esc(p.cliente)+"</b><br>"+esc(p.endereco)+"<br><small>Ponto: "+lc.fonte+"</small>"); pts.push([lc.lat,lc.lng]); }
     if(me){ eu=L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa); pts.push([me.lat,me.lng]); }
