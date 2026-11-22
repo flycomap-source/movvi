@@ -8117,6 +8117,15 @@ function minhaPosicao(){
   return new Promise(ok=>{ if(!("geolocation" in navigator)) return ok(null);
     navigator.geolocation.getCurrentPosition(pos=>ok({lat:pos.coords.latitude,lng:pos.coords.longitude,prec:Math.round(pos.coords.accuracy||0)}),()=>ok(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000}); });
 }
+/* posição do entregador desta entrega: no celular dele, o GPS; na central, a última posição enviada (até 30 min) */
+async function posDoEntregador(p){
+  if(S.modo==="entregador") return minhaPosicao();
+  const m=(S.equipe||[]).find(x=>x.id===p.entregadorId); if(!m||!m.uid) return null;
+  const sn=await S.db.doc("posicoes/"+m.uid).get(); const d=sn.exists?(sn.data()||{}):null;
+  const la=Number(d&&d.lat), ln=Number(d&&d.lng); if(!d||!la||!ln) return null;
+  const t=Date.parse(d.em||""); if(t && Date.now()-t>30*60000) return null;
+  return {lat:la,lng:ln,em:t?new Date(t).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):""};
+}
 function abrirMapaEntrega(p){
   const txt=h("span",{class:"muted",style:"font-size:12px"});
   const area=h("div",{style:"flex:1;min-height:0;border-radius:12px;overflow:hidden;background:#e5e7eb;position:relative"},h("p",{class:"muted",style:"margin:auto;padding:20px;text-align:center",text:"Carregando o mapa…"}));
@@ -8148,16 +8157,25 @@ function abrirMapaEntrega(p){
     const pts=[];
     // as outras paradas da rota dele (numeradas), para ver a ordem
     const outras=(S.pedidosDia||[]).filter(x=>x.id!==p.id && x.entregadorId===p.entregadorId && !FECHADOS.includes(x.status) && x.endereco);
-    const [lc,me]=await Promise.all([limite(localDoCliente(p).catch(()=>null),8000),limite(minhaPosicao(),4000)]);
+    const [lc,me]=await Promise.all([limite(localDoCliente(p).catch(()=>null),8000),limite(posDoEntregador(p).catch(()=>null),4000)]);
     if(!jan.isConnected) return;
     // sem ponto confiável (só a busca aproximada do mapa do app, que às vezes cai longe): mostra o mapa do Google,
     // o mesmo ponto do endereço azul que abre o Google Maps
-    if((!lc || String(lc.fonte).includes("aproximado")) && p.endereco){
+    // com a posição do entregador: mapa do Google já com a rota traçada até o cliente.
+    // sem ponto confiável do cliente, o destino é o endereço (o mesmo do endereço azul, que bate no Google)
+    const aprox=!lc || String(lc.fonte).includes("aproximado");
+    if((me || aprox) && p.endereco){
       clearTimeout(tempoCidade); vista="google"; try{ mapa.remove(); }catch(e){} mapa=null;
       const e=String(p.endereco).trim(), q=/una[ií]/i.test(e)?e:e+", "+CIDADE_PADRAO;   // igual ao linkMaps
-      area.replaceChildren(h("iframe",{src:"https://maps.google.com/maps?q="+encodeURIComponent(q)+"&z=17&hl=pt-BR&output=embed",title:"Mapa do Google",loading:"eager",referrerpolicy:"no-referrer-when-downgrade",
+      const destino=aprox?q:(lc.lat+","+lc.lng);
+      const src = me ? "https://maps.google.com/maps?saddr="+me.lat+","+me.lng+"&daddr="+encodeURIComponent(destino)+"&dirflg=d&hl=pt-BR&output=embed"
+                     : "https://maps.google.com/maps?q="+encodeURIComponent(destino)+"&z=17&hl=pt-BR&output=embed";
+      area.replaceChildren(h("iframe",{src,title:"Mapa do Google",loading:"eager",referrerpolicy:"no-referrer-when-downgrade",
         style:"position:absolute;inset:0;width:100%;height:100%;border:0"}));
-      btEu.hidden=true; txt.textContent="📍 Mapa do Google: o mesmo ponto do endereço azul (Google Maps).";
+      btEu.hidden=true;
+      if(btG) btG.href="https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(destino)+"&travelmode=driving";
+      txt.textContent = me ? "🧭 Rota de "+(S.modo==="entregador"?"você":"o entregador")+" até o cliente"+(me.em?" (posição de "+me.em+")":"")+"."
+                           : "📍 Mapa do Google: o mesmo ponto do endereço azul. Ligue a localização para ver a rota.";
       return;
     }
     if(lc){ cli=L.marker([lc.lat,lc.lng],{icon:pinoHtml("🏠 "+esc((p.cliente||"Cliente").split(/\s+/)[0])+(num(p.ordemEntrega)?" · "+num(p.ordemEntrega):""),"#dc2626"),zIndexOffset:500}).addTo(mapa)
