@@ -8117,6 +8117,67 @@ function minhaPosicao(){
   return new Promise(ok=>{ if(!("geolocation" in navigator)) return ok(null);
     navigator.geolocation.getCurrentPosition(pos=>ok({lat:pos.coords.latitude,lng:pos.coords.longitude,prec:Math.round(pos.coords.accuracy||0)}),()=>ok(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000}); });
 }
+/* rota de carro (OSRM, mapa livre) entre dois pontos: linha, distância, tempo e as manobras */
+async function rotaOSRM(a,b){
+  const u="https://router.project-osrm.org/route/v1/driving/"+a.lng+","+a.lat+";"+b.lng+","+b.lat+"?overview=full&geometries=geojson&steps=true";
+  const r=await fetch(u); if(!r.ok) return null; const j=await r.json(); const rt=j&&j.routes&&j.routes[0]; if(!rt) return null;
+  const coords=rt.geometry.coordinates.map(c=>[c[1],c[0]]);
+  const steps=[]; (rt.legs||[]).forEach(l=>(l.steps||[]).forEach(st=>steps.push({m:st.maneuver||{},nome:st.name||"",dist:st.distance||0})));
+  // posição de cada manobra na linha (o ponto mais perto)
+  steps.forEach(st=>{ const loc=st.m.location; if(!loc){ st.i=0; return; } let bi=0,bd=1e12; coords.forEach((c,i)=>{ const d=(c[0]-loc[1])**2+(c[1]-loc[0])**2; if(d<bd){ bd=d; bi=i; } }); st.i=bi; });
+  return {coords,dist:rt.distance||0,dur:rt.duration||0,steps};
+}
+const fmtDist=m=>m>=1000?(Math.round(m/100)/10).toString().replace(".",",")+" km":Math.max(10,Math.round(m/10)*10)+" m";
+const minDeSeg=s=>fmtMin(Math.max(1,Math.round(s/60)));
+function textoManobra(st){
+  const m=st.m||{}, t=m.type||"", md=m.modifier||"", rua=st.nome?" na "+st.nome:"";
+  const lado={"left":"à esquerda","right":"à direita","slight left":"levemente à esquerda","slight right":"levemente à direita","sharp left":"forte à esquerda","sharp right":"forte à direita","straight":"em frente","uturn":"o retorno"}[md]||"";
+  const seta={"left":"⬅","right":"➡","slight left":"↖","slight right":"↗","sharp left":"↙","sharp right":"↘","straight":"⬆","uturn":"↩"}[md]||"⬆";
+  if(t==="arrive") return {seta:"🏁",txt:"Chegada ao cliente"};
+  if(t==="roundabout"||t==="rotary"||t==="roundabout turn") return {seta:"🔄",txt:"Na rotatória, pegue a "+(m.exit?m.exit+"ª saída":"saída")+rua};
+  if(md==="uturn") return {seta, txt:"Faça o retorno"+rua};
+  if(t==="depart") return {seta:"⬆",txt:"Siga"+rua};
+  if(md==="straight"||t==="continue"||t==="new name") return {seta:"⬆",txt:"Siga em frente"+rua};
+  return {seta, txt:"Vire "+lado+rua};
+}
+/* navegação no mapa do app: acompanha o GPS, mostra a próxima manobra, distância e tempo; refaz a rota se sair do caminho */
+function navegarNoMapa(o){
+  const {L,mapa,destino,txt,bt}=o;
+  const faixa=h("div",{style:"position:absolute;left:8px;right:8px;top:8px;z-index:1000;background:#0b3d91;color:#fff;border-radius:12px;padding:10px 12px;display:flex;gap:12px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.3)"});
+  const fSeta=h("div",{style:"font-size:34px;line-height:1"},"⬆"), fDist=h("b",{style:"font-size:20px"}), fTxt=h("div",{style:"font-size:15px;font-weight:700"});
+  faixa.append(fSeta,h("div",{style:"display:flex;flex-direction:column;min-width:0"},fDist,fTxt)); o.area.append(faixa);
+  bt.textContent="■ Parar navegação";
+  let rota=null, buscando=false, ultBusca=0, watch=null, lock=null, ultPos=null, acompanhar=true;
+  try{ navigator.wakeLock&&navigator.wakeLock.request("screen").then(l=>lock=l).catch(()=>{}); }catch(e){}
+  const soltar=()=>{ acompanhar=false; };
+  mapa.on("dragstart",soltar);
+  const reBusca=async pos=>{ if(buscando||Date.now()-ultBusca<10000) return; buscando=true; ultBusca=Date.now();
+    try{ const r=await rotaOSRM(pos,destino); if(r){ rota=r; o.desenhar(r); } }catch(e){} buscando=false; };
+  const somaDist=(cs,i,j)=>{ let d=0; for(let k=Math.max(0,i);k<j&&k<cs.length-1;k++) d+=distM({lat:cs[k][0],lng:cs[k][1]},{lat:cs[k+1][0],lng:cs[k+1][1]}); return d; };
+  const atualizar=pos=>{
+    ultPos=pos;
+    const me=o.eu(); if(me) me.setLatLng([pos.lat,pos.lng]); else o.setEu(L.marker([pos.lat,pos.lng],{icon:o.pino("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa));
+    if(acompanhar) mapa.setView([pos.lat,pos.lng],Math.max(mapa.getZoom(),17),{animate:true});
+    const falta=distM(pos,destino);
+    if(falta<40){ fSeta.textContent="🏁"; fDist.textContent="Você chegou"; fTxt.textContent="Ao finalizar a entrega o GPS guarda este ponto."; txt.textContent="🏁 Chegou ao cliente."; return; }
+    if(!rota){ reBusca(pos); fDist.textContent=fmtDist(falta); fTxt.textContent="Calculando a rota…"; return; }
+    // ponto da rota mais perto de mim
+    let bi=0,bd=1e12; rota.coords.forEach((c,i)=>{ const d=distM(pos,{lat:c[0],lng:c[1]}); if(d<bd){ bd=d; bi=i; } });
+    if(bd>60){ reBusca(pos); }   // saiu do caminho: refaz a rota
+    const prox=rota.steps.find(st=>st.i>bi && st.m.type!=="depart") || rota.steps[rota.steps.length-1];
+    const dProx=prox?somaDist(rota.coords,bi,prox.i)+bd:falta, dFim=somaDist(rota.coords,bi,rota.coords.length-1)+bd;
+    const tm=textoManobra(prox||{m:{type:"arrive"}}); fSeta.textContent=tm.seta; fDist.textContent=fmtDist(dProx); fTxt.textContent=tm.txt;
+    txt.textContent="🧭 Faltam "+fmtDist(dFim)+" · ~"+minDeSeg(rota.dist?rota.dur*dFim/rota.dist:dFim/8)+(acompanhar?"":" · toque em “Centralizar” para seguir você");
+  };
+  const btCentro=h("button",{type:"button",style:"position:absolute;right:10px;bottom:28px;z-index:1000;border:0;border-radius:999px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);padding:10px 14px;font-weight:800;color:#004AAD"},"◎ Centralizar");
+  btCentro.addEventListener("click",()=>{ acompanhar=true; if(ultPos) mapa.setView([ultPos.lat,ultPos.lng],17); });
+  o.area.append(btCentro);
+  try{ watch=navigator.geolocation.watchPosition(ps=>atualizar({lat:ps.coords.latitude,lng:ps.coords.longitude}),()=>{ fTxt.textContent="Sem sinal do GPS. Libere a localização do app."; },{enableHighAccuracy:true,maximumAge:3000,timeout:20000}); }
+  catch(e){ fTxt.textContent="Este aparelho não deu a localização."; }
+  minhaPosicao().then(pos=>{ if(pos) atualizar(pos); });
+  return ()=>{ try{ watch!=null&&navigator.geolocation.clearWatch(watch); }catch(e){} try{ lock&&lock.release(); }catch(e){} try{ mapa.off("dragstart",soltar); }catch(e){}
+    faixa.remove(); btCentro.remove(); bt.textContent="▶ Iniciar navegação"; o.aoParar&&o.aoParar(); };
+}
 /* posição do entregador desta entrega: no celular dele, o GPS; na central, a última posição enviada (até 30 min) */
 async function posDoEntregador(p){
   if(S.modo==="entregador") return minhaPosicao();
@@ -8140,7 +8201,8 @@ function abrirMapaEntrega(p){
     area,txt,h("div",{style:"display:flex;gap:8px"},btEu,btG));
   document.body.append(jan);
   let mapa=null, eu=null, cli=null;
-  const fechar=()=>{ try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); };
+  let pararNav=null;
+  const fechar=()=>{ try{ pararNav&&pararNav(); }catch(e){} try{ mapa&&mapa.remove(); }catch(e){} jan.remove(); window.removeEventListener("popstate",fechar); };
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
   const pinoHtml=(t,cor)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+cor+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+t+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+cor+'"></div></div>'});
   const esc=t=>String(t||"").replace(/[<>&]/g,"");
@@ -8164,7 +8226,7 @@ function abrirMapaEntrega(p){
     // com a posição do entregador: mapa do Google já com a rota traçada até o cliente.
     // sem ponto confiável do cliente, o destino é o endereço (o mesmo do endereço azul, que bate no Google)
     const aprox=!lc || String(lc.fonte).includes("aproximado");
-    if((me || aprox) && p.endereco){
+    if(aprox && p.endereco){
       clearTimeout(tempoCidade); vista="google"; try{ mapa.remove(); }catch(e){} mapa=null;
       const e=String(p.endereco).trim(), q=/una[ií]/i.test(e)?e:e+", "+CIDADE_PADRAO;   // igual ao linkMaps
       const destino=aprox?q:(lc.lat+","+lc.lng);
@@ -8193,6 +8255,18 @@ function abrirMapaEntrega(p){
     else if(lc){ mapa.setView([lc.lat,lc.lng],16); }   // demorou: já estava na cidade, vai até o cliente
     txt.textContent = lc ? (lc.fonte.includes("aproximado")?"⚠️ Ponto aproximado (busca pelo endereço). Se não bater, use o Google Maps.":"✓ Ponto do cliente: "+lc.fonte+".")
       : "Não achei este endereço no mapa do app. Use o Google Maps.";
+    // rota traçada até o cliente e navegação dentro do app (sem voz): ponto do cliente confiável
+    if(lc && me){
+      let linha=null;
+      const desenhar=r=>{ try{ linha&&linha.remove(); }catch(e){} linha=L.polyline(r.coords,{color:"#1a73e8",weight:6,opacity:.85}).addTo(mapa); };
+      rotaOSRM(me,lc).then(r=>{ if(!r||!mapa) return; desenhar(r); txt.textContent="✓ Ponto do cliente: "+lc.fonte+" · "+fmtDist(r.dist)+" · ~"+minDeSeg(r.dur); }).catch(()=>{});
+      if(S.modo==="entregador"){
+        const btNav=h("button",{class:"btn",type:"button",style:"flex:1"},"▶ Iniciar navegação");
+        btEu.replaceWith(btNav);
+        btNav.addEventListener("click",()=>{ if(pararNav){ pararNav(); return; }
+          pararNav=navegarNoMapa({L,mapa,destino:lc,eu:()=>eu,setEu:m=>eu=m,pino:pinoHtml,desenhar,txt,bt:btNav,area,aoParar:()=>{ pararNav=null; }}); });
+      }
+    }
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Sem internet para carregar o mapa. Use o Google Maps."})); });
   btEu.addEventListener("click",async()=>{ const me=await minhaPosicao(); if(!me){ toast("Não consegui sua localização. Libere a localização do app."); return; }
     if(mapa){ if(eu) eu.setLatLng([me.lat,me.lng]); else eu=window.L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD")}).addTo(mapa); mapa.setView([me.lat,me.lng],17); } });
