@@ -2517,11 +2517,12 @@ function blocoRota(p){
             const link=mapa?h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no Google Maps",style:"flex:1;min-width:0;display:flex;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()})
               :h("span",{class:p.cliente?"end":"emp",style:"flex:1;min-width:0"});
             if(mapa) link.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" ");
-            link.append(endComBairro(p));
+            link.append(String(p.endereco||"").trim());
             const bt=h("button",{type:"button",title:"Ver no mapa do app","aria-label":"Ver no mapa do app",onclick:e=>{ e.stopPropagation(); abrirMapaEntrega(p); },
               style:"flex:none;width:40px;height:36px;border:1.5px solid var(--royal);border-radius:10px;background:var(--royal-bg,#eef4ff);display:grid;place-items:center;cursor:pointer;padding:0"});
             bt.innerHTML='<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5l5.5-2.5 7 2.5L21 4v13.5L15.5 20l-7-2.5L3 20z" fill="#dbeafe" stroke="#004AAD" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 4v13.5M15.5 6.5V20" stroke="#004AAD" stroke-width="1.4"/><circle cx="12" cy="11" r="2.6" fill="#dc2626"/></svg>';
-            return h("div",{style:"display:flex;align-items:flex-start;gap:8px;align-self:stretch"},link,bt); })()
+            return h("div",{style:"display:flex;flex-direction:column;gap:2px;align-self:stretch"},
+              h("div",{style:"display:flex;align-items:flex-start;gap:8px;align-self:stretch"},link,bt),linhaBairro(p)); })()
         :p.endereco?(mapa?(()=>{ const a=h("a",{class:p.cliente?"end":"emp",href:mapa,target:"_blank",rel:"noopener",title:"Abrir no mapa",style:"display:flex;align-self:stretch;align-items:flex-start;gap:6px;padding:7px 0;margin:-3px 0;min-height:36px;color:var(--royal)!important;text-decoration:underline;text-underline-offset:3px;-webkit-tap-highlight-color:rgba(26,115,232,.15)",onclick:e=>e.stopPropagation()});
             a.innerHTML=SVG_PINO.replace("<svg ","<svg style=\"flex:none;margin-top:3px\" "); a.append(endComBairro(p)); return a; })()
           :h("span",{class:p.cliente?"end":"emp",text:endComBairro(p)})):null,
@@ -2682,6 +2683,9 @@ function bairroDoPedidoCalc(p){
       if(cad.bairro) return String(cad.bairro).trim(); } }catch(e){}
   return "";
 }
+/* linha "Bairro: X" em destaque nos cartões de entrega (se faltar, avisa) */
+function linhaBairro(p){ const b=bairroDoPedido(p);
+  return h("div",{style:"font-size:15px;font-weight:800;color:"+(b?"var(--ink)":"var(--warn)")},h("span",{style:"font-weight:600;color:var(--muted)",text:"Bairro: "}),b||"não informado"); }
 function endComBairro(p){ const e=String((p&&p.endereco)||"").trim(), b=bairroDoPedido(p);
   if(!b) return e; if(!e) return b; if(semAcento(e).includes(semAcento(b))) return e; return e+" - "+b; }
 function celCliente(p,extra){
@@ -5539,7 +5543,7 @@ function abrirPedido(p,arquivoComanda,pre){
   fCli.addEventListener("input",()=>{ campoCodCom.hidden=true; });
   const fEnd=h("input",{class:"inp",id:"pEnd",placeholder:"Rua, número, bairro",value:p.endereco||""});
   datalistBairros();
-  const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||bairroNoEndereco(p.endereco)||""});
+  const fBairro=h("input",{class:"inp",id:"pBairro",list:"dlBairros",autocomplete:"off",placeholder:"Bairro (obrigatório)",value:p.bairro||(p.endereco?bairroDoPedido(p):"")||bairroNoEndereco(p.endereco)||""});
   fEnd.addEventListener("change",()=>{ if(!fBairro.value.trim()){ const b=bairroNoEndereco(fEnd.value); if(b){ fBairro.value=b; fBairro.dispatchEvent(new Event("change")); } } });
   const taxaPeloBairro=()=>{ try{ if(central() && !taxaMexida && ehDelivery(fEmp.value) && fBairro.value.trim()) fTaxa.value=fmtInput(taxaBairroDelivery(fBairro.value)); try{ atuBonus(); }catch(e){} }catch(e){} };
   fBairro.addEventListener("change",taxaPeloBairro); fBairro.addEventListener("input",taxaPeloBairro);
@@ -5587,7 +5591,7 @@ function abrirPedido(p,arquivoComanda,pre){
   fObs.value=p.obs||"";
   const segBtns={};
   const seg=h("div",{class:"seg",role:"group","aria-label":"Forma de pagamento do cliente"},
-    ...Object.keys(PAG).map(k=>segBtns[k]=h("button",{type:"button","aria-pressed":String(pag===k),onclick:()=>{pag=k;atualiza();}},PAG[k])));
+    ...Object.keys(PAG).map(k=>segBtns[k]=h("button",{type:"button","aria-pressed":String(pag===k),onclick:()=>{ trocarPag(k); }},PAG[k])));
   const dica=h("div",{class:"muted",style:"font-size:12px"});
   let receita=!!p.pegarReceita, produtosLidos=Array.isArray(p.produtosReceita)?p.produtosReceita.slice():[];
   const recBtns={};
@@ -5603,6 +5607,15 @@ function abrirPedido(p,arquivoComanda,pre){
   const campoNota=h("div",{class:"campo"},h("label",{for:"pNota",text:"Valor da nota que o cliente assina (R$)"}),fNota);
   const fCartao=h("input",{class:"inp num",id:"pCartao",inputmode:"decimal",placeholder:"0,00",value:num(p.valorCartao)?fmtInput(num(p.valorCartao)):""});
   const campoCartao=h("div",{class:"campo"},h("label",{for:"pCartao",text:"Cobrar no cartão (R$)"}),fCartao);
+  // trocar a forma de pagamento leva o valor junto (ex.: era "assinar nota" e na verdade é cartão: o valor não some)
+  const campoValorDe=k=>k==="dinheiro"?fDin:k==="convenio"?fNota:k==="cartao"?fCartao:null;
+  let ultimoValor=num((campoValorDe(pag)||{}).value)||num(p.valorCartao)||num(p.valorNota)||dinheiroDoPedido(p)||0;
+  [fDin,fNota,fCartao].forEach(f=>f.addEventListener("input",()=>{ if(num(f.value)) ultimoValor=num(f.value); }));
+  function trocarPag(k){
+    const de=campoValorDe(pag), para=campoValorDe(k), v=num(de&&de.value)||ultimoValor;
+    pag=k; if(para && !num(para.value) && v) para.value=fmtInput(v);
+    atualiza();
+  }
   function atualiza(){
     campoDin.hidden = pag!=="dinheiro"; campoNota.hidden = pag!=="convenio"; campoCartao.hidden = pag!=="cartao";
     try{ campoBairro.hidden = servico==="transferencia"; }catch(e){}
