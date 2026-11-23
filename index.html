@@ -2085,6 +2085,12 @@ function renderPedidos(){
   ps.sort((a,b)=> (a.status==="entregue")-(b.status==="entregue") || String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")) || String(a.rotaId||"").localeCompare(String(b.rotaId||"")) || (num(a.rotaOrdem)-num(b.rotaOrdem)));
   // entregador (e a central filtrando um entregador): na ordem em que cada entrega vai ser feita
   if(S.modo==="entregador" || (central() && S.filtro!=="todos")) ps.sort(cmpSeq);
+  else if(central()){
+    // central vendo todos: as entregas numeradas de uma rota ficam na mesma sequência do app do entregador (1, 2, 3…),
+    // ocupando os mesmos lugares da lista; o resto continua por horário
+    const grupos={}; ps.forEach((p,i)=>{ if(p.entregadorId && num(p.ordemQtd)>=2 && (num(p.ordemEntrega)>0||num(p.ordemColeta)>0)) (grupos[p.entregadorId]=grupos[p.entregadorId]||[]).push(i); });
+    Object.values(grupos).forEach(idx=>{ const itens=idx.map(i=>ps[i]).sort(cmpSeq); idx.forEach((i,k)=>{ ps[i]=itens[k]; }); });
+  }
   const ent=ps.filter(p=>p.status==="entregue");
   $("#rTotal").textContent=ps.length;
   $("#rEntregues").textContent=ent.length;
