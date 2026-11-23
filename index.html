@@ -8238,8 +8238,22 @@ function abrirMapaEntrega(p){
       const destino=aprox?q:(lc.lat+","+lc.lng);
       const src = me ? "https://maps.google.com/maps?saddr="+me.lat+","+me.lng+"&daddr="+encodeURIComponent(destino)+"&dirflg=d&hl=pt-BR&output=embed"
                      : "https://maps.google.com/maps?q="+encodeURIComponent(destino)+"&z=17&hl=pt-BR&output=embed";
-      area.replaceChildren(h("iframe",{src,title:"Mapa do Google",loading:"eager",referrerpolicy:"no-referrer-when-downgrade",
-        style:"position:absolute;inset:0;width:100%;height:100%;border:0"}));
+      const ifr=h("iframe",{src,title:"Mapa do Google",loading:"eager",referrerpolicy:"no-referrer-when-downgrade",
+        style:"position:absolute;inset:0;width:100%;height:100%;border:0"});
+      area.replaceChildren(ifr);
+      // o mapa do Google embutido não se mexe sozinho: no celular do entregador, recarrega a rota a partir de onde
+      // ele está (no máximo a cada 20 s, quando andou mais de 30 m)
+      if(me && S.modo==="entregador" && navigator.geolocation){
+        let ult={...me}, ultT=Date.now(), w=null;
+        const novaRota=pos=>"https://maps.google.com/maps?saddr="+pos.lat+","+pos.lng+"&daddr="+encodeURIComponent(destino)+"&dirflg=d&hl=pt-BR&output=embed";
+        try{ w=navigator.geolocation.watchPosition(ps=>{ const pos={lat:ps.coords.latitude,lng:ps.coords.longitude};
+            if(!ifr.isConnected){ navigator.geolocation.clearWatch(w); return; }
+            if(Date.now()-ultT<20000 || distM(ult,pos)<30) return;
+            ult=pos; ultT=Date.now(); ifr.src=novaRota(pos);
+            txt.textContent="🧭 Rota de você até o cliente · atualizada "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+          },()=>{},{enableHighAccuracy:true,maximumAge:5000,timeout:20000}); }catch(e){}
+        pararNav=()=>{ try{ w!=null&&navigator.geolocation.clearWatch(w); }catch(e){} };
+      }
       btEu.hidden=true;
       if(btG) btG.href="https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(destino)+"&travelmode=driving";
       txt.textContent = me ? "🧭 Rota de "+(S.modo==="entregador"?"você":"o entregador")+" até o cliente"+(me.em?" (posição de "+me.em+")":"")+"."
