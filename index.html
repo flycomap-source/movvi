@@ -7851,7 +7851,7 @@ async function uidsDaCentral(){
 /* ===== Localização dos entregadores (versão 1: com o app aberto) =====
    posicoes/<uid do entregador> = {lat, lng, prec, em, nome, equipeId, disponivel}
    O entregador só envia com a chave em "disponível" e o app aberto na tela. A central vê tudo no mapa. */
-const GPS_INTERVALO=30000, GPS_DIST=60;   // manda a cada 30 s ou quando andou 60 m (menos carga no servidor)
+const GPS_INTERVALO=20000, GPS_DIST=60;   // manda a cada 20 s ou quando andou 60 m (pouca internet: ~1 KB por envio)
 const gps={watch:null,ult:null,ultEnvio:0,negado:false};
 const distM=(a,b)=>{ const R=6371000,r=x=>x*Math.PI/180, dLa=r(b.lat-a.lat), dLo=r(b.lng-a.lng);
   const h1=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h1)); };
