@@ -7982,7 +7982,7 @@ function abrirMapaEntregadores(){
     lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
     h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · bonequinho de camisa vermelha = cliente com entrega em aberto. Toque no cliente para ver e editar."}));
   document.body.append(jan);
-  let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=false, pos=[];   // mapa fica parado onde abriu (sem zoom automático)
+  let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];   // ao abrir, enquadra os entregadores uma vez; depois o mapa fica parado
   const STL={"pendente":"Aguardando","solicitado":"Aguardando"};
   const situacaoPed=p=>p.emRotaEm?"🛵 Em rota"+(p.entregadorId?" · "+nomeEnt(p.entregadorId):""):p.entregadorId?"⏳ Indo coletar · "+nomeEnt(p.entregadorId):"🕐 Aguardando entregador";
   const iconeLoja=(pt)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-50%);display:flex;align-items:center;gap:4px;background:#004AAD;color:#fff;font:800 12px system-ui;padding:4px 8px 4px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap">'+(pt.ehComercio?"🏪":"📦")+' '+String(pt.nome).replace(/^farm[aá]cia\s+/i,"").replace(/[<>&]/g,"").slice(0,22)+' <span style="background:#E67E22;border-radius:999px;padding:0 6px;margin-left:2px">'+pt.pedidos.length+'</span></div>'});
@@ -8087,7 +8087,9 @@ function abrirMapaEntregadores(){
       else marcas[x.id]=window.L.marker([x.lat,x.lng],{icon:icone(x,velho)}).addTo(mapa).bindPopup(pop); });
     Object.keys(marcas).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(marcas[k]); delete marcas[k]; } });
     if(primeira && !vis.length && Object.keys(lojas).length){ primeira=false; const b=Object.values(lojas).map(m=>{ const ll=m.getLatLng(); return [ll.lat,ll.lng]; }); if(b.length===1) mapa.setView(b[0],15); else mapa.fitBounds(b,{padding:[40,40],maxZoom:16}); }
-    if(primeira && vis.length){ primeira=false; if(vis.length===1) mapa.setView([vis[0].lat,vis[0].lng],15); else mapa.fitBounds(vis.map(x=>[x.lat,x.lng]),{padding:[40,40],maxZoom:16}); }
+    if(primeira && vis.length){ primeira=false;
+      const ativos=vis.filter(x=>(Date.now()-new Date(x.em).getTime())<=5*60e3), alvo=ativos.length?ativos:vis;   // quem está com o GPS ligado agora vem primeiro
+      if(alvo.length===1) mapa.setView([alvo[0].lat,alvo[0].lng],15); else mapa.fitBounds(alvo.map(x=>[x.lat,x.lng]),{padding:[50,50],maxZoom:16}); }
   };
   unsub=S.db.collection("posicoes").onSnapshot(snap=>{ pos=snap.docs.map(d=>({id:d.id,...d.data()})); desenhar(); },()=>{});
   unsubGeo=S.db.collection("geo").onSnapshot(snap=>{ snap.docs.forEach(d=>{ const g=d.data()||{}; if(g.lat) S.geo[d.id]={...g}; }); desenharLojas(); },()=>{});
