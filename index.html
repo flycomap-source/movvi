@@ -8574,9 +8574,9 @@ function abrirMensagens(){
     const itens=[];
     if(central()){
       const cen=cs.filter(c=>!ehPar(c)), par=cs.filter(ehPar);
+      itens.push(h("button",{class:"btn full",type:"button",onclick:()=>abrirNovaMensagemCentral()},"＋ Nova mensagem"));
       itens.push(sec("Entregadores ↔ Central"));
       itens.push(...(cen.length?cen.map(c=>linha(c.nome||"Entregador",(c.ultimaDe==="central"?(c.lidoEntEm&&c.lidoEntEm>=c.atualizadoEm?"✓✓ ":"✓ "):"")+(c.ultima||""),c.atualizadoEm,c.naoLidaCentral,()=>abrirChat(c.id,false),"🛵")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa ainda."})]));
-      itens.push(h("button",{class:"btn full",type:"button",style:"margin-top:2px",onclick:()=>abrirNovaMensagemCentral()},"＋ Nova mensagem para entregador"));
       itens.push(sec("Entre entregadores"));
       itens.push(...(par.length?par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,false,()=>abrirChat(c.id,false),"👥")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa entre entregadores."})]));
       itens.push(sec("Comércios ↔ entregadores"));
