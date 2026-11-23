@@ -7853,6 +7853,11 @@ async function uidsDaCentral(){
    O entregador só envia com a chave em "disponível" e o app aberto na tela. A central vê tudo no mapa. */
 const GPS_INTERVALO=20000, GPS_DIST=60;   // manda a cada 20 s ou quando andou 60 m (pouca internet: ~1 KB por envio)
 const gps={watch:null,ult:null,ultEnvio:0,negado:false};
+/* capacete de entregador (ícone dos entregadores no mapa) */
+const CAPACETE=(cor="#fff",viseira="#0b3d91",t=16)=>'<svg viewBox="0 0 24 24" width="'+t+'" height="'+t+'" style="vertical-align:-3px;flex:none" aria-hidden="true">'
+  +'<path d="M2.5 17C2.5 10 7.2 4.5 13.5 4.5c4.6 0 8 3 8.7 7.2l.1.8H13.2c-.7 0-1.2.5-1.2 1.2v1.6c0 .7.5 1.2 1.2 1.2h9.1v1.2c0 1.2-1 2.2-2.2 2.2H4.7c-1.2 0-2.2-1-2.2-2.2z" fill="'+cor+'"/>'
+  +'<rect x="12.6" y="12.9" width="9.9" height="3.2" rx="1.2" fill="'+viseira+'"/>'
+  +'<path d="M2.6 17.3h9.2" stroke="'+viseira+'" stroke-width="1.2" opacity=".45"/></svg>';
 const distM=(a,b)=>{ const R=6371000,r=x=>x*Math.PI/180, dLa=r(b.lat-a.lat), dLo=r(b.lng-a.lng);
   const h1=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h1)); };
 function gpsDeveLigar(){ return S.modo==="entregador" && !!S.uid && !!S.db && S.disponivel!==false && document.visibilityState==="visible" && "geolocation" in navigator; }
@@ -8066,7 +8071,7 @@ function abrirMapaEntregadores(){
   urlMapa(true);
   { const ob=new MutationObserver(()=>{ if(!jan.isConnected){ ob.disconnect(); urlMapa(false); } }); setTimeout(()=>{ if(jan.isConnected) ob.observe(document.body,{childList:true,subtree:true}); else urlMapa(false); },0); }
   btVolta.addEventListener("click",()=>{ window.removeEventListener("popstate",fechar); fechar(); });
-  const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)">'+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
+  const icone=(x,velho)=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center"><div style="background:'+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+';color:#fff;font:800 12px system-ui;padding:3px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;gap:4px">'+CAPACETE("#fff",(velho?"#6b7280":(situacaoEnt(x.equipeId).n?"#9a3412":"#14532d")))+String(x.nome||"?").trim().split(/\s+/)[0].replace(/[<>&]/g,"")+'</div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid '+(velho?"#9ca3af":(situacaoEnt(x.equipeId).n?"#E67E22":"#16a34a"))+'"></div></div>'});
   const desenhar=()=>{
     const vis=pos.filter(x=>x.disponivel!==false && x.lat && x.lng && (Date.now()-new Date(x.em).getTime())<3*3600e3);
     info.textContent=vis.length+(vis.length===1?" entregador":" entregadores");
@@ -8162,7 +8167,7 @@ function navegarNoMapa(o){
   const somaDist=(cs,i,j)=>{ let d=0; for(let k=Math.max(0,i);k<j&&k<cs.length-1;k++) d+=distM({lat:cs[k][0],lng:cs[k][1]},{lat:cs[k+1][0],lng:cs[k+1][1]}); return d; };
   const atualizar=pos=>{
     ultPos=pos;
-    const me=o.eu(); if(me) me.setLatLng([pos.lat,pos.lng]); else o.setEu(L.marker([pos.lat,pos.lng],{icon:o.pino("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa));
+    const me=o.eu(); if(me) me.setLatLng([pos.lat,pos.lng]); else o.setEu(L.marker([pos.lat,pos.lng],{icon:o.pino(CAPACETE()+" Você","#004AAD"),zIndexOffset:400}).addTo(mapa));
     if(acompanhar) mapa.setView([pos.lat,pos.lng],Math.max(mapa.getZoom(),17),{animate:true});
     const falta=distM(pos,destino);
     if(falta<40){ fSeta.textContent="🏁"; fDist.textContent="Você chegou"; fTxt.textContent="Ao finalizar a entrega o GPS guarda este ponto."; txt.textContent="🏁 Chegou ao cliente."; return; }
@@ -8262,7 +8267,7 @@ function abrirMapaEntrega(p){
     }
     if(lc){ cli=L.marker([lc.lat,lc.lng],{icon:pinoHtml("🏠 "+esc((p.cliente||"Cliente").split(/\s+/)[0])+(num(p.ordemEntrega)?" · "+num(p.ordemEntrega):""),"#dc2626"),zIndexOffset:500}).addTo(mapa)
         .bindPopup("<b>"+esc(p.cliente)+"</b><br>"+esc(p.endereco)+"<br><small>Ponto: "+lc.fonte+"</small>"); pts.push([lc.lat,lc.lng]); }
-    if(me){ eu=L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD"),zIndexOffset:400}).addTo(mapa); pts.push([me.lat,me.lng]); }
+    if(me){ eu=L.marker([me.lat,me.lng],{icon:pinoHtml(CAPACETE()+" Você","#004AAD"),zIndexOffset:400}).addTo(mapa); pts.push([me.lat,me.lng]); }
     const temColeta=!p.emRotaEm && (p.coletaEmpresa||p.coletaEndereco);
     if(temColeta){ const k=slug(p.coletaEmpresa||p.coletaEndereco), c=(S.comercios||[]).find(x=>slug(x.nome)===slug(p.coletaEmpresa||""));
       const g=c&&c.lat?{lat:c.lat,lng:c.lng}:(S.geo&&S.geo[k]&&S.geo[k].lat?S.geo[k]:await limite(geocodificar({chave:k,endereco:(c&&c.endereco)||p.coletaEndereco||"",nome:p.coletaEmpresa||""}).catch(()=>null),3000));
@@ -8289,7 +8294,7 @@ function abrirMapaEntrega(p){
     }
   }).catch(()=>{ area.replaceChildren(h("p",{class:"aviso",style:"margin:20px",text:"Sem internet para carregar o mapa. Use o Google Maps."})); });
   btEu.addEventListener("click",async()=>{ const me=await minhaPosicao(); if(!me){ toast("Não consegui sua localização. Libere a localização do app."); return; }
-    if(mapa){ if(eu) eu.setLatLng([me.lat,me.lng]); else eu=window.L.marker([me.lat,me.lng],{icon:pinoHtml("🛵 Você","#004AAD")}).addTo(mapa); mapa.setView([me.lat,me.lng],17); } });
+    if(mapa){ if(eu) eu.setLatLng([me.lat,me.lng]); else eu=window.L.marker([me.lat,me.lng],{icon:pinoHtml(CAPACETE()+" Você","#004AAD")}).addTo(mapa); mapa.setView([me.lat,me.lng],17); } });
 }
 
 /* ===== Mensagens (bate-papo) =====
