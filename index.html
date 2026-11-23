@@ -7986,11 +7986,17 @@ function abrirMapaEntregadores(){
   const info=h("span",{class:"muted",style:"font-size:12px",text:""});
   const resumoLoj=h("span",{style:"font-size:12.5px;font-weight:800;color:var(--royal)"});
   const resumoCli=h("span",{style:"font-size:12.5px;font-weight:800;color:#dc2626"});
+  let verTodosHoje=false; try{ verTodosHoje=ls.get("movvi.mapaTodosHoje")==="1"; }catch(e){}
+  const btTodos=h("button",{type:"button",class:"chip",style:"font-size:12.5px;padding:4px 10px"},"");
+  const pintarBtTodos=()=>{ btTodos.textContent=verTodosHoje?"👥 Todos os clientes de hoje ✓":"👥 Ver todos os clientes de hoje"; btTodos.style.background=verTodosHoje?"#dc2626":""; btTodos.style.color=verTodosHoje?"#fff":""; };
+  pintarBtTodos();
+  btTodos.addEventListener("click",()=>{ verTodosHoje=!verTodosHoje; try{ ls.set("movvi.mapaTodosHoje",verTodosHoje?"1":null); }catch(e){} pintarBtTodos(); desenharClientes();
+    if(verTodosHoje && mapa){ setTimeout(()=>{ const ll=Object.values(clis).map(m=>m.getLatLng()); if(ll.length>1) mapa.fitBounds(ll,{padding:[40,40],maxZoom:16}); },1500); } });
   const avisoLocal=h("span",{class:"muted",style:"font-size:11.5px",hidden:true});
   const btVolta=h("button",{class:"ic-btn",type:"button","aria-label":"Voltar",style:"font-size:22px"},"←");
   const jan=h("div",{role:"dialog","data-tela-cheia":"1","data-janela":JSON.stringify(["mapaEntregadores"]),"aria-label":"Mapa dos entregadores",style:"position:fixed;z-index:9995;inset:0;background:var(--card,#fff);display:flex;flex-direction:column;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(12px + env(safe-area-inset-bottom,0px))"},
     h("div",{style:"display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--line)"},btVolta,h("b",{style:"flex:1;font-size:18px",text:"🗺️ Mapa dos entregadores"}),info),
-    lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap"},resumoLoj,resumoCli),area,avisoLocal,
+    lista,h("div",{style:"display:flex;gap:12px;flex-wrap:wrap;align-items:center"},resumoLoj,resumoCli,central()?btTodos:null),area,avisoLocal,
     h("p",{class:"muted",style:"margin:0;font-size:11.5px",text:"🟢🟠 entregadores (⚪ = sem posição há mais de 5 min) · 🏪 locais de coleta com pedido em aberto · bonequinho de camisa vermelha = cliente com entrega em aberto. Toque no cliente para ver e editar."}));
   document.body.append(jan);
   let mapa=null, marcas={}, lojas={}, unsub=null, unsubGeo=null, tic=null, primeira=true, pos=[];   // ao abrir, enquadra os entregadores uma vez; depois o mapa fica parado
@@ -8001,7 +8007,7 @@ function abrirMapaEntregadores(){
   const clis={}, cliLoc={};
   // bonequinho padrão (todos iguais, camisa vermelha)
   const SVG_BONECO='<svg width="26" height="24" viewBox="0 0 26 24" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="6.5" r="5" fill="#F2C29B" stroke="#7a4a2a" stroke-width="1"/><path d="M4 22.5v-8c0-2.2 1.8-4 4-4h10c2.2 0 4 1.8 4 4v8z" fill="#dc2626" stroke="#7f1d1d" stroke-width="1"/></svg>';
-  const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 2px 2px rgba(0,0,0,.45));line-height:0">'+SVG_BONECO+'</div>'});
+  const iconeCli=p=>window.L.divIcon({className:"",iconSize:null,html:'<div style="transform:translate(-50%,-100%);filter:drop-shadow(0 2px 2px rgba(0,0,0,.45))'+(FECHADOS.includes(p.status)?' grayscale(.7)':'')+';line-height:0;opacity:'+(FECHADOS.includes(p.status)?'.75':'1')+'">'+SVG_BONECO+'</div>'});
   const popCli=p=>{ const div=h("div",{style:"display:flex;flex-direction:column;gap:4px;min-width:180px;font:13px system-ui"},
       h("b",{style:"font-size:14px",text:p.cliente||"Cliente"}),
       h("span",{text:endComBairro(p)}),
@@ -8048,7 +8054,8 @@ function abrirMapaEntregadores(){
   };
   const desenharClientes=()=>{
     if(!mapa) return;
-    const abertos=(S.pedidosDia||[]).filter(p=>!FECHADOS.includes(p.status) && !p.acertado && p.endereco && !ehTransf(p)), vivos=new Set();
+    // 👥 "Todos de hoje" (só a central): mostra o cliente de todos os pedidos do dia, inclusive os já entregues
+    const abertos=(S.pedidosDia||[]).filter(p=>p.endereco && !ehTransf(p) && p.status!=="cancelado" && (verTodosHoje || (!FECHADOS.includes(p.status) && !p.acertado))), vivos=new Set();
     abertos.forEach(p=>{
       const loc=cliLoc[p.id];
       if(loc===undefined){ cliLoc[p.id]=null; localDoCliente(p).then(l=>{ cliLoc[p.id]=l||false; desenharClientes(); }); return; }
@@ -8057,7 +8064,7 @@ function abrirMapaEntregadores(){
       if(clis[p.id]){ if(!(editandoPos&&editandoPos.id===p.id)){ clis[p.id].setLatLng([loc.lat,loc.lng]).setIcon(iconeCli(p)); } clis[p.id].setPopupContent(popCli(p)); }
       else clis[p.id]=window.L.marker([loc.lat,loc.lng],{icon:iconeCli(p),zIndexOffset:200}).addTo(mapa).bindPopup(popCli(p)); });
     Object.keys(clis).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(clis[k]); delete clis[k]; } });
-    const nCli=Object.keys(clis).length; resumoCli.textContent=nCli?"🧍 "+nCli+(nCli===1?" cliente":" clientes")+" no mapa":"";
+    const nCli=Object.keys(clis).length; resumoCli.textContent=nCli?"🧍 "+nCli+(nCli===1?" cliente":" clientes")+" no mapa"+(verTodosHoje?" (todos de hoje)":""):"";
   };
   const desenharLojas=()=>{
     if(!mapa) return;
