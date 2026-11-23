@@ -4529,9 +4529,11 @@ function abrirRota(op){
     if(!lista.length) return;
     const d={paradas:lista,emp:fEmp.value,col:fCol.value,em:new Date().toISOString()};
     try{ ls.set(chaveRC,JSON.stringify(d)); }catch(e){}
-    const r=docRC(); if(r) r.set(d).catch(()=>{});
+    const r=docRC(); if(r) salvandoRC=r.set(d).catch(()=>{});
   }
-  function limparRascCentral(){ ls.set(chaveRC,null); const r=docRC(); if(r) r.delete().catch(()=>{}); }
+  let salvandoRC=null;
+  function limparRascCentral(){ ls.set(chaveRC,null); ls.set(chaveRC+".limpo",new Date().toISOString());
+    const r=docRC(); if(r) Promise.resolve(salvandoRC).then(()=>r.delete()).catch(()=>{}); }
   function aplicarRascCentral(d){
     if(d.emp && !fEmp.value){ fEmp.value=d.emp; fEmp.dispatchEvent(new Event("change")); }
     if(d.col && !fCol.value) fCol.value=d.col;
@@ -4563,6 +4565,8 @@ function abrirRota(op){
     let d=null; try{ d=JSON.parse(ls.get(chaveRC)||"null"); }catch(e){}
     if(!d){ const r=docRC(); if(r){ try{ const sn=await comTempo(r.get(),2500); if(sn&&sn!=="__tempo"&&sn.exists) d=sn.data(); }catch(e){} } }
     if(!d||!Array.isArray(d.paradas)||!d.paradas.length||Date.now()-Date.parse(d.em)>18*3600000) return;
+    const limpo=ls.get(chaveRC+".limpo"); if(limpo && String(d.em)<=limpo){ limparRascCentral(); return; }   // sobra de uma rota já lançada
+    if(op&&op.arquivos) return;   // escolheu fotos novas: não pergunta da rota antiga
     const bt=h("button",{class:"btn full",type:"button"},"▶ Continuar rota ("+d.paradas.length+")");
     const box=h("div",{class:"painel",style:"border-color:var(--laranja);gap:6px"},h("span",{style:"font-size:13px",text:"Você tem uma rota em andamento."}),bt,
       h("button",{class:"btn sec full",type:"button",onclick:()=>{ box.remove(); limparRascCentral(); }},"Descartar"));
@@ -4888,22 +4892,26 @@ function rascunhoRotaSalvar(paradas){
     if(S.db&&S.uid) S.db.doc("data/users/"+S.uid+"/rotaRascunho").set(d).catch(()=>{});
   },300);
 }
-function rascunhoRotaLimpar(){ clearTimeout(tRasc); ls.set("movvi.rotaRasc",null); if(S.db&&S.uid) S.db.doc("data/users/"+S.uid+"/rotaRascunho").delete().catch(()=>{}); }
+function rascunhoRotaLimpar(){ clearTimeout(tRasc); ls.set("movvi.rotaRasc",null); ls.set("movvi.rotaRasc.limpo",new Date().toISOString());
+  if(S.db&&S.uid) S.db.doc("data/users/"+S.uid+"/rotaRascunho").delete().catch(()=>{}); }
 const rascValido=r=>!!(r && Array.isArray(r.paradas) && r.paradas.length && Date.now()-Date.parse(r.em)<=18*3600000);
 function rascunhoRotaLocal(){ try{ const r=JSON.parse(ls.get("movvi.rotaRasc")||"null"); return rascValido(r)?r:null; }catch(e){ return null; } }
 async function rascunhoRotaLer(){
   let r=rascunhoRotaLocal();
   if(!r && S.db && S.uid){ try{ const sn=await comTempo(S.db.doc("data/users/"+S.uid+"/rotaRascunho").get(),2500); if(sn&&sn!=="__tempo"&&sn.exists) r=sn.data(); }catch(e){} }
   if(!r || !Array.isArray(r.paradas) || !r.paradas.length || Date.now()-Date.parse(r.em)>18*3600000) return null;
+  const limpo=ls.get("movvi.rotaRasc.limpo"); if(limpo && String(r.em)<=limpo) return null;   // sobra de uma rota já lançada
   return r;
 }
 function abrirRotaPorFotos(op){
   garantirClientes();
-  const rasc=rascunhoRotaLocal();
+  let rasc=rascunhoRotaLocal();
+  { const limpo=ls.get("movvi.rotaRasc.limpo"); if(rasc && limpo && String(rasc.em)<=limpo) rasc=null; }
+  if(rasc && op && op.arquivos){ montarRotaPorFotos(null,op); return; }   // escolheu fotos novas: não pergunta da rota antiga
   if(!rasc){
     // abre na hora (mantém o toque para a câmera) e confere na conta se ficou rota salva de antes
     const tela=montarRotaPorFotos(null,op);
-    rascunhoRotaLer().then(r=>{ if(r && tela.vazia()) tela.oferecer(r); });
+    if(!(op&&op.arquivos)) rascunhoRotaLer().then(r=>{ if(r && tela.vazia()) tela.oferecer(r); });
     return;
   }
   if(rasc){
@@ -8381,7 +8389,7 @@ async function enviarChat(conv,texto,extra){
     avisarCelular([outro],texto,conv); return;
   }
   const lado=central()?"central":"entregador";
-  const nomeEnt=central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador");
+  const nomeEnt=central()?((c&&c.nome)||String(((S.equipe||[]).find(e=>e.uid===conv)||{}).nome||"").trim()||"Entregador"):(S.euNome||"Entregador");
   await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado,nome:central()?"Central":nomeEnt,uid:S.uid||"",em:ag,...extra}));
   await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:"",lidoCentralEm:(c&&c.lidoCentralEm)||"",lidoEntEm:(c&&c.lidoEntEm)||""}));
   avisarCelular(lado==="central"?[conv]:await uidsDaCentral(),texto,conv);
@@ -8568,6 +8576,7 @@ function abrirMensagens(){
       const cen=cs.filter(c=>!ehPar(c)), par=cs.filter(ehPar);
       itens.push(sec("Entregadores ↔ Central"));
       itens.push(...(cen.length?cen.map(c=>linha(c.nome||"Entregador",(c.ultimaDe==="central"?(c.lidoEntEm&&c.lidoEntEm>=c.atualizadoEm?"✓✓ ":"✓ "):"")+(c.ultima||""),c.atualizadoEm,c.naoLidaCentral,()=>abrirChat(c.id,false),"🛵")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa ainda."})]));
+      itens.push(h("button",{class:"btn full",type:"button",style:"margin-top:2px",onclick:()=>abrirNovaMensagemCentral()},"＋ Nova mensagem para entregador"));
       itens.push(sec("Entre entregadores"));
       itens.push(...(par.length?par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,false,()=>abrirChat(c.id,false),"👥")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa entre entregadores."})]));
       itens.push(sec("Comércios ↔ entregadores"));
@@ -8588,6 +8597,25 @@ function abrirMensagens(){
   abrirSheet("Mensagens",[corpo]);
   desenhar();
   if(central()) carregarRecadosComercio().then(l=>{ recadosCom=l; desenhar(); }).catch(()=>{ recadosCom=[]; desenhar(); });
+}
+/* central: começar conversa com qualquer entregador (mesmo quem ainda não tem conversa) */
+async function abrirNovaMensagemCentral(){
+  const lista=h("div",{style:"display:flex;flex-direction:column;gap:6px"},h("p",{class:"muted",style:"margin:0",text:"Carregando…"}));
+  abrirSheet("Nova mensagem",[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Escolha o entregador."}),lista]);
+  let eq=[]; try{ eq=(await equipeTodos()).filter(e=>e.ativo!==false); }catch(e){ eq=(S.equipe||[]).slice(); }
+  eq.sort((a,b)=>String(a.nome||"").localeCompare(String(b.nome||""),"pt-BR"));
+  if(!eq.length){ lista.replaceChildren(h("p",{class:"muted",style:"margin:0",text:"Nenhum entregador cadastrado."})); return; }
+  lista.replaceChildren(...eq.map(e=>h("button",{class:"painel",type:"button",style:"flex-direction:row;align-items:center;gap:10px;padding:10px 12px;text-align:left;cursor:pointer;width:100%;font:inherit;color:inherit",
+    onclick:async ev=>{
+      let uid=e.uid;
+      if(!uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",e.id).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false); if(v) uid=v.id; }catch(x){} }
+      if(!uid){ toast(String(e.nome||"Esse entregador")+" ainda não entra pelo app."); return; }
+      const v=ev.currentTarget.closest(".veu"); if(v) v.remove();
+      const ex=chatDoc(uid);
+      if(!ex) S.chats=[...(S.chats||[]),{id:uid,uid,nome:String(e.nome||"Entregador").trim(),aberto:true}];
+      else if(!ex.nome) ex.nome=String(e.nome||"Entregador").trim();
+      abrirChat(uid,false);
+    }},h("span",{style:"font-size:22px;flex:none",text:"🛵"}),h("b",{style:"flex:1",text:String(e.nome||"Entregador").trim()}),h("span",{class:"muted",text:"›"}))));
 }
 /* central: recados entre comércio e entregador, juntados por par */
 async function carregarRecadosComercio(){
