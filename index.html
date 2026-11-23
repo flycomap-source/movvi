@@ -8383,18 +8383,20 @@ async function enviarChat(conv,texto,extra){
   const lado=central()?"central":"entregador";
   const nomeEnt=central()?((c&&c.nome)||"Entregador"):(S.euNome||"Entregador");
   await comRetry(()=>S.db.doc("chat/"+conv+"/msgs/"+novoIdMsg()).set({texto,lado,nome:central()?"Central":nomeEnt,uid:S.uid||"",em:ag,...extra}));
-  await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:""}));
+  await comRetry(()=>S.db.doc("chats/"+conv).set({uid:conv,nome:nomeEnt,aberto:true,ultima:texto,ultimaDe:lado,atualizadoEm:ag,naoLidaCentral:lado==="entregador",naoLidaEnt:lado==="central",encerradoPor:"",lidoCentralEm:(c&&c.lidoCentralEm)||"",lidoEntEm:(c&&c.lidoEntEm)||""}));
   avisarCelular(lado==="central"?[conv]:await uidsDaCentral(),texto,conv);
 }
 const horaCurta=iso=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 /* balão do tamanho da mensagem, com a hora pequena na frente */
-function balao(m,meu,comNome){
+function balao(m,meu,comNome,lido){
   return h("div",{style:"max-width:85%;width:fit-content;align-self:"+(meu?"flex-end":"flex-start")+";background:"+(meu?"var(--royal)":"var(--card,#fff)")+";color:"+(meu?"#fff":"var(--ink)")+";border-radius:14px;padding:6px 10px;box-shadow:0 1px 2px rgba(0,0,0,.08)"},
     comNome&&!meu?h("div",{style:"font-size:11.5px;font-weight:800;color:var(--royal)",text:m.nome||""}):null,
     h("div",{style:"display:flex;align-items:flex-end;gap:8px"},
       m.audio ? h("audio",{controls:true,preload:"none",src:m.audio,style:"height:40px;max-width:230px"})
         : h("span",{style:"font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.3",text:m.texto}),
-      h("span",{style:"font-size:10.5px;opacity:.7;white-space:nowrap;flex:none;line-height:1.6",text:horaCurta(m.em)})));
+      h("span",{style:"font-size:10.5px;opacity:.7;white-space:nowrap;flex:none;line-height:1.6",text:horaCurta(m.em)}),
+      lido===undefined?null:h("span",{title:lido?"Lida":"Enviada, ainda não lida","aria-label":lido?"Lida":"Não lida",
+        style:"font-size:12px;font-weight:900;white-space:nowrap;flex:none;line-height:1.5;color:"+(lido?"#7dd3fc":"rgba(255,255,255,.7)"),text:lido?"✓✓":"✓"})));
 }
 function abrirChat(conv,chegou){
   tirarBolha(conv);
@@ -8420,14 +8422,27 @@ function abrirChat(conv,chegou){
     lista,soLer?null:chips,rodape);
   document.body.append(jan);
   let unsub=null, primeira=true, fechada=false;
-  const marcarLida=()=>{ if(soLer) return; S.db.doc("chats/"+conv).update(par?{["nl_"+S.uid]:false}:central()?{naoLidaCentral:false}:{naoLidaEnt:false}).catch(()=>{}); };
-  const fechar=()=>{ if(fechada) return; fechada=true; try{ pararGrav(false); }catch(e){} if(unsub) unsub(); jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
-  unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
-    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>!(m.lado==="sistema" && /^Conversa encerrada/.test(m.texto||""))).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
+  const marcarLida=()=>{ if(soLer) return; const ag=new Date().toISOString();
+    S.db.doc("chats/"+conv).update(par?{["nl_"+S.uid]:false,["lido_"+S.uid]:ag}:central()?{naoLidaCentral:false,lidoCentralEm:ag}:{naoLidaEnt:false,lidoEntEm:ag}).catch(()=>{}); };
+  // até quando o outro lado já leu (para o ✓✓ nas minhas mensagens)
+  let lidoOutro="", ultMs=[];
+  const lidoDoOutro=c=>{ c=c||{}; if(par){ const outro=(c.participantes||[]).find(u=>u!==S.uid); return outro?String(c["lido_"+outro]||""):""; } return String((central()?c.lidoEntEm:c.lidoCentralEm)||""); };
+  lidoOutro=lidoDoOutro(c0);
+  const fechar=()=>{ if(fechada) return; fechada=true; try{ pararGrav(false); }catch(e){} if(unsub) unsub(); try{ unsubLido&&unsubLido(); }catch(e){} jan.remove(); delete S.chatJanelas[conv]; pintarDockChats(); };
+  const pintarMsgs=ms=>{
+    const noFim=lista.scrollHeight-lista.scrollTop-lista.clientHeight<60;
     lista.replaceChildren(...(ms.length?ms.map(m=>m.lado==="sistema"
         ? h("div",{style:"align-self:center;font-size:12px;color:var(--muted);text-align:center",text:m.texto+" · "+horaCurta(m.em)})
-        : balao(m, soLer ? m.uid===(c0.participantes||[])[0] : m.lado===meuLado, soLer))
+        : balao(m, soLer ? m.uid===(c0.participantes||[])[0] : m.lado===meuLado, soLer, (!soLer && m.lado===meuLado) ? (!!lidoOutro && String(m.em)<=lidoOutro) : undefined))
       :[h("p",{class:"muted",style:"margin:auto;font-size:13px;text-align:center",text:central()?"Sem mensagens ainda.":"Escreva a mensagem. Chega na hora."})]));
+    return noFim;
+  };
+  // o outro lado leu: atualiza os ✓✓ sem esperar mensagem nova
+  let unsubLido=null;
+  try{ unsubLido=S.db.doc("chats/"+conv).onSnapshot(sn=>{ const l=lidoDoOutro(sn&&sn.exists?sn.data():null); if(l!==lidoOutro){ lidoOutro=l; const fim=pintarMsgs(ultMs); if(fim) lista.scrollTop=lista.scrollHeight; } },()=>{}); }catch(e){}
+  unsub=S.db.collection("chat/"+conv+"/msgs").onSnapshot(snap=>{
+    const ms=snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>!(m.lado==="sistema" && /^Conversa encerrada/.test(m.texto||""))).sort((a,b)=>String(a.em).localeCompare(String(b.em))).slice(-80);
+    ultMs=ms; pintarMsgs(ms);
     lista.scrollTop=lista.scrollHeight;
     const ult=ms[ms.length-1];
     if(ult && ult.lado!==meuLado && ult.lado!=="sistema" && !soLer){ marcarLida(); if(!primeira) try{ bip(); }catch(e){} }
@@ -8552,7 +8567,7 @@ function abrirMensagens(){
     if(central()){
       const cen=cs.filter(c=>!ehPar(c)), par=cs.filter(ehPar);
       itens.push(sec("Entregadores ↔ Central"));
-      itens.push(...(cen.length?cen.map(c=>linha(c.nome||"Entregador",c.ultima,c.atualizadoEm,c.naoLidaCentral,()=>abrirChat(c.id,false),"🛵")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa ainda."})]));
+      itens.push(...(cen.length?cen.map(c=>linha(c.nome||"Entregador",(c.ultimaDe==="central"?(c.lidoEntEm&&c.lidoEntEm>=c.atualizadoEm?"✓✓ ":"✓ "):"")+(c.ultima||""),c.atualizadoEm,c.naoLidaCentral,()=>abrirChat(c.id,false),"🛵")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa ainda."})]));
       itens.push(sec("Entre entregadores"));
       itens.push(...(par.length?par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,false,()=>abrirChat(c.id,false),"👥")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhuma conversa entre entregadores."})]));
       itens.push(sec("Comércios ↔ entregadores"));
@@ -8560,7 +8575,7 @@ function abrirMensagens(){
       else itens.push(...(recadosCom.length?recadosCom.map(t=>linha(t.titulo,t.ultima,t.em,false,()=>verConversaRecados(t),"🏪")):[h("p",{class:"muted",style:"margin:0;font-size:13px",text:"Nenhum recado entre comércio e entregador."})]));
     }else{
       const cen=chatDoc(S.uid);
-      itens.push(linha("Central",cen?cen.ultima:"Fale com a central",cen&&cen.atualizadoEm,!!(cen&&cen.aberto&&cen.naoLidaEnt),()=>abrirChat(S.uid,false),"🏢"));
+      itens.push(linha("Central",cen?((cen.ultimaDe==="entregador"?(cen.lidoCentralEm&&cen.lidoCentralEm>=cen.atualizadoEm?"✓✓ ":"✓ "):"")+(cen.ultima||"")):"Fale com a central",cen&&cen.atualizadoEm,!!(cen&&cen.aberto&&cen.naoLidaEnt),()=>abrirChat(S.uid,false),"🏢"));
       const par=cs.filter(ehPar);
       if(par.length) itens.push(sec("Colegas"));
       itens.push(...par.map(c=>linha(tituloChat(c.id),c.ultima,c.atualizadoEm,!!c["nl_"+S.uid],()=>abrirChat(c.id,false),"🛵")));
