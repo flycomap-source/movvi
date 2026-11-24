@@ -8339,7 +8339,7 @@ function ouvirChats(){
     const chegou=c=>S.chatJanelas[c.id] ? abrirChat(c.id,true) : bolhaChat(c);
     if(central()) S.chats.filter(c=>!ehPar(c) && c.aberto && c.naoLidaCentral).forEach(chegou);
     else S.chats.forEach(c=>{ if(ehPar(c) ? c["nl_"+S.uid] : (c.aberto && c.naoLidaEnt)) chegou(c); });
-    Object.keys(S.chatJanelas).forEach(k=>{ const c=chatDoc(k); if(c && !ehPar(c) && !c.aberto) S.chatJanelas[k].encerrada(c.encerradoPor); });
+    Object.keys(S.chatJanelas).forEach(k=>{ const c=chatDoc(k); const j=S.chatJanelas[k]; if(c && !ehPar(c) && !c.aberto && String(c.atualizadoEm||"")>String(j.abertaEm||"")) j.encerrada(c.encerradoPor); });
     pintarDockChats(); if(S.redesenharMensagens) S.redesenharMensagens();
   },()=>{});
 }
@@ -8519,6 +8519,7 @@ function abrirChat(conv,chegou){
       window.removeEventListener("popstate",voltarCel); fechar();
     }); }
   S.chatJanelas[conv]={
+    abertaEm:new Date().toISOString(),
     frente:()=>{ document.body.append(jan); },
     marcarLida,
     encerrada:()=>{ if(fechada) return; window.removeEventListener("popstate",voltarCel); fechar(); }};
