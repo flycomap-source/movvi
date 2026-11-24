@@ -6224,6 +6224,7 @@ function abrirConfirmacao(p,op){
     trocoBox.hidden = !(sobra>0.009); if(trocoBox.hidden) trocoEscolha=""; else trocoTxt.textContent="O cliente pagou "+fmt(num(fValRec.value))+": troco de "+fmt(sobra)+".";
     pintaTroco();
     const mudou = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(num(fValRec.value)-valAnunc)>0.009);
+    try{ if(typeof atuDinParc==="function") atuDinParc(); }catch(e){}
     avisoPag.hidden=true;   // a frase "diferente do que o comércio informou" não aparece mais (o elemento fica só como referência de posição)
   }
   fValRec.addEventListener("input",atPag);
@@ -6346,7 +6347,8 @@ function abrirConfirmacao(p,op){
     if(transf && !transfPara){ msg.hidden=false; msg.textContent="Escolha em qual loja foi entregue."; return; }
     if(transf){ formaRec=anunc; }
     if(valorEditado!==null && !fObsFin.value.trim()){ msg.hidden=false; msg.textContent="Você mudou o valor recebido: escreva nas observações o motivo (ex.: eram dois pedidos)."; try{ fObsFin.focus(); }catch(e){} return; }
-    if(!transf && formaRec==="dinheiro" && !num(fValRec.value)){ msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValRec.focus(); }catch(e){} return; }
+    if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && num(fDinParc.value)>0){ fValRec.value=fDinParc.value; try{ atPag(); }catch(e){} }
+    if(!transf && formaRec==="dinheiro" && !num(fValRec.value)){ campoVal.hidden=false; msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValRec.focus(); }catch(e){} return; }
     if(!adicAuto){ const ini=Math.max(0,Math.round(num(p.adicionais))), mot=motivo.value.trim();
       if(adic>0 && !mot){ msg.hidden=false; msg.textContent="Escreva o motivo do adicional."; motivo.focus(); return; }
       if(adic>ini && mot===String(p.adicionalMotivo||"").trim()){ msg.hidden=false; msg.textContent="Escreva o motivo do adicional que você acrescentou."; motivo.focus(); return; } }
