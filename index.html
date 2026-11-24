@@ -6189,7 +6189,9 @@ function abrirConfirmacao(p,op){
   const blocoQuanto=(anunc==="dinheiro") ? h("div",{style:"display:flex;flex-direction:column;gap:4px"},
       h("div",{style:"display:flex;align-items:center;justify-content:flex-end;gap:8px"},
         h("label",{for:"fQuantoRecebi",style:"font-weight:800;font-size:15px",text:"Valor recebido?"}),fValEd),avisoEd) : null;
-  fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido; valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
+  fValEd.addEventListener("input",()=>{ const v=fValEd.value.trim()?num(fValEd.value):valPedido;
+    if(!(valPedido>0)){ valorEditado=null; fValRec.value=fValEd.value.trim()?fmtInput(v):""; try{ atPag(); }catch(e){} return; }
+    valorEditado = Math.abs(v-valPedido)>0.009 ? v : null;
     // digitou o valor cheio de um pedido com troco (ex.: 100 num "troco para 100"): é o troco normal, não valor diferente
     if(valorEditado!==null && formaRec==="dinheiro" && num(p.trocoPara)>0 && v>valPedido && v<=num(p.trocoPara)+0.009){ valorEditado=null; fValRec.value=fmtInput(v); avisoEd.hidden=true; try{ atPag(); }catch(e){} return; }
     lblValor.textContent = valorEditado!==null ? "Valor recebido" : "Valor a receber"; avisoEd.hidden = valorEditado===null;
@@ -6217,7 +6219,8 @@ function abrirConfirmacao(p,op){
   function atPag(){
     if(typeof atuBotoesDin==="function") try{ atuBotoesDin(); }catch(e){}
     Object.keys(btsPag).forEach(k=>btsPag[k].setAttribute("aria-pressed",String(formaRec===k)));
-    campoVal.hidden = formaRec!=="dinheiro" || (boxMudarPag.hidden && !pagouDin); blocoNota.hidden = formaRec!=="convenio";
+    campoVal.hidden = formaRec!=="dinheiro" || !!blocoQuanto || (boxMudarPag.hidden && !pagouDin); blocoNota.hidden = formaRec!=="convenio";
+    if(blocoQuanto) blocoQuanto.hidden = formaRec!=="dinheiro"; if(infoValor) infoValor.hidden = formaRec!=="dinheiro";
     const sobra0 = formaRec==="dinheiro" && valPedido>0 ? Math.round((num(fValRec.value)-valPedido)*100)/100 : 0;
     const levouTroco = num(p.trocoPara)>0 && num(fValRec.value)<=num(p.trocoPara)+0.009;
     const sobra = (levouTroco || valorEditado!==null) ? 0 : sobra0;
@@ -6275,8 +6278,6 @@ function abrirConfirmacao(p,op){
       h("button",{class:"ic-btn",type:"button","aria-label":"Mais um adicional",onclick:()=>mudaAd(1)},"+")),
     motivo);
   if(S.modo==="entregador") resumo.append(h("div",{style:"border-top:1px solid var(--line);margin-top:6px;padding-top:8px"},totAd));
-  // "Pagou em dinheiro": cliente mudou para dinheiro na hora; pede o valor recebido
-  const btDin=h("button",{class:"btn sec",type:"button",style:"border-color:var(--ok);color:var(--ok)"},"Pagou em dinheiro");
   // sem o botão "Pagou em dinheiro": a forma de pagamento muda lá em cima; se for dinheiro, a caixinha aparece ao finalizar
   const linhaOk=h("div",{style:"display:grid;grid-template-columns:1fr;gap:8px"},ok);
   // perto do botão: valor total da compra + "Recebi em dinheiro" (parte paga em dinheiro numa compra no cartão, pix ou convênio)
@@ -6285,7 +6286,18 @@ function abrirConfirmacao(p,op){
     h("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"},
       h("div",null,h("span",{class:"muted",style:"font-size:13px;display:block",text:"Valor total da compra"}),h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)})),
       h("label",{for:"fDinParc",style:"display:flex;flex-direction:column;gap:2px;font-size:13px;font-weight:700"},"Valor recebido (R$)",fDinParc)));
-  const atuDinParc=()=>{ blocoDinParc.hidden = formaRec==="dinheiro" || formaRec==="pix" || ehTransf(p); };
+  // nota (convênio) que o cliente não assinou e pagou em dinheiro: troca para dinheiro e pede o valor
+  if(anunc==="convenio"){ const bN=h("button",{class:"btn sec full",type:"button",style:"border-color:var(--ok);color:var(--ok);padding:8px"},"Não assinou: pagou em dinheiro");
+    bN.addEventListener("click",()=>{ pagouDin=true; formaRec="dinheiro"; fValRec.value=""; atPag(); bN.hidden=true;
+      setTimeout(()=>{ try{ campoVal.scrollIntoView({block:"center",behavior:"smooth"}); fValRec.focus(); }catch(e){} },60); });
+    blocoPag.insertBefore(bN,avisoPag); }
+  let verDinParc=false;
+  const btDinParc=h("button",{class:"btn sec full",type:"button",style:"padding:8px"},"💵 Cliente pagou parte em dinheiro");
+  btDinParc.addEventListener("click",()=>{ verDinParc=true; atuDinParc(); setTimeout(()=>{ try{ fDinParc.focus(); }catch(e){} },50); });
+  blocoDinParc.prepend(btDinParc);
+  const atuDinParc=()=>{ blocoDinParc.hidden = formaRec==="dinheiro" || formaRec==="pix" || ehTransf(p);
+    btDinParc.hidden=verDinParc; [...blocoDinParc.children].forEach(c=>{ if(c!==btDinParc) c.hidden=!verDinParc; });
+    blocoDinParc.style.cssText = verDinParc ? "gap:6px" : "gap:0;padding:0;border:0;background:transparent;box-shadow:none"; };
   Object.values(btsPag).forEach(b=>b.addEventListener("click",()=>setTimeout(atuDinParc,0))); setTimeout(atuDinParc,0);
   // pago em dinheiro: ao tocar em Finalizar abre a caixinha — ficar com o dinheiro (desconta na fatura) ou devolver no comércio
   let escolhaDin=null;
@@ -6294,8 +6306,8 @@ function abrirConfirmacao(p,op){
   const pedeEscolhaDin=()=>formaRec==="dinheiro" && !ehTransf(p) && !dinheiroFicaNaLoja(p) && grupoFin==="outros";
   function atuBotoesDin(){
     escolhaDin=null;
-    if(pedeEscolhaDin()){ ok.textContent="Finalizar entrega"; if(btDin.isConnected) btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
-    else { ok.textContent=ehTransf(p)?"Finalizar transferência":"Finalizar entrega"; linhaOk.style.gridTemplateColumns=btDin.isConnected?"1fr 1fr":"1fr"; }
+    if(pedeEscolhaDin()){ ok.textContent="Finalizar entrega"; linhaOk.style.gridTemplateColumns="1fr"; }
+    else { ok.textContent=ehTransf(p)?"Finalizar transferência":"Finalizar entrega"; linhaOk.style.gridTemplateColumns="1fr"; }
   }
   function abrirEscolhaDin(){
     const vr=num(fValRec.value), emp=p.coletaEmpresa||"o comércio";
@@ -6312,12 +6324,6 @@ function abrirConfirmacao(p,op){
         h("button",{class:"btn sec full",type:"button",onclick:fecharCx},"Voltar")));
     document.body.append(cx);
   }
-  btDin.addEventListener("click",()=>{ pagouDin=true; formaRec="dinheiro"; fValRec.value=""; btDin.remove(); linhaOk.style.gridTemplateColumns="1fr";
-    campoVal.querySelector("label").textContent="Quanto o cliente pagou em dinheiro? (R$)"; atPag();
-    setTimeout(()=>{ try{ campoVal.scrollIntoView({block:"center",behavior:"smooth"}); fValRec.focus(); }catch(e){} },60); });
-  if(anunc==="convenio"){ const bN=h("button",{class:"btn sec full",type:"button",style:"border-color:var(--ok);color:var(--ok);padding:8px"},"Não assinou: pagou em dinheiro");
-    bN.addEventListener("click",()=>{ if(btDin.isConnected) btDin.click(); else { formaRec="dinheiro"; atPag(); } }); blocoPag.insertBefore(bN,avisoPag); 
-    const atBN=()=>{ bN.hidden=formaRec!=="convenio"; }; atBN(); [btDin,...Object.values(btsPag)].forEach(b=>b.addEventListener("click",()=>setTimeout(atBN,0))); bN.addEventListener("click",()=>setTimeout(atBN,0)); }
   // adicional lançado pela central (ou por quem não é o entregador) vai automático: nada para confirmar nem motivo para escrever
   const adicAuto = adic>0 && S.modo==="entregador" && (p.adicionaisPelaCentral || !(p.criadoPor && p.criadoPor===S.uid));
   if(adicAuto) blocoAd.hidden=true;
@@ -6330,7 +6336,7 @@ function abrirConfirmacao(p,op){
       h("b",{style:"color:var(--royal)",text:"🔁 Transferência / busca de receita"}),
       h("div",{class:"campo"},h("span",{class:"lbl",text:"Coletado em"}),segLojas(transfDe,l=>{ transfDe=l; },"Coletado em")),
       h("div",{class:"campo"},h("span",{class:"lbl",text:"Entregue no"}),segLojas(transfPara,l=>{ transfPara=l; },"Entregue no"))) : null;
-  if(transf){ ok.textContent="Finalizar transferência"; box.remove(); btDin.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
+  if(transf){ ok.textContent="Finalizar transferência"; box.remove(); linhaOk.style.gridTemplateColumns="1fr"; }
   else atuBotoesDin();
   const fechar=abrirSheet(transf?"Finalizar transferência":"Finalizar entrega",
     transf?[resumo,blocoTransf,box,blocoAd,blocoObsFin,msg,linhaOk]:[resumo,blocoReceita,blocoPag,blocoObsFin,blocoAd,blocoDinParc,msg,linhaOk]);
@@ -6348,6 +6354,8 @@ function abrirConfirmacao(p,op){
     if(transf){ formaRec=anunc; }
     if(valorEditado!==null && !fObsFin.value.trim()){ msg.hidden=false; msg.textContent="Você mudou o valor recebido: escreva nas observações o motivo (ex.: eram dois pedidos)."; try{ fObsFin.focus(); }catch(e){} return; }
     if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && num(fDinParc.value)>0){ fValRec.value=fDinParc.value; try{ atPag(); }catch(e){} }
+    if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && blocoQuanto && num(fValEd.value)>0){ fValRec.value=fmtInput(num(fValEd.value)); }
+    if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && blocoQuanto){ msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValEd.focus(); }catch(e){} return; }
     if(!transf && formaRec==="dinheiro" && !num(fValRec.value)){ campoVal.hidden=false; msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValRec.focus(); }catch(e){} return; }
     if(!adicAuto){ const ini=Math.max(0,Math.round(num(p.adicionais))), mot=motivo.value.trim();
       if(adic>0 && !mot){ msg.hidden=false; msg.textContent="Escreva o motivo do adicional."; motivo.focus(); return; }
