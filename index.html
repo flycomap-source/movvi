@@ -7971,6 +7971,8 @@ S.geo=S.geo||{};
 let geoFila=Promise.resolve();
 /* procura o endereço no OpenStreetMap (1 por segundo), só dentro de Unaí; guarda em geo/<chave> */
 function geocodificar(pt){
+  // sem endereço: marca "sem local" (senão o mapa pedia de novo sem parar e a tela travava)
+  if(!S.geo[pt.chave] && !pt.endereco && pt.chave) S.geo[pt.chave]={semLocal:true};
   if(S.geo[pt.chave] || !pt.endereco) return Promise.resolve(S.geo[pt.chave]||null);
   geoFila=geoFila.then(async()=>{
     if(S.geo[pt.chave]) return;
@@ -8076,12 +8078,13 @@ function abrirMapaEntregadores(){
     Object.keys(clis).forEach(k=>{ if(!vivos.has(k)){ mapa.removeLayer(clis[k]); delete clis[k]; } });
     const nCli=Object.keys(clis).length; resumoCli.textContent=nCli?"🧍 "+nCli+(nCli===1?" cliente":" clientes")+" no mapa"+(verTodosHoje?" (todos de hoje)":""):"";
   };
+  const buscando={};
   const desenharLojas=()=>{
     if(!mapa) return;
     const pts=pontosEmAberto(), vivos=new Set();
     pts.forEach(pt=>{
       const g = pt.lat&&pt.lng ? {lat:pt.lat,lng:pt.lng} : S.geo[pt.chave];   // 1º a localização marcada no cadastro do comércio
-      if(!g){ geocodificar(pt).then(()=>desenharLojas()); return; }
+      if(!g){ if(!buscando[pt.chave]){ buscando[pt.chave]=1; geocodificar(pt).then(()=>{ delete buscando[pt.chave]; if(S.geo[pt.chave]) setTimeout(desenharLojas,0); }); } return; }
       if(g.semLocal||!g.lat) return;
       vivos.add(pt.chave);
       const pop="<b>"+String(pt.nome).replace(/[<>&]/g,"")+"</b><br>"+pt.pedidos.length+(pt.pedidos.length===1?" pedido em aberto":" pedidos em aberto")+(pt.ehComercio?"<br><small style='color:#888'>Ponto errado? Corrija em Equipe › Comércios › editar › Localização no mapa.</small>":"");
