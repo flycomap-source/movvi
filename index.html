@@ -4107,7 +4107,9 @@ function valorTrocoPix(p){ return num(p.trocoDevido)>0 ? num(p.trocoDevido) : nu
 /* central: botão vermelho "Enviar troco" → pergunta "Enviei o troco?" Sim/Não → vira "Troco enviado via Pix" */
 function botaoTrocoPix(p){
   if(!central()) return null;
-  if(p.pixTrocoEnviadoEm && !p.pixTrocoPendente) return h("span",{class:"pill ok",style:"white-space:nowrap;font-weight:800",text:"Troco enviado via Pix"});
+  // depois de enviado, fica sempre o aviso verde "Troco enviado" (por qualquer caminho que foi marcado)
+  const enviado = !p.pixTrocoPendente && (p.pixTrocoEnviadoEm || (p.pixTrocoPendente===false && num(p.pixTrocoValor)>0) || (num(p.trocoDevido)>0 && p.trocoPendente===false && p.trocoResolvido));
+  if(enviado) return h("span",{class:"pill ok",style:"white-space:nowrap;font-weight:800",text:"Troco enviado"});
   if(!p.pixTrocoPendente) return null;
   const bt=h("button",{type:"button",style:"border:0;border-radius:8px;background:var(--bad);color:#fff;font:inherit;font-weight:800;font-size:13px;padding:6px 12px;cursor:pointer;white-space:nowrap"},"Enviar troco");
   bt.addEventListener("click",e=>{ e.stopPropagation();
@@ -4124,7 +4126,7 @@ function botaoTrocoPix(p){
         await comRetry(()=>S.db.doc(p._path).update({pixTrocoPendente:false,pixTrocoEnviadoEm:agora,
           ...(p.trocoPendente?{trocoPendente:false,trocoResolvido:"pix",trocoResolvidoEm:agora}:{}),
           ...comRegistro(p,"Troco enviado via Pix ("+fmt(valorTrocoPix(p))+")")}));
-        p.pixTrocoPendente=false; p.pixTrocoEnviadoEm=agora; fechar(); toast("Troco enviado via Pix"); try{ renderPedidos(); }catch(_){} }
+        p.pixTrocoPendente=false; p.pixTrocoEnviadoEm=agora; fechar(); toast("Troco enviado"); try{ renderPedidos(); }catch(_){} }
       catch(err){ sim.disabled=false; nao.disabled=false; toast("Não foi possível ("+(err&&err.code||"erro")+")."); } }); });
   return bt;
 }
