@@ -1991,7 +1991,8 @@ function assinarDia(forcar){
     if(central()){
       let primeiraPix=true;
       S.subsDia.push(S.db.collection(col).where("pixTrocoPendente","==",true).onSnapshot(snap=>{
-        const novos=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()}));
+        // só pedido finalizado fica no quadro (pedido reaberto para Em rota/Indo coletar sai daqui)
+        const novos=snap.docs.map(d=>({id:d.id,_path:col+"/"+d.id,...d.data()})).filter(p=>p.status==="entregue");
         if(!primeiraPix) novos.filter(p=>!(S.trocosPix[col]||[]).some(x=>x.id===p.id)).forEach(p=>
           novoPedido("Troco a enviar por Pix: "+fmt(valorTrocoPix(p))+" para "+(p.pixClienteNome||p.cliente||"o cliente")));
         primeiraPix=false; S.trocosPix[col]=novos; renderPedidos();
@@ -2507,7 +2508,8 @@ function abrirStatus(p){
             await comRetry(()=>S.db.doc(x._path).update(u)); sync(x,{status:"entregue",entregueEm:t}); continue;
           }
           if(rot!=="Cancelar pedido"){ u={...upd}; if(upd.aceitoEm) u.aceitoEm=x.aceitoEm||upd.aceitoEm; if(upd.emRotaEm) u.emRotaEm=x.emRotaEm||upd.emRotaEm;
-            if(x.status==="entregue"){ Object.assign(u,desfazFinalizacao(x)); u.reabertoEm=agora(); } }
+            if(x.status==="entregue"){ Object.assign(u,desfazFinalizacao(x)); u.reabertoEm=agora(); }
+            else if(x.pixTrocoPendente||x.trocoPendente) Object.assign(u,{pixTrocoPendente:false,pixTrocoValor:0,pixTrocoEnviadoEm:"",trocoDevido:0,trocoPendente:false,trocoResolvido:false}); }
           u=comRegistro(x,x.status==="entregue"&&rot!=="Cancelar pedido"?"Pedido reaberto: Entregue → "+rot:rot==="Cancelar pedido"?"Pedido cancelado":rot==="Em rota"?"Saiu para entrega (em rota)":rot==="Indo coletar"?"Status: indo coletar":"Status: "+rot,u);
           await comRetry(()=>S.db.doc(x._path).update(u)); if(ac) sync(x,ac);
           // central voltou uma entrega finalizada: o app do entregador apita (e avisa com o app fechado) para ele retornar ao endereço
@@ -4126,7 +4128,7 @@ async function pixSalvar(id,dados){ const sb=window.movviSupabase;
 function valorTrocoPix(p){ return num(p.trocoDevido)>0 ? num(p.trocoDevido) : num(p.pixTrocoValor); }
 /* central: botão vermelho "Enviar troco" → pergunta "Enviei o troco?" Sim/Não → vira "Troco enviado via Pix" */
 function botaoTrocoPix(p){
-  if(!central()) return null;
+  if(!central() || p.status!=="entregue") return null;
   // depois de enviado, fica sempre o aviso verde "Troco enviado" (por qualquer caminho que foi marcado)
   const enviado = !p.pixTrocoPendente && (p.pixTrocoEnviadoEm || (p.pixTrocoPendente===false && num(p.pixTrocoValor)>0) || (num(p.trocoDevido)>0 && p.trocoPendente===false && p.trocoResolvido));
   if(enviado) return h("span",{class:"pill ok",style:"white-space:nowrap;font-weight:800",text:"Troco enviado"});
