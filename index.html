@@ -6515,6 +6515,7 @@ function abrirConfirmacao(p,op){
         if(upd.pagamento!==anunc) mud.push("pagamento: "+(PAG[anunc]||anunc)+" → "+(PAG[upd.pagamento]||upd.pagamento));
         if(valorEditado!==null) mud.push("valor recebido: "+fmt(valPedido)+" → "+fmt(valorEditado));
         else if(upd.pagamento==="dinheiro" && anunc==="dinheiro" && Math.abs(valRec-valAnunc)>0.009 && !upd.trocoDevolver && !(trocoEscolha==="dei")) mud.push("valor recebido: "+fmt(valAnunc)+" → "+fmt(valRec));
+        if(upd.pixTrocoPendente) mud.push("troco a enviar por Pix: "+fmt(num(upd.trocoDevido)>0?num(upd.trocoDevido):num(upd.pixTrocoValor))+(upd.pixClienteNome?" para "+upd.pixClienteNome:""));
         if(!mud.length && upd.obsFinalizacao) mud.push("deixou observação");
         if(mud.length) avisarCentralAlteracao({...p,...upd},mud).catch(e=>console.warn("aviso alteração",e));
       }catch(e){} }
@@ -9080,13 +9081,22 @@ function mostrarRecado(r,semSom){
   const fechar=()=>{ card.classList.add("saindo"); card.style.opacity="0"; card.style.transform="translateY(-8px)"; setTimeout(()=>card.remove(),250); };
   const resp=h("button",{class:"btn",type:"button",style:"padding:8px 14px;font-size:14px"},"↩ Responder");
   const x=h("button",{class:"mini",type:"button","aria-label":"Fechar recado",style:"flex:none"},"✕");
+  const slotTroco=h("span",{style:"display:contents"});
   const card=h("div",{role:"status",style:"pointer-events:auto;width:100%;max-width:440px;background:var(--card,#fff);border:2px solid var(--laranja);border-radius:16px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:6px;transition:opacity .25s,transform .25s"},
     h("div",{style:"display:flex;gap:8px;align-items:flex-start"},
       h("div",{style:"flex:1;min-width:0"},
         h("div",{style:"font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--laranja-ink)",text:(r.tipo==="alteracao"?"✏️ Alteração no pedido · ":r.tipo==="aviso"?"📢 Aviso da ":r.tipo==="resposta"?"↩ Resposta de ":"📣 Recado de ")+(r.de||"Central")}),
         h("div",{style:"font-size:17px;font-weight:800;line-height:1.3;overflow-wrap:anywhere;cursor:pointer",title:"Ver todos os recados",onclick:()=>{ try{ fechar(); }catch(e){} abrirRecados(); },text:r.texto||""}),
         h("div",{class:"muted",style:"font-size:12px",text:[r.empresa,r.numero?"Pedido #"+r.numero:"",r.cliente].filter(Boolean).join(" · ")})),x),
-    r.deUid?h("div",{style:"display:flex;justify-content:flex-end"},resp):null);
+    (r.deUid||r.pedidoPath)?h("div",{style:"display:flex;justify-content:flex-end;gap:8px;align-items:center"},slotTroco,r.deUid?resp:null):null);
+  // alteração com troco a enviar por Pix: botão "Enviar troco" ao lado do Responder
+  if(central() && r.tipo==="alteracao" && r.pedidoPath && innerWidth<900){   // só no celular; no computador o quadro "Troco a enviar" fica no topo
+    S.db.doc(r.pedidoPath).get().then(sn=>{ if(!sn.exists) return; const p={id:sn.id,_path:r.pedidoPath,...(sn.data()||{})};
+      const b=botaoTrocoPix(p); if(!b) return;
+      b.style.padding="8px 14px"; b.style.fontSize="14px";
+      b.addEventListener("click",()=>{ clearTimeout(timer); },true);
+      slotTroco.append(b); }).catch(()=>{});
+  }
   const fixo=r.tipo==="alteracao";   // alteração feita pelo entregador: fica na tela até a central fechar
   let timer=fixo?null:setTimeout(fechar,5000);
   card.addEventListener("pointerenter",()=>{ clearTimeout(timer); });
