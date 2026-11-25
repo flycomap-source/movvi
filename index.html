@@ -6643,26 +6643,26 @@ function abrirDetalhes(p){
   if(p.status==="entregue"&&minutosTotais(p)!==null) add("Tempo total",fmtMin(minutosTotais(p)));
   add("Observações",p.obs);
   if(p.adicionaisPelaCentral && nAd && !(p.registros||[]).some(r=>/adicional/i.test(r.acao||""))) add("Adicional","Colocado pela Central",true);
-  // quem criou o pedido: usuário da central (Anderson, Melissa…), comércio ou entregador
+  // andamento enxuto: "Ação: Nome · data" (ex.: Pedido criado: Melissa Gontijo · 25/11 18:10)
   { const regs=Array.isArray(p.registros)?p.registros:[];
+    const cap=t=>{ t=String(t||"").trim(); return t?t.charAt(0).toUpperCase()+t.slice(1):""; };
+    const curto=n=>{ const w=String(n||"").trim().split(/\s+/).filter(Boolean); return w.length>2?cap(w[0])+" "+cap(w[w.length-1]):w.map(cap).join(" "); };
+    const dt=em=>em?" · "+new Date(em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+    const nomeDe=r=>{ const uid=r.uid||"", q=String(r.quem||"");
+      const ent=(S.equipe||[]).find(e=>e.uid&&e.uid===uid);
+      if(/^central$/i.test(q)) return curto(r.nome||(ent&&ent.nome)||r.usuario||(S.usuarios||{})[uid]||"Central");
+      if(/^entregador/i.test(q)) return curto(q.replace(/^entregador\s*/i,"")||(ent&&ent.nome)||r.usuario);
+      return q||curto(r.usuario); };
+    const acaoDe=a=>{ a=String(a||"").trim();
+      if(/^(pedido feito|lançou manual|pedido criado)/i.test(a)) return "Pedido criado"+a.replace(/^(pedido feito|lançou manual|pedido criado)/i,"");
+      return cap(a.replace(/\s*\(em rota\)/i,"")); };
     const ehCriacao=r=>/^(pedido feito|lançou manual|pedido criado)/i.test(String(r.acao||""));
-    const r0=regs.find(ehCriacao), cap=t=>{ t=String(t||"").trim(); return t?t.charAt(0).toUpperCase()+t.slice(1):""; };
-    const uidC=(r0&&r0.uid)||p.criadoPor||"";
-    const com=(S.comercios||[]).find(c=>c.uid&&c.uid===uidC), ent=(S.equipe||[]).find(e=>e.uid&&e.uid===uidC);
-    const usu=cap((r0&&r0.usuario)||(S.usuarios||{})[uidC]||"");
-    let quem="";
-    // entregador com acesso à central (ex.: Melissa): aparece o nome dele
-    if(r0 && /^central$/i.test(r0.quem||"")) quem=(r0.nome||(ent&&ent.nome))?"pelo usuário "+cap(r0.nome||ent.nome):usu?"pelo usuário "+usu:"pela central";
-    else if(r0 && /^entregador/i.test(r0.quem||"")) quem="pelo entregador "+(String(r0.quem).replace(/^entregador\s*/i,"")||usu);
-    else if(r0 && r0.quem) quem="pelo comércio "+r0.quem;
-    else if(com) quem="pelo comércio "+(com.nome||p.coletaEmpresa||"");
-    else if(ent) quem="pelo entregador "+(ent.nome||"");
-    else if(lojaUidDe(p) || (p.origem&&p.origem.lojaUid)) quem="pelo comércio "+(p.coletaEmpresa||"");
-    else if(usu) quem="pelo usuário "+usu;
-    const em=(r0&&r0.em)||p.criadoEm;
-    if(quem) add("Andamento","Pedido criado "+quem+(em?" · "+new Date(em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""),true);
-    var regsMostrar=regs.filter(r=>r!==r0); }
-  regsMostrar.forEach(r=>{ const a=String(r.acao||""); add("Andamento",a.charAt(0).toUpperCase()+a.slice(1)+" · "+(r.quem||"")+(r.usuario?" (usuário "+r.usuario+")":"")+(r.em?" · "+new Date(r.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""),true); });
+    if(!regs.some(ehCriacao)){   // pedido sem registro de criação: descobre quem criou
+      const uidC=p.criadoPor||"", com=(S.comercios||[]).find(c=>c.uid&&c.uid===uidC), ent=(S.equipe||[]).find(e=>e.uid&&e.uid===uidC);
+      const quem=com?com.nome:ent?curto(ent.nome):(lojaUidDe(p)||(p.origem&&p.origem.lojaUid))?(p.coletaEmpresa||""):curto((S.usuarios||{})[uidC]||"");
+      if(quem) add("Andamento","Pedido criado: "+quem+dt(p.criadoEm),true);
+    }
+    regs.forEach(r=>add("Andamento",acaoDe(r.acao)+": "+nomeDe(r)+dt(r.em),true)); }
   const tabelaDet=h("div",{class:"tabela-wrap"},h("table",null,h("tbody",null,
     ...L.map(([k,v,f])=>h("tr",null,
       h("td",{class:"muted",style:"white-space:nowrap;vertical-align:top",text:k}),
