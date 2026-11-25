@@ -1689,7 +1689,8 @@ function confete(alvo,dur){
   let vivo=true, t0=performance.now(), extra=0;
   const passo=t=>{ if(!vivo) return;
     ctx.clearRect(0,0,W(),H());
-    if(dur && t-t0>dur){ cv.remove(); vivo=false; return; }   // duração curta (ex.: botão R$): some de uma vez
+    if(dur && t-t0>dur){ cv.remove(); vivo=false; return; }   // duração curta (ex.: botão R$)
+    if(dur){ const f=dur*0.4; cv.style.opacity=String(Math.max(0,Math.min(1,(dur-(t-t0))/f))); }   // vai sumindo (fade out) no final
     if(t-t0<(dur?dur-800:4000) && t-t0>extra*700){ extra++; solta(25); }
     for(const p of ps){ p.vy+=0.12*dpr; p.vy=Math.min(p.vy,6*dpr); p.vx*=0.99; p.f+=0.1; p.x+=p.vx+Math.sin(p.f)*0.8*dpr; p.y+=p.vy; p.r+=p.vr;
       ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2*Math.abs(Math.cos(p.f)),p.w,p.h*Math.abs(Math.cos(p.f))+1); ctx.restore(); }
