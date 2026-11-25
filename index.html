@@ -884,7 +884,7 @@ function pillPag(p){
   return h("span",{class:"pill pag",text:PAG[p.pagamento]||"—"});
 }
 const PAG = {dinheiro:"Dinheiro",cartao:"Cartão",pix:"Pedido pago",convenio:"Assinar nota"};
-const LOJAS_TRANSF = ["Loja 41","Loja 21","Loja 2","Outros"];
+const LOJAS_TRANSF = ["Loja 2","Loja 21","Loja 41","Outros"];
 /* transferência: "Loja 41/21/2" = Farmácia Canaã com esse número, cadastrada nos comércios (nome e endereço) */
 /* OS (Ordem de Serviço da Canaã): o tipo decide o serviço.
    Entrega / venda paga → entrega. Entrega de convênio, troca de dinheiro, busca de receita → transferência.
@@ -5891,13 +5891,13 @@ function abrirPedido(p,arquivoComanda,pre){
   const subBts={};
   const gradeSub=h("div",{style:"display:grid;grid-template-columns:1fr 1fr;gap:8px"},...OUTROS_SERV.map(([k,t])=>subBts[k]=h("button",{type:"button","aria-pressed":"false",
     style:"padding:12px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--card);font:inherit;font-weight:800;font-size:14.5px;cursor:pointer;text-align:left",
-    onclick:()=>{ servSub=k; if(k==="convenio") pag="convenio"; else if(pag==="convenio") pag="pix"; atuServ(); }},t)));
+    onclick:()=>{ servSub=k; servico=(k==="transferencia")?"transferencia":"entrega"; if(k==="convenio") pag="convenio"; else if(pag==="convenio") pag="pix"; atuServ(); }},t)));
   const campoServDesc=h("div",{class:"campo",hidden:true},gradeSub,h("label",{for:"pServDesc",text:"Observação (o que é para fazer)"}),fServDesc,
     h("span",{class:"muted num",style:"font-size:12px","data-preco-outros":"1"}));
   btEntrega.addEventListener("click",()=>{ outrosServ=false; servSub=""; servico="entrega"; atuServ(); });   // mantém o pagamento escolhido (pode ser entrega com assinar nota)
   btOutros.addEventListener("click",()=>{ if(outrosServ) return btEntrega.click(); outrosServ=true; servico="entrega"; if(pag==="dinheiro" && !num(fDin.value)) pag="pix"; atuServ(); try{ fServDesc.focus(); }catch(e){} });
   function sincServ(){
-    if(servico==="transferencia") outrosServ=true;   // "Assinar nota" no pagamento NÃO muda para outros serviços
+    if(servico==="transferencia"){ outrosServ=true; if(!servSub) servSub="transferencia"; }   // "Assinar nota" no pagamento NÃO muda para outros serviços
     btEntrega._marca(!outrosServ); btOutros._marca(outrosServ); campoServDesc.hidden=!outrosServ;
     if(servSub==="convenio" && pag!=="convenio" && outrosServ) servSub="";
     Object.entries(subBts).forEach(([k,b])=>{ const on=servSub===k; b.setAttribute("aria-pressed",String(on)); b.style.borderColor=on?"var(--royal)":"var(--line)"; b.style.background=on?"#e8eefc":"var(--card)"; b.style.color=on?"var(--royal)":"inherit"; });
@@ -5911,9 +5911,9 @@ function abrirPedido(p,arquivoComanda,pre){
   const blocoPagForm=h("div",{style:"display:flex;flex-direction:column;gap:12px"});
   // transferência: já no lançamento escolhe de qual loja busca e em qual entrega (igual à finalização)
   let trDe=p.transfDe||"", trPara=p.transfPara||"";
-  const segLoja=(get,set,rot,campo,campoEnd)=>{ const bts={};
+  const segLoja=(get,set,rot,campo,campoEnd,rotulos)=>{ const bts={};
     const seg=h("div",{class:"seg",role:"group","aria-label":rot,style:"grid-template-columns:repeat(4,1fr)"},
-      ...LOJAS_TRANSF.map(l=>bts[l]=h("button",{type:"button","aria-pressed":String(get()===l),onclick:()=>{
+      ...LOJAS_TRANSF.map(l=>bts[l]=h("button",{type:"button","aria-pressed":String(get()===l),onclick:()=>{ setTimeout(()=>{ try{ atuVisTransf(); }catch(e){} },0);
         const antes=get(); set(l); Object.entries(bts).forEach(([k,b])=>b.setAttribute("aria-pressed",String(k===l)));
         // puxa o comércio cadastrado (Farmácia Canaã da loja) com o endereço; sem apagar o que a pessoa digitou
         const cAntes=comercioDaLoja(antes), c=comercioDaLoja(l);
@@ -5924,12 +5924,18 @@ function abrirPedido(p,arquivoComanda,pre){
           if(campoEnd && c && c.endereco && auto(campoEnd.value)) campoEnd.value=c.endereco;
           campo.dispatchEvent(new Event("change"));
         }
-      }},l)));
+      }},(rotulos&&rotulos[l])||l)));
     return seg; };
   const blocoLojas=h("div",{class:"painel",style:"gap:10px;border-color:var(--royal)",hidden:true},
     h("b",{style:"color:var(--royal)",text:"🔁 Transferência / busca de receita"}),
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Buscar em"}),segLoja(()=>trDe,v=>{trDe=v;},"Buscar em",fEmp,fColEnd)),
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Entregar no"}),segLoja(()=>trPara,v=>{trPara=v;},"Entregar no",fCli,fEnd)));
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Coleta"}),segLoja(()=>trDe,v=>{trDe=v;},"Coleta",fEmp,fColEnd,{"Loja 2":"Loja 02","Loja 21":"Loja 21","Loja 41":"Loja 41"})),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Entrega"}),segLoja(()=>trPara,v=>{trPara=v;},"Entrega",fCli,fEnd,{"Loja 2":"Canaã 02","Loja 21":"Canaã 21","Loja 41":"Canaã 41"})),
+    h("div",{class:"muted",style:"font-size:12px",text:"Escolha a loja. Em \"Outros\" aparecem os campos de empresa e endereço para digitar."}));
+  // transferência: loja escolhida = campos preenchidos sozinhos e escondidos; "Outros" = mostra para digitar
+  let wrapColeta=null, wrapEntrega=null;
+  function atuVisTransf(){ const tr=servico==="transferencia";
+    if(wrapColeta) wrapColeta.hidden = tr && !!trDe && trDe!=="Outros";
+    if(wrapEntrega) wrapEntrega.hidden = tr && !!trPara && trPara!=="Outros"; }
   function atuServ(){
     sincServ();
     const tr=servico==="transferencia";
@@ -5938,6 +5944,7 @@ function abrirPedido(p,arquivoComanda,pre){
     lblEnd.textContent=tr?"Para onde levar (endereço)":"Endereço de entrega";
     lblTel.textContent=tr?"Telefone de contato (opcional)":"Telefone / WhatsApp do cliente";
     if(tr){ pag="pix"; receita=false; atuRec(); }
+    atuVisTransf();
     atualiza();
   }
   const corpo=[
@@ -5947,19 +5954,20 @@ function abrirPedido(p,arquivoComanda,pre){
     campoPedCom,
     comercio()?null:h("div",{class:"painel"},
       h("div",{class:"eyebrow",text:"Coleta"}),
-      campoEmpresa("pEmp",fEmp,fColEnd,dl),
-      h("div",{class:"campo"},h("label",{for:"pColEnd",text:"Endereço de coleta"}),fColEnd),
+      (wrapColeta=h("div",{style:"display:flex;flex-direction:column;gap:12px"},
+        campoEmpresa("pEmp",fEmp,fColEnd,dl),
+        h("div",{class:"campo"},h("label",{for:"pColEnd",text:"Endereço de coleta"}),fColEnd))),
       central()?h("div",{class:"campo"},h("label",{for:"pTaxa",text:"Taxa da entrega cobrada da empresa (R$)"}),fTaxa):null,
       central()?linhaBonus:null,
       central()?h("div",{class:"campo"},h("label",{for:"pAdic",text:"Adicionais para o entregador ("+fmt(VALOR_ADICIONAL)+" cada)"}),fAdic):null),
     h("div",{class:"painel"},
       tituloDestino,
+      (wrapEntrega=h("div",{style:"display:flex;flex-direction:column;gap:12px"},
       campoCliente(fCli,fEnd,"pCli",fTel),
       (central()||comercio())?campoCodCom:null,
-
       h("div",{class:"campo"},lblEnd,
         h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},fEnd),maisEnd),avisoEnd),
-      campoBairro,
+      campoBairro)),
       h("div",{class:"campo"},lblTel,fTel)),
     central()?h("div",{class:"campo"},h("label",{for:"pEnt",text:novo?"Entregador (opcional)":"Entregador"}),fEnt):null,
     novo&&central()&&fRota.options.length>1?h("div",{class:"campo"},h("label",{for:"pRota",text:"Adicionar a uma rota (opcional)"}),fRota):null,
