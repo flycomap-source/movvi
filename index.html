@@ -1649,9 +1649,18 @@ function entreguesHoje(){
   if(S.modo!=="entregador" || S.dia!==hoje()) return -1;
   return (S.pedidosDia||[]).filter(p=>p.status==="entregue" && (!p.entregadorId || p.entregadorId===S.eu) && (!p.data || p.data===hoje())).length;
 }
+/* quanto o entregador já fez hoje (entregas finalizadas) */
+function ganhoHoje(){
+  if(S.modo!=="entregador" || S.dia!==hoje()) return 0;
+  const feitas=(S.pedidosDia||[]).filter(p=>p.status==="entregue" && p.data===hoje() && (!p.entregadorId||p.entregadorId===S.eu));
+  return Math.round(feitas.reduce((t,p)=>{ try{ return t+num(partesGanho(p).total); }catch(e){ return t; } },0)*100)/100;
+}
 function verificarMetas(){
   if(S.modo!=="entregador" || !S.uid || !$("#trava").hidden || document.visibilityState!=="visible") return;
   if(document.getElementById("saudacao") || document.getElementById("metaDia")) return;
+  // meta de dinheiro: R$ 200 no dia (aparece uma vez por dia)
+  { const v=ganhoHoje(), k="movvi.metaRs."+S.uid, d=hoje();
+    if(v>=200 && ls.get(k)!==d){ ls.set(k,d); mostrarMeta({ic:"💰",tit:"Parabéns!",txt:"Você já fez R$ 200 hoje. 🔥",confete:true}); return; } }
   const n=entreguesHoje(); if(n<10) return;
   const k="movvi.metas."+S.uid, d=hoje();
   let feito={}; try{ feito=JSON.parse(ls.get(k)||"{}"); }catch(e){}
