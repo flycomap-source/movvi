@@ -4088,6 +4088,8 @@ async function abrirTrocosPendentes(){
       return h("div",{class:"painel",style:"gap:8px"},
         h("div",{style:"display:flex;justify-content:space-between;gap:10px;align-items:baseline"},h("b",{text:(p.cliente||p.telefone||"Cliente")}),h("b",{class:"num",style:"color:var(--bad)",text:fmt(p.trocoDevido)})),
         h("span",{class:"muted",style:"font-size:13px",text:diaCurto(p.data)+" · "+(p.endereco||"")+" · "+nomeEnt(p.entregadorId)+" · recebeu "+fmt(dinheiroDoPedido(p))+" de "+fmt(num(p.valorDinheiro)-num(p.trocoDevido))}),
+        (p.pixClienteChave||p.pixClienteNome)?h("div",{style:"font-size:14px;background:#ecfdf5;border:1px solid #10b981;border-radius:8px;padding:6px 10px;overflow-wrap:anywhere"},
+          h("b",{text:"Pix: "}),(p.pixClienteChave||"—")+(p.pixClienteNome?" · "+p.pixClienteNome:"")):null,
         h("div",{style:"display:flex;gap:6px;flex-wrap:wrap"},btCorrida,btPix,btOk));
     }):[h("p",{class:"muted",style:"margin:0",text:"Nenhum troco pendente."})]));
     desenhar();
@@ -6184,6 +6186,12 @@ function abrirConfirmacao(p,op){
   let formaRec=anunc;
   const fValRec=h("input",{class:"inp num",id:"fValRec",inputmode:"decimal",value:fmtInput(valAnunc),placeholder:"0,00"});
   const campoVal=h("div",{class:"campo"},h("label",{for:"fValRec",text:"Valor recebido em dinheiro (R$)"}),fValRec);
+  // mudou para dinheiro: chave Pix do cliente (opcional) e o nome de quem recebe
+  const fPixChave=h("input",{class:"inp",id:"fPixChave",autocomplete:"off",placeholder:"CPF, telefone, e-mail ou chave aleatória"});
+  const fPixNome=h("input",{class:"inp",id:"fPixNome",autocomplete:"off",placeholder:"Nome de quem recebe o Pix"});
+  const blocoPix=h("div",{class:"painel",hidden:true,style:"gap:8px;padding:10px 14px"},
+    h("div",{class:"campo"},h("label",{for:"fPixChave",text:"Chave Pix (opcional)"}),fPixChave),
+    h("div",{class:"campo"},h("label",{for:"fPixNome",text:"Nome"}),fPixNome));
   const avisoPag=h("div",{class:"muted",style:"font-size:13px;font-weight:700;color:var(--warn)",hidden:true,text:"Diferente do que o comércio informou. A central e o comércio vão ver a alteração."});
   const btsPag={};
   let pagouDin=false, trocoEscolha="";
@@ -6232,6 +6240,7 @@ function abrirConfirmacao(p,op){
     Object.keys(btsPag).forEach(k=>btsPag[k].setAttribute("aria-pressed",String(formaRec===k)));
     campoVal.hidden = formaRec!=="dinheiro" || !!blocoQuanto || (boxMudarPag.hidden && !pagouDin); blocoNota.hidden = formaRec!=="convenio";
     if(blocoQuanto) blocoQuanto.hidden = formaRec!=="dinheiro"; if(infoValor) infoValor.hidden = formaRec!=="dinheiro";
+    blocoPix.hidden = !(formaRec==="dinheiro" && (anunc!=="dinheiro" || pagouDin));
     const sobra0 = formaRec==="dinheiro" && valPedido>0 ? Math.round((num(fValRec.value)-valPedido)*100)/100 : 0;
     const levouTroco = num(p.trocoPara)>0 && num(fValRec.value)<=num(p.trocoPara)+0.009;
     const sobra = (levouTroco || valorEditado!==null) ? 0 : sobra0;
@@ -6246,7 +6255,7 @@ function abrirConfirmacao(p,op){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,avisoPag,blocoNota);
+    infoValor,blocoQuanto,box,boxMudarPag,campoVal,blocoPix,trocoBox,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
@@ -6405,6 +6414,7 @@ function abrirConfirmacao(p,op){
     if(fotoId) upd.fotoId=fotoId;
     if(formaRec!=="dinheiro" && !transf && num(fDinParc.value)>0){ upd.dinheiroParcial=num(fDinParc.value); upd.dinheiroCom="loja"; upd.dinheiroDevolvido=false; }
     if(fObsFin.value.trim()) upd.obsFinalizacao=fObsFin.value.trim();
+    if(!blocoPix.hidden && (fPixChave.value.trim()||fPixNome.value.trim())){ upd.pixClienteChave=fPixChave.value.trim(); upd.pixClienteNome=fPixNome.value.trim(); }
     if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
     Object.assign(upd,comRegistro(p,(transf?"Transferência finalizada: "+transfDe+" → "+transfPara:"Entrega finalizada")+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
     if(formaRec==="dinheiro" && trocoBox.hidden && valRec>valPedido+0.009 && num(p.trocoPara)>0 && valRec<=num(p.trocoPara)+0.009){
@@ -6483,6 +6493,7 @@ function abrirDetalhes(p){
   if(p.dinheiroCom) add("Dinheiro ficou com",p.dinheiroCom==="central"?"A central":p.dinheiroCom==="fatura"?"O entregador (descontado na fatura dele; a central manda Pix ao comércio)"+(p.pixComercioEnviadoEm?" · Pix enviado":" · Pix pendente"):"O entregador (devolve à loja)");
   add("Obs. do entregador",p.obsFinalizacao,true);
   if(num(p.trocoDevido)) add("Troco ao cliente",fmt(p.trocoDevido)+(p.trocoPendente?" · falta enviar":p.trocoResolvido==="pix"?" · enviado por Pix":" · enviado"),true);
+  if(p.pixClienteChave||p.pixClienteNome) add("Chave Pix do cliente",(p.pixClienteChave||"—")+(p.pixClienteNome?" · "+p.pixClienteNome:""),true);
   if(p.valorRecebidoEditado) add("Valor recebido alterado",fmt(p.valorReceberOriginal)+" → "+fmt(p.valorRecebidoTotal),true);
   if(p.pagamentoAlterado) add("Anunciado",p.pagamentoAnunciado==="dinheiro"?fmt(p.valorAnunciado)+" (dinheiro)":(PAG[p.pagamentoAnunciado]||""));
   if(central()){
