@@ -3771,17 +3771,26 @@ function garantirClientes(){
     if(!migrouCli[col]) setTimeout(()=>normalizarClientes(col),1500);
     else if(central() && col==="clientes"){ clearTimeout(tJuntar); tJuntar=setTimeout(()=>{ if(!juntando){ juntando=true; juntarPorEndereco().finally(()=>{ juntando=false; }); } },6000); } },()=>{});
 }
+/* nomes do mesmo cliente: o mais curto é o começo do mais longo (Melissa / Melissa Gontijo / Melissa Gontijo Pereira) */
+const palavrasNome=n=>semAcento(n).replace(/[^a-z ]/g," ").split(/\s+/).filter(w=>w.length>1&&!["de","da","do","dos","das","e"].includes(w));
+function nomesCompativeis(a,b){ const x=palavrasNome(a), y=palavrasNome(b); if(!x.length||!y.length) return false;
+  const [c,l]=x.length<=y.length?[x,y]:[y,x]; return c.every((w,i)=>l[i]===w); }
+/* telefone parecido: os mesmos 8 últimos dígitos (muda só DDD ou o 9 da frente) */
+function telParecido(a,b){ const x=digTel(a), y=digTel(b); return x.length>=8 && y.length>=8 && x.slice(-8)===y.slice(-8); }
 /* cadastros com o mesmo endereço (mesmo abreviado: Av = Avenida, José L. Adjuto = José Luiz Adjuto, mesmo apto)
    viram um só: fica o primeiro cadastro; os outros telefones e nomes vão para as observações */
 async function juntarPorEndereco(){
   if(S.limitada) return;
-  const lista=(S.clientes||[]).filter(c=>c.telefone&&enderecosDe(c).length).slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
+  const lista=(S.clientes||[]).filter(c=>c.telefone).slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
   const feitos=new Set();
   let volta=0;
   for(const base of lista){
     if(feitos.has(base.id)) continue;
     if(++volta%10===0) await new Promise(r=>setTimeout(r,0));   // deixa a tela respirar (não trava o app)
-    const iguais=lista.filter(o=>o.id!==base.id && !feitos.has(o.id) && enderecosDe(o).some(x=>enderecosDe(base).some(y=>mesmoLugar(x.endereco,y.endereco))));
+    const iguais=lista.filter(o=>o.id!==base.id && !feitos.has(o.id) && (
+      enderecosDe(o).some(x=>enderecosDe(base).some(y=>mesmoLugar(x.endereco,y.endereco)))
+      // mesmo nome (um completa o outro: Melissa / Melissa Gontijo / Melissa Gontijo Pereira) e telefone parecido
+      || (nomesCompativeis(o.nome,base.nome) && telParecido(o.telefone,base.telefone))));
     if(!iguais.length) continue;
     const notas=[base.obsCliente].filter(Boolean), aliasTels=[...(base.aliasTels||[])], aliasIds=[...(base.aliasIds||[])];
     let nome=base.nome||"", ends=enderecosDe(base);
@@ -3791,7 +3800,7 @@ async function juntarPorEndereco(){
       if(d && d!==digTel(base.telefone) && !aliasTels.includes(d)){ aliasTels.push(d); if(!jaNota(d)) notas.push("Também usa o telefone "+d); }
       (o.aliasTels||[]).forEach(t=>{ if(!aliasTels.includes(t)) aliasTels.push(t); });
       aliasIds.push(o.id,...(o.aliasIds||[]));
-      if(o.nome){ if(!nome) nome=o.nome; else if(semAcento(o.nome)!==semAcento(nome) && !semAcento(notas.join(" ")).includes(semAcento(o.nome))) notas.push("Também atende por "+o.nome); }
+      if(o.nome){ if(!nome) nome=o.nome; else if(nomesCompativeis(o.nome,nome)){ if(palavrasNome(o.nome).length>palavrasNome(nome).length) nome=o.nome; } else if(semAcento(o.nome)!==semAcento(nome) && !semAcento(notas.join(" ")).includes(semAcento(o.nome))) notas.push("Também atende por "+o.nome); }
       if(o.obsCliente && !notas.includes(o.obsCliente)) notas.push(o.obsCliente);
       ends=juntaEnderecos(ends,enderecosDe(o));
       feitos.add(o.id);
