@@ -2382,7 +2382,7 @@ function nomeStatus(p){
 function quemAltera(){ return central()?"Central":comercio()?(S.euNome||"Comércio"):S.modo==="entregador"?"Entregador "+(S.euNome||""):""; }
 function meuUsuario(){ return (S.usuarios||{})[S.uid]||S.meuUsuario||""; }
 function comRegistro(p,acao,extra){ const q=quemAltera(); if(!q) return extra||{};
-  return {...(extra||{}),registros:[...(Array.isArray(p&&p.registros)?p.registros:[]),{quem:q,usuario:meuUsuario(),uid:S.uid||"",acao,em:new Date().toISOString()}]}; }
+  return {...(extra||{}),registros:[...(Array.isArray(p&&p.registros)?p.registros:[]),{quem:q,usuario:meuUsuario(),...(S.limitada&&S.euNome?{nome:S.euNome}:{}),uid:S.uid||"",acao,em:new Date().toISOString()}]}; }
 /* central: trocar o entregador, passar para outro ou liberar para todos */
 function abrirTrocaEntregador(p){
   if(p.status==="entregue"){ toast("Entrega já finalizada por "+nomeEnt(p.entregadorId)+"."); return; }
@@ -6651,7 +6651,8 @@ function abrirDetalhes(p){
     const com=(S.comercios||[]).find(c=>c.uid&&c.uid===uidC), ent=(S.equipe||[]).find(e=>e.uid&&e.uid===uidC);
     const usu=cap((r0&&r0.usuario)||(S.usuarios||{})[uidC]||"");
     let quem="";
-    if(r0 && /^central$/i.test(r0.quem||"")) quem=usu?"pelo usuário "+usu:"pela central";
+    // entregador com acesso à central (ex.: Melissa): aparece o nome dele
+    if(r0 && /^central$/i.test(r0.quem||"")) quem=(r0.nome||(ent&&ent.nome))?"pelo usuário "+cap(r0.nome||ent.nome):usu?"pelo usuário "+usu:"pela central";
     else if(r0 && /^entregador/i.test(r0.quem||"")) quem="pelo entregador "+(String(r0.quem).replace(/^entregador\s*/i,"")||usu);
     else if(r0 && r0.quem) quem="pelo comércio "+r0.quem;
     else if(com) quem="pelo comércio "+(com.nome||p.coletaEmpresa||"");
