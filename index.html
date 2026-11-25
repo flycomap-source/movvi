@@ -6240,12 +6240,14 @@ function abrirConfirmacao(p,op){
     Object.keys(btsPag).forEach(k=>btsPag[k].setAttribute("aria-pressed",String(formaRec===k)));
     campoVal.hidden = formaRec!=="dinheiro" || !!blocoQuanto || (boxMudarPag.hidden && !pagouDin); blocoNota.hidden = formaRec!=="convenio";
     if(blocoQuanto) blocoQuanto.hidden = formaRec!=="dinheiro"; if(infoValor) infoValor.hidden = formaRec!=="dinheiro";
-    blocoPix.hidden = !(formaRec==="dinheiro" && (anunc!=="dinheiro" || pagouDin));
     const sobra0 = formaRec==="dinheiro" && valPedido>0 ? Math.round((num(fValRec.value)-valPedido)*100)/100 : 0;
     const levouTroco = num(p.trocoPara)>0 && num(fValRec.value)<=num(p.trocoPara)+0.009;
     const sobra = (levouTroco || valorEditado!==null) ? 0 : sobra0;
     trocoBox.hidden = !(sobra>0.009); if(trocoBox.hidden) trocoEscolha=""; else trocoTxt.textContent="O cliente pagou "+fmt(num(fValRec.value))+": troco de "+fmt(sobra)+".";
     pintaTroco();
+    // mudou o valor: o cliente pagou com uma nota maior que o pedido → chave Pix (opcional) e nome de quem recebe
+    const recebido = valorEditado!==null ? valorEditado : num(fValRec.value);
+    blocoPix.hidden = !(formaRec==="dinheiro" && valPedido>0 && !levouTroco && recebido>valPedido+0.009);
     const mudou = formaRec!==anunc || (formaRec==="dinheiro" && Math.abs(num(fValRec.value)-valAnunc)>0.009);
     try{ if(typeof atuDinParc==="function") atuDinParc(); }catch(e){}
     avisoPag.hidden=true;   // a frase "diferente do que o comércio informou" não aparece mais (o elemento fica só como referência de posição)
@@ -6255,7 +6257,7 @@ function abrirConfirmacao(p,op){
   const btMudarPag=h("button",{class:"btn sec full",type:"button"},"Mudar a forma de pagamento");
   btMudarPag.addEventListener("click",()=>{ boxMudarPag.hidden=false; btMudarPag.hidden=true; atPag(); });
   const blocoPag=h("div",{style:"display:flex;flex-direction:column;gap:8px"},
-    infoValor,blocoQuanto,box,boxMudarPag,campoVal,blocoPix,trocoBox,avisoPag,blocoNota);
+    infoValor,blocoQuanto,box,boxMudarPag,campoVal,trocoBox,blocoPix,avisoPag,blocoNota);
   atPag();
   const ok=h("button",{class:"btn full",type:"button"},"Finalizar entrega");
   let pegouReceita=null, motivoRec="";
