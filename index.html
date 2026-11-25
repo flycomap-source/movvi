@@ -293,7 +293,11 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 .chip-st.blq{border-color:transparent;background:var(--bad-bg);color:var(--bad)} .chip-st.blq .ponto{background:var(--bad)}
 .cont-ent{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:40px;padding:0 8px;border:0;border-radius:12px;background:#fff;color:var(--ok);line-height:1;cursor:pointer}
 .cont-ent span{font-family:var(--f-display);font-weight:900;font-size:19px}
-.cont-rs{min-width:40px;padding:0 6px}.cont-rs span{font-size:16px;color:var(--ok)}
+.cont-rs{min-width:0;width:38px;height:38px;padding:0;border-radius:50%;margin-left:-6px;box-shadow:0 0 0 2px rgba(43,182,115,.55)}
+.cont-rs span{font-size:14px;color:var(--ok);letter-spacing:-.02em}
+/* nome do topo não passa por baixo do contador: corta com "…" */
+.marca .wm-linha{max-width:100%;overflow:hidden}
+.marca .wm-resto,#gpsPill{max-width:100%!important;overflow:hidden;text-overflow:ellipsis}
 @keyframes foguinho{0%,100%{transform:scale(1) rotate(-6deg)}50%{transform:scale(1.18) rotate(6deg)}}
 .cont-ent small{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:2px}
 /* central no computador: pedidos em linhas */
