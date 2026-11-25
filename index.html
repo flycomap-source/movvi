@@ -6280,7 +6280,7 @@ function abrirConfirmacao(p,op){
   const lblValor=h("span",{class:"muted",style:"font-weight:700",text:"Valor a receber"});
   const txValor=h("b",{class:"num",style:"font-size:20px",text:fmt(valPedido)});
   const fValEd=h("input",{class:"inp num",inputmode:"decimal",style:"max-width:140px;font-size:18px;font-weight:800;text-align:right",hidden:true,"aria-label":"Valor recebido"});
-  const avisoEd=h("div",{class:"muted",style:"font-size:12px;font-weight:700;color:var(--warn)",hidden:true,text:"Valor alterado: explique nas observações (ex.: eram dois pedidos)."});
+  const avisoEd=h("div",{class:"muted",style:"font-size:12px;font-weight:700;color:var(--warn)",hidden:true,text:"Valor alterado. Se quiser, explique nas observações (opcional)."});
   fValEd.removeAttribute("hidden"); fValEd.placeholder="0,00"; fValEd.id="fQuantoRecebi";
   fValEd.setAttribute("style","width:130px;flex:none;font-size:18px;font-weight:800;text-align:right");
   // dinheiro ou cartão: se recebeu um valor diferente, digita aqui e explica nas observações
@@ -6453,7 +6453,7 @@ function abrirConfirmacao(p,op){
     if(transf && !transfDe){ msg.hidden=false; msg.textContent="Escolha em qual loja foi coletado."; return; }
     if(transf && !transfPara){ msg.hidden=false; msg.textContent="Escolha em qual loja foi entregue."; return; }
     if(transf){ formaRec=anunc; }
-    if(valorEditado!==null && !fObsFin.value.trim()){ msg.hidden=false; msg.textContent="Você mudou o valor recebido: escreva nas observações o motivo (ex.: eram dois pedidos)."; try{ fObsFin.focus(); }catch(e){} return; }
+    // mudou o valor ou a forma de pagamento: o motivo nas observações é opcional
     if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && num(fDinParc.value)>0){ fValRec.value=fDinParc.value; try{ atPag(); }catch(e){} }
     if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && blocoQuanto && num(fValEd.value)>0){ fValRec.value=fmtInput(num(fValEd.value)); }
     if(!transf && formaRec==="dinheiro" && !num(fValRec.value) && blocoQuanto){ msg.hidden=false; msg.textContent="Informe o valor recebido em dinheiro."; try{ fValEd.focus(); }catch(e){} return; }
