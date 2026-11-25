@@ -3047,18 +3047,19 @@ function cartaoSolicitacaoLoja(p){
     C.acoes=acoes;
     return h("div",{class:"linha-ped dyn"},...cols.map(k=>C[k]||cel("")));
   }
-  return h("div",{class:"solic-loja"},
-    h("div",{class:"topo"},h("span",{class:"pill pend",text:p.publicado?"Enviado aos entregadores":"Enviando aos entregadores…"}),h("span",{class:"quem-ped num",text:espera!==null?"há "+fmtMin(espera):""})),
-    p.tipo==="rota"?h("span",{class:"pill",style:"align-self:flex-start;background:var(--royal);color:#fff",text:"Rota · "+(p.paradas||[]).length+" entregas"}):null,
-    p.tipo==="rota"?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
-    p.tipo==="rota"?listaParadas(p.paradas):null,
-    h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(p.tipo==="rota"||p.tipoServico==="transferencia")?null:pillPag(p),...pillsValor(p),h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
-    // valores para o entregador (taxa, 🔥 adicional, 🤩 bônus e total), iguais aos do cartão que o entregador vê
-    (()=>{ try{ return h("div",{style:"display:flex;justify-content:flex-end"},caixaGanho(linhasGanhoEnt(p.tipo==="rota"?{taxaFixaCentral:true,_rotaBase:(p.paradas||[]).length*TAXA_MINIMA,_rotaTot:(p.paradas||[]).length*TAXA_MINIMA*(1+Math.max(0,num(p.bonusPct))/100),bonusPct:p.bonusPct}:p,"mini"))); }catch(e){ return null; } })(),
+  // celular: mesmo cartão que o entregador vê (coleta e entrega à esquerda; tempo, selo e valores à direita) + controles da central embaixo
+  const rotaC=p.tipo==="rota", nC=(p.paradas||[]).length;
+  const ganhoC=(()=>{ try{ return caixaGanho(linhasGanhoEnt(rotaC?{taxaFixaCentral:true,_rotaBase:nC*TAXA_MINIMA,_rotaTot:Math.round(nC*TAXA_MINIMA*(1+Math.max(0,num(p.bonusPct))/100)*100)/100,bonusPct:p.bonusPct}:p,"mini")); }catch(e){ return null; } })();
+  return h("div",{class:"solic-loja",style:"border-color:var(--laranja)"},
+    colunaAoLado(rotaC?blocoRota({coletaEmpresa:p.coletaEmpresa,coletaEndereco:p.coletaEndereco}):blocoRota(p),
+      colunaEnt(h("span",{class:"muted num",style:"font-size:8.5px;line-height:1",text:espera!==null?"pedido há "+fmtMin(espera):""}),
+        h("span",{class:"ped-badge",style:"background:var(--laranja)",text:rotaC?"Rota · "+nC+" entregas":(p.publicado?"Disponível":"Enviando…")}),ganhoC)),
+    rotaC?listaParadas(p.paradas):null,
+    h("div",{class:"meta"},p.tipoServico==="transferencia"?h("span",{class:"pill ordem",style:"background:var(--royal);color:#fff",text:"🔁 Transferência / Receita"}):null,(rotaC||p.tipoServico==="transferencia")?null:pillPag(p),h("span",{class:"quem-ped",text:"Pedido "+(p.data!==hoje()?diaCurto(p.data)+" ":"")+(hora?"às "+hora:"")})),
     p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ "+nomeServico(p)}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
     h("div",{style:"display:flex;gap:8px;align-items:center"},h("div",{style:"flex:1;min-width:0"},sel),
-      p.tipo==="rota"?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
+      rotaC?null:h("button",{class:"btn sec",type:"button","aria-label":"Editar pedido",onclick:e=>{ e.stopPropagation(); abrirPedido(p); }},"Editar"),rec));
 }
 function listaParadas(paradas){
   return h("div",{class:"lista-paradas"},...(paradas||[]).map((x,i)=>h("div",{class:"lp"},
