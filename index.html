@@ -2409,7 +2409,8 @@ function abrirTrocaEntregador(p){
    para poder finalizar de novo do zero (ex.: teste da caixinha do dinheiro) */
 function desfazFinalizacao(x){
   const u={pagamentoConfirmado:false,pagamentoAlterado:false,dinheiroCom:"",dinheiroDevolvido:false,devolvidoEm:"",devolvidoPor:"",
-    pixComercioPendente:false,pixComercioEnviadoEm:"",pixComercioValor:0,dinheiroCentralEm:"",trocoDevido:0,trocoPendente:false,trocoResolvido:false};
+    pixComercioPendente:false,pixComercioEnviadoEm:"",pixComercioValor:0,dinheiroCentralEm:"",trocoDevido:0,trocoPendente:false,trocoResolvido:false,
+    pixTrocoPendente:false,pixTrocoValor:0,pixTrocoEnviadoEm:""};   // sai do quadro "Troco a enviar" e some o "Troco enviado"
   if(x.pagamentoAnunciado){ u.pagamento=x.pagamentoAnunciado; u.valorDinheiro=x.pagamentoAnunciado==="dinheiro"?num(x.valorAnunciado):0; }
   return u;
 }
@@ -2511,6 +2512,9 @@ function abrirStatus(p){
           await comRetry(()=>S.db.doc(x._path).update(u)); if(ac) sync(x,ac);
           // central voltou uma entrega finalizada: o app do entregador apita (e avisa com o app fechado) para ele retornar ao endereço
           if(x.status==="entregue" && (rot==="Em rota"||rot==="Indo coletar")) avisarRetorno(x,rot).catch(()=>{});
+          // reaberto: o aviso de "mandar troco/Pix" desse pedido na central não vale mais
+          if(x.status==="entregue") for(const r of (S.pixPend||[]).filter(r=>r.pedidoPath===x._path)) S.db.doc("recados/"+r.id).update({lidoEm:agora()}).catch(()=>{});
+          if(x.status==="entregue" && S.trocosPix) for(const k in S.trocosPix) S.trocosPix[k]=(S.trocosPix[k]||[]).filter(y=>y._path!==x._path);
         }
         fechar(); toast((emRota?grupo.length+" paradas: ":"")+"status alterado para "+(rot==="Cancelar pedido"?"cancelado":rot));
       }
