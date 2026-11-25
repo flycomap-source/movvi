@@ -48,7 +48,7 @@ create policy docs_aprovado_apagar on public.docs for delete to authenticated
 -- consulta de UMA chave Pix por vez (para vir preenchida na finalização), sem permitir copiar a lista
 create or replace function public.pix_do_cliente(p_id text) returns jsonb
 language sql stable security definer set search_path = public as $$
-  select case when public.doc_aprovado() and p_id ~ '^[a-z0-9_-]{3,80}$'
+  select case when public.doc_aprovado() and p_id ~ '^[a-z0-9_-]{3,90}$'
     then (select jsonb_build_object('chave', data->>'chave', 'nome', data->>'nome')
             from public.docs where path = 'pixClientes/' || p_id)
     end
@@ -60,7 +60,7 @@ grant execute on function public.pix_do_cliente(text) to authenticated;
 create or replace function public.pix_salvar(p_id text, p_dados jsonb) returns boolean
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.doc_aprovado() or p_id !~ '^[a-z0-9_-]{3,80}$' then return false; end if;
+  if not public.doc_aprovado() or p_id !~ '^[a-z0-9_-]{3,90}$' then return false; end if;
   insert into public.docs(path, col, id, data)
   values ('pixClientes/' || p_id, 'pixClientes', p_id,
           jsonb_build_object('chave', left(coalesce(p_dados->>'chave',''),120), 'nome', left(coalesce(p_dados->>'nome',''),120),
