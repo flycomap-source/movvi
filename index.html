@@ -2425,6 +2425,19 @@ async function excluirPedido(p){
   if((p._path||"").startsWith("abertos/")){ await guardarAberto(p,st); await recolherOfertas(p.id).catch(()=>{}); return; }
   await comRetry(()=>S.db.doc(p._path).update(comRegistro(p,"Pedido excluído",st)));
 }
+/* recado da central para o entregador: "volte neste endereço para corrigir" (toca, vibra e chega com o app fechado) */
+async function avisarRetorno(x,rot){
+  if(!x.entregadorId) return;
+  const m=membro(x.entregadorId)||{}; let uid=m.uid||"";
+  if(!uid){ try{ const sn=await S.db.collection("vinculos").where("equipeId","==",x.entregadorId).get(); const v=sn.docs.find(d=>(d.data()||{}).ativo!==false); if(v) uid=v.id; }catch(e){} }
+  if(!uid) return;
+  const onde=[x.endereco,bairroDoPedido(x)].filter(Boolean).join(" · ");
+  const texto=rot==="Em rota"
+    ? "↩️ A central voltou esta entrega para EM ROTA. Retorne ao endereço do cliente para corrigir"+(onde?": "+onde:"")+"."
+    : "↩️ A central voltou esta entrega para INDO COLETAR. Passe em "+(x.coletaEmpresa||"o comércio")+" e retorne ao cliente"+(onde?" ("+onde+")":"")+".";
+  await S.db.doc("recados/r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)).set({tipo:"aviso",para:uid,paraNome:m.nome||"",de:"Central",deUid:S.uid||"",
+    pedidoId:x.id||"",numero:x.numero||"",cliente:x.cliente||"",endereco:x.endereco||"",empresa:x.coletaEmpresa||"",texto,criadoEm:new Date().toISOString()});
+}
 function abrirStatus(p){
   const agora=()=>new Date().toISOString();
   const atual=nomeStatus(p);
@@ -2493,9 +2506,11 @@ function abrirStatus(p){
             await comRetry(()=>S.db.doc(x._path).update(u)); sync(x,{status:"entregue",entregueEm:t}); continue;
           }
           if(rot!=="Cancelar pedido"){ u={...upd}; if(upd.aceitoEm) u.aceitoEm=x.aceitoEm||upd.aceitoEm; if(upd.emRotaEm) u.emRotaEm=x.emRotaEm||upd.emRotaEm;
-            if(x.status==="entregue") Object.assign(u,desfazFinalizacao(x)); }
+            if(x.status==="entregue"){ Object.assign(u,desfazFinalizacao(x)); u.reabertoEm=agora(); } }
           u=comRegistro(x,x.status==="entregue"&&rot!=="Cancelar pedido"?"Pedido reaberto: Entregue → "+rot:rot==="Cancelar pedido"?"Pedido cancelado":rot==="Em rota"?"Saiu para entrega (em rota)":rot==="Indo coletar"?"Status: indo coletar":"Status: "+rot,u);
           await comRetry(()=>S.db.doc(x._path).update(u)); if(ac) sync(x,ac);
+          // central voltou uma entrega finalizada: o app do entregador apita (e avisa com o app fechado) para ele retornar ao endereço
+          if(x.status==="entregue" && (rot==="Em rota"||rot==="Indo coletar")) avisarRetorno(x,rot).catch(()=>{});
         }
         fechar(); toast((emRota?grupo.length+" paradas: ":"")+"status alterado para "+(rot==="Cancelar pedido"?"cancelado":rot));
       }
@@ -2912,6 +2927,7 @@ function cartaoPedidoBase(p){
             onclick:S.modo==="entregador"?(e=>{ e.stopPropagation(); abrirOrdemEntregas(S.eu); }):central()?(e=>{ e.stopPropagation(); if(p.entregadorId) abrirOrdemEntregas(p.entregadorId); }):null,text:(()=>{ const r=posNaRota(p); return "🧭 "+r.n+"ª "+(r.coleta?"parada · coletar"+(r.ent?" (entrega "+r.ent+"ª)":""):"entrega")+" de "+r.de; })()+((S.modo==="entregador"||central())?" ▾":"")})
         : p.rotaId?h("span",{class:"pill",style:p.rotaOrdem?"background:var(--royal);color:#fff":"",text:p.rotaOrdem?"Parada "+p.rotaOrdem+" de "+(p.rotaQtd||"?"):"Rota · "+(p.rotaQtd||"?")+" entregas"}):null,
       p.pagamentoAlterado?h("span",{class:"pill pend",text:textoPagAlterado(p)}):null,
+      (p.reabertoEm && !entregue)?h("span",{class:"pill alerta",text:"↩️ Retornar ao cliente"}):null,
       botaoTrocoPix(p)),
     p.servicoTipo==="outros"?h("div",{class:"obs",style:"font-style:normal;font-weight:800;color:var(--royal)",text:"➕ "+nomeServico(p)}):null,
     p.obs?h("div",{class:"obs",text:p.obs}):null,
