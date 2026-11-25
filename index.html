@@ -293,6 +293,8 @@ body.nav-flut .abas-in .fab{position:static;width:54px;height:54px;box-shadow:no
 .chip-st.blq{border-color:transparent;background:var(--bad-bg);color:var(--bad)} .chip-st.blq .ponto{background:var(--bad)}
 .cont-ent{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:40px;padding:0 8px;border:0;border-radius:12px;background:#fff;color:var(--ok);line-height:1;cursor:pointer}
 .cont-ent span{font-family:var(--f-display);font-weight:900;font-size:19px}
+.cont-rs{min-width:40px;padding:0 6px}.cont-rs span{font-size:16px;color:var(--ok)}
+@keyframes foguinho{0%,100%{transform:scale(1) rotate(-6deg)}50%{transform:scale(1.18) rotate(6deg)}}
 .cont-ent small{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:2px}
 /* central no computador: pedidos em linhas */
 body.tela-larga main,body.tela-larga .top-in{max-width:1600px}
@@ -388,6 +390,7 @@ body .solic-loja .loja{color:var(--ink)}
     </div>
     <button class="quem" id="btnQuem" type="button">Carregando…</button>
     <button class="cont-ent" id="contEnt" type="button" hidden title="Entregas finalizadas hoje" aria-label="Entregas finalizadas hoje"><span id="contEntN" class="num">0</span><small>hoje</small></button>
+    <button class="cont-ent cont-rs" id="contRs" type="button" hidden title="Quanto você já fez hoje" aria-label="Quanto você já fez hoje"><span>R$</span></button>
     <div class="disp-col" id="dispCol" hidden>
       <button class="chave" id="btnDisp" type="button" role="switch" hidden aria-checked="true" aria-label="Disponível para entregas" title="Disponível"><span id="dispTxt" class="sr"></span></button>
       <button class="fale-central" id="btnFaleCentral" type="button" title="Fale com a central" aria-label="Fale com a central">💬 Central</button>
@@ -2060,6 +2063,7 @@ function renderPedidos(){
   let ps=S.pedidosDia.slice();
   if(comercio()) ps=ps.map(comOferta);
   // entregador: contador de entregas finalizadas hoje, no canto de cima
+  { const rs=$("#contRs"); if(rs) rs.hidden=S.modo!=="entregador"; }
   { const c=S.contEl||(S.contEl=$("#contEnt")); if(c){ const vis=S.modo==="entregador"; c.hidden=!vis;
       if(vis && S.dia===hoje()){ const n=S.pedidosDia.filter(p=>p.status==="entregue" && p.data===hoje()).length; const el=c.querySelector("#contEntN");
         if(el.textContent!==String(n)){ el.textContent=String(n); c.animate&&c.animate([{transform:"scale(1.25)"},{transform:"scale(1)"}],{duration:350}); } } } }
@@ -9877,6 +9881,21 @@ $("#eqAtivo").addEventListener("click",async()=>{
   catch(err){ toast("Não foi possível salvar."); }
 });
 (S.contEl||(S.contEl=$("#contEnt"))).addEventListener("click",()=>abrirMeusPedidosMes(hoje().slice(0,7)));
+/* botão R$ ao lado do contador: balãozinho "Você já fez R$ X hoje" com confete e foguinho */
+$("#contRs").addEventListener("click",()=>{
+  const feitas=(S.pedidosDia||[]).filter(p=>p.status==="entregue" && p.data===hoje() && (!p.entregadorId||p.entregadorId===S.eu));
+  const total=Math.round(feitas.reduce((t,p)=>{ try{ return t+num(partesGanho(p).total); }catch(e){ return t; } },0)*100)/100;
+  const velho=document.getElementById("balaoRs"); if(velho) velho.remove();
+  const b=h("div",{id:"balaoRs",role:"status",style:"position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:10001;background:#fff;color:var(--ink,#111);border:2px solid var(--ok);border-radius:18px;padding:14px 20px;box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;align-items:center;gap:12px;max-width:92vw"},
+    h("div",{style:"display:flex;flex-direction:column;gap:2px"},
+      h("span",{style:"font-size:15px;font-weight:700",text:"Você já fez"}),
+      h("b",{class:"num",style:"font-family:var(--f-display);font-size:30px;color:var(--ok);line-height:1.1;white-space:nowrap",text:fmt(total)}),
+      h("span",{class:"muted",style:"font-size:12px",text:feitas.length+(feitas.length===1?" entrega hoje":" entregas hoje")})),
+    h("span",{style:"font-size:44px;line-height:1;animation:foguinho .7s ease-in-out infinite",text:"🔥"}));
+  b.addEventListener("click",()=>b.remove());
+  document.body.append(b); setTimeout(()=>b.remove(),4000);
+  confete(document.body);
+});
 $("#eqSalvar").addEventListener("click",async()=>{
   const nome=$("#eqNome").value.trim(), taxa=num($("#eqTaxa").value), semAdicional=$("#eqSemAd").checked, grupo=$("#eqGrupo").value||"movvi";
   if(!nome){ toast("Informe o nome."); return; }
