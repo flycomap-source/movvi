@@ -2150,8 +2150,8 @@ function renderPedidos(){
   // central: TROCO A ENVIAR (Pix) — sempre o primeiro quadro, em vermelho
   if(central()){
     const tp=[].concat(...Object.values(S.trocosPix||{})).sort((a,b)=>String(a.entregueEm||"").localeCompare(String(b.entregueEm||"")));
-    caixa("trocoPix","Troco a enviar",tp.length,"var(--bad)",corpo=>tp.forEach(p=>corpo.append(cartaoTrocoPix(p))));
-    const sec=box.lastElementChild; if(tp.length && sec){ sec.style.cssText+=";border:2px solid var(--bad);border-radius:14px;padding:8px;background:#fef2f2"; const t=sec.querySelector(".grupo-cab b"); if(t) t.style.color="var(--bad)"; }
+    caixa("trocoPix","Troco a enviar",tp.length,"var(--bad)",corpo=>tp.forEach(p=>corpo.append(emLinhas()?linhaTrocoPix(p):cartaoTrocoPix(p))));
+    const sec=box.lastElementChild; if(tp.length && sec){ sec.style.cssText+=";border:2px solid var(--bad);border-radius:14px;padding:8px;background:#fef2f2"; }
   }
   caixa("disponiveis",central()?"Aguardando um entregador aceitar":"Entregas disponíveis",listaAbertas.length,"var(--laranja)",
     corpo=>{
@@ -2806,7 +2806,7 @@ function abrirColunas(){
     h("div",{style:"display:flex;gap:8px"},todas,padrao),h("div",{},...itens.map(x=>x.el)),salvar]);
   salvar.addEventListener("click",()=>{ atual.add("acoes"); try{ localStorage.setItem("movvi.colunas."+pf,JSON.stringify([...atual])); }catch(e){} fechar(); estiloColunas(); renderPedidos(); });
 }
-function linhaPedido(p){
+function linhaPedido(p,opt){
   const entregue=p.status==="entregue", st=statusCard(p);
   const cel=(txt,cls,title)=>h("span",{class:"c "+(cls||""),title:title||txt||"",text:txt||"—"});
   const pag=(p.pagamento==="pix"?"Pago":PAG[p.pagamento]||"—")+(valorACobrar(p)&&p.pagamento!=="pix"?" "+fmt(valorACobrar(p)):"");
@@ -2846,7 +2846,7 @@ function linhaPedido(p){
   }
   faz("hora",()=>cel(dataHoraCard(p),"num"));
   faz("pag",()=>{ const base=(central()&&entregue&&dinPendCentral(p)!==null)?h("span",{class:"c"},botaoDinCentral(p,true)):cel(pag,p.pagamento==="dinheiro"?"din":"");
-    const bTr=botaoTrocoPix(p); if(!bTr) return base;
+    const bTr=(opt&&opt.semTroco)?null:botaoTrocoPix(p); if(!bTr) return base;
     return h("span",{class:"c",style:"display:flex;flex-direction:column;align-items:center;gap:4px"},base,bTr); });
   faz("bairro",()=>cel(bairroDoPedido(p)||""));
   faz("cliente",()=>cel(p.cliente||""));
@@ -4143,6 +4143,20 @@ function cartaoTrocoPix(p){
     h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"},chave?btCopiar:null,btEnviado));
   c.addEventListener("click",e=>{ if(e.target.closest("button")) return; abrirDetalhes(p); });
   return c;
+}
+/* central no computador: troco a enviar em linha (mesmas colunas das entregas) + faixa com Pix embaixo */
+function linhaTrocoPix(p){
+  const chave=p.pixClienteChave||"";
+  const btCopiar=h("button",{class:"btn sec",type:"button",style:"flex:none;padding:6px 10px;font-size:13px"},"Copiar chave");
+  btCopiar.addEventListener("click",e=>{ e.stopPropagation(); try{ navigator.clipboard.writeText(chave).then(()=>toast("Chave Pix copiada"),()=>toast(chave)); }catch(_){ toast(chave); } });
+  const faixa=h("div",{style:"display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 14px;background:#fef2f2;border-top:1px dashed var(--bad);font-size:14px"},
+    h("b",{class:"num",style:"color:var(--bad);font-size:17px;white-space:nowrap",text:"Troco "+fmt(valorTrocoPix(p))}),
+    h("span",{style:"overflow-wrap:anywhere"},h("b",{text:"Chave Pix: "}),chave||"—"),
+    h("span",{style:"overflow-wrap:anywhere"},h("b",{text:"Nome: "}),p.pixClienteNome||p.cliente||"—"),
+    h("div",{style:"display:flex;gap:6px;margin-left:auto"},chave?btCopiar:null,botaoTrocoPix(p)));
+  const linha=linhaPedido(p,{semTroco:true});
+  linha.addEventListener("click",e=>{ if(e.target.closest("button")) return; abrirDetalhes(p); });
+  return h("div",{style:"display:flex;flex-direction:column;border-bottom:2px solid var(--bad)"},linha,faixa);
 }
 async function abrirTrocosPendentes(){
   const lista=h("div",{style:"display:flex;flex-direction:column;gap:8px"},h("p",{class:"muted",style:"margin:0",text:"Carregando…"}));
