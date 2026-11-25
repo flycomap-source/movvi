@@ -6643,7 +6643,25 @@ function abrirDetalhes(p){
   if(p.status==="entregue"&&minutosTotais(p)!==null) add("Tempo total",fmtMin(minutosTotais(p)));
   add("Observações",p.obs);
   if(p.adicionaisPelaCentral && nAd && !(p.registros||[]).some(r=>/adicional/i.test(r.acao||""))) add("Adicional","Colocado pela Central",true);
-  (Array.isArray(p.registros)?p.registros:[]).forEach(r=>{ const a=String(r.acao||""); add("Andamento",a.charAt(0).toUpperCase()+a.slice(1)+" · "+(r.quem||"")+(r.usuario?" (usuário "+r.usuario+")":"")+(r.em?" · "+new Date(r.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""),true); });
+  // quem criou o pedido: usuário da central (Anderson, Melissa…), comércio ou entregador
+  { const regs=Array.isArray(p.registros)?p.registros:[];
+    const ehCriacao=r=>/^(pedido feito|lançou manual|pedido criado)/i.test(String(r.acao||""));
+    const r0=regs.find(ehCriacao), cap=t=>{ t=String(t||"").trim(); return t?t.charAt(0).toUpperCase()+t.slice(1):""; };
+    const uidC=(r0&&r0.uid)||p.criadoPor||"";
+    const com=(S.comercios||[]).find(c=>c.uid&&c.uid===uidC), ent=(S.equipe||[]).find(e=>e.uid&&e.uid===uidC);
+    const usu=cap((r0&&r0.usuario)||(S.usuarios||{})[uidC]||"");
+    let quem="";
+    if(r0 && /^central$/i.test(r0.quem||"")) quem=usu?"pelo usuário "+usu:"pela central";
+    else if(r0 && /^entregador/i.test(r0.quem||"")) quem="pelo entregador "+(String(r0.quem).replace(/^entregador\s*/i,"")||usu);
+    else if(r0 && r0.quem) quem="pelo comércio "+r0.quem;
+    else if(com) quem="pelo comércio "+(com.nome||p.coletaEmpresa||"");
+    else if(ent) quem="pelo entregador "+(ent.nome||"");
+    else if(lojaUidDe(p) || (p.origem&&p.origem.lojaUid)) quem="pelo comércio "+(p.coletaEmpresa||"");
+    else if(usu) quem="pelo usuário "+usu;
+    const em=(r0&&r0.em)||p.criadoEm;
+    if(quem) add("Andamento","Pedido criado "+quem+(em?" · "+new Date(em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""),true);
+    var regsMostrar=regs.filter(r=>r!==r0); }
+  regsMostrar.forEach(r=>{ const a=String(r.acao||""); add("Andamento",a.charAt(0).toUpperCase()+a.slice(1)+" · "+(r.quem||"")+(r.usuario?" (usuário "+r.usuario+")":"")+(r.em?" · "+new Date(r.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):""),true); });
   const tabelaDet=h("div",{class:"tabela-wrap"},h("table",null,h("tbody",null,
     ...L.map(([k,v,f])=>h("tr",null,
       h("td",{class:"muted",style:"white-space:nowrap;vertical-align:top",text:k}),
