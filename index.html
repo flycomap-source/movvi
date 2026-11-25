@@ -5928,8 +5928,8 @@ function abrirPedido(p,arquivoComanda,pre){
     return seg; };
   const blocoLojas=h("div",{class:"painel",style:"gap:10px;border-color:var(--royal)",hidden:true},
     h("b",{style:"color:var(--royal)",text:"🔁 Transferência / busca de receita"}),
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Coleta"}),segLoja(()=>trDe,v=>{trDe=v;},"Coleta",fEmp,fColEnd,{"Loja 2":"Farmácia Canaã 02","Loja 21":"Farmácia Canaã 21","Loja 41":"Farmácia Canaã 41"})),
-    h("div",{class:"campo"},h("span",{class:"lbl",text:"Entrega"}),segLoja(()=>trPara,v=>{trPara=v;},"Entrega",fCli,fEnd,{"Loja 2":"Farmácia Canaã 02","Loja 21":"Farmácia Canaã 21","Loja 41":"Farmácia Canaã 41"})),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Coleta"}),segLoja(()=>trDe,v=>{trDe=v;},"Coleta",fEmp,fColEnd,{"Loja 2":"Farmácia Canaã Loja 2","Loja 21":"Farmácia Canaã Loja 21","Loja 41":"Farmácia Canaã Loja 41"})),
+    h("div",{class:"campo"},h("span",{class:"lbl",text:"Entrega"}),segLoja(()=>trPara,v=>{trPara=v;},"Entrega",fCli,fEnd,{"Loja 2":"Farmácia Canaã Loja 2","Loja 21":"Farmácia Canaã Loja 21","Loja 41":"Farmácia Canaã Loja 41"})),
     h("div",{class:"muted",style:"font-size:12px",text:"Escolha a loja. Em \"Outros\" aparecem os campos de empresa e endereço para digitar."}));
   // transferência: loja escolhida = campos preenchidos sozinhos e escondidos; "Outros" = mostra para digitar
   let wrapColeta=null, wrapEntrega=null;
