@@ -4096,6 +4096,13 @@ async function abrirReceitasPendentes(){
     desenhar();
   }catch(e){ lista.replaceChildren(h("p",{class:"aviso",text:"Não foi possível carregar ("+(e&&e.code||"erro")+")."})); }
 }
+/* chave Pix por cliente: grava e consulta uma de cada vez pelo servidor (ninguém fora da central lê a lista inteira) */
+async function pixDoCliente(id){ const sb=window.movviSupabase;
+  if(sb){ try{ const {data,error}=await sb.rpc("pix_do_cliente",{p_id:id}); if(!error) return data||null; }catch(e){} }
+  try{ const sn=await S.db.doc("pixClientes/"+id).get(); return sn.exists?(sn.data()||null):null; }catch(e){ return null; } }
+async function pixSalvar(id,dados){ const sb=window.movviSupabase;
+  if(sb){ try{ const {error}=await sb.rpc("pix_salvar",{p_id:id,p_dados:dados}); if(!error) return; }catch(e){} }
+  S.db.doc("pixClientes/"+id).set({...dados,em:new Date().toISOString()}).catch(()=>{}); }
 function valorTrocoPix(p){ return num(p.trocoDevido)>0 ? num(p.trocoDevido) : num(p.pixTrocoValor); }
 /* central: botão vermelho "Enviar troco" → pergunta "Enviei o troco?" Sim/Não → vira "Troco enviado via Pix" */
 function botaoTrocoPix(p){
@@ -6262,7 +6269,7 @@ function abrirConfirmacao(p,op){
     h("div",{class:"campo"},h("label",{for:"fPixChave",text:"Chave Pix (opcional)"}),fPixChave),
     h("div",{class:"campo"},h("label",{for:"fPixNome",text:"Nome"}),fPixNome));
   // chave Pix já salva para este cliente: vem preenchida (dá para trocar)
-  { const kc=chaveLocCli(p); if(kc) S.db.doc("pixClientes/"+kc).get().then(sn=>{ if(!sn.exists) return; const d=sn.data()||{};
+  { const kc=chaveLocCli(p); if(kc) pixDoCliente(kc).then(d=>{ if(!d) return;
       if(!fPixChave.value.trim() && d.chave) fPixChave.value=d.chave; if(!fPixNome.value.trim() && d.nome) fPixNome.value=d.nome; }).catch(()=>{}); }
   const avisoPag=h("div",{class:"muted",style:"font-size:13px;font-weight:700;color:var(--warn)",hidden:true,text:"Diferente do que o comércio informou. A central e o comércio vão ver a alteração."});
   const btsPag={};
@@ -6493,8 +6500,8 @@ function abrirConfirmacao(p,op){
       Object.assign(upd,{pixClienteChave:fPixChave.value.trim(),pixClienteNome:fPixNome.value.trim(),
         pixTrocoPendente:true,pixTrocoValor:Math.max(0,Math.round((rec-valPedido)*100)/100)});
       // guarda a chave Pix e o nome para este cliente: na próxima vez já vem preenchido
-      const kc=chaveLocCli(p); if(kc && upd.pixClienteChave) S.db.doc("pixClientes/"+kc).set({chave:upd.pixClienteChave,nome:upd.pixClienteNome,
-        cliente:p.cliente||"",telefone:p.telefone||"",endereco:p.endereco||"",em:new Date().toISOString()}).catch(()=>{}); }
+      const kc=chaveLocCli(p); if(kc && upd.pixClienteChave) pixSalvar(kc,{chave:upd.pixClienteChave,nome:upd.pixClienteNome,
+        cliente:p.cliente||"",telefone:p.telefone||"",endereco:p.endereco||""}); }
     if(transf){ upd.transfDe=transfDe; upd.transfPara=transfPara; }
     Object.assign(upd,comRegistro(p,(transf?"Transferência finalizada: "+transfDe+" → "+transfPara:"Entrega finalizada")+(upd.pagamentoAlterado?" · pagamento alterado para "+(PAG[upd.pagamento]||upd.pagamento):"")));
     if(formaRec==="dinheiro" && trocoBox.hidden && valRec>valPedido+0.009 && num(p.trocoPara)>0 && valRec<=num(p.trocoPara)+0.009){
