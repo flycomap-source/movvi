@@ -1618,19 +1618,24 @@ function testarAviso(){
     S.db.doc("recados/"+id).set({tipo:"teste",para:S.uid,de:"Movvi+",deUid:S.uid||"",texto:"Teste de aviso: se você ouviu, está tudo certo ✅",criadoEm:ag,lidoEm:ag}).catch(()=>{}); },15000);
 }
 setInterval(pintarAvisoPush,60000); setTimeout(pintarAvisoPush,9000);
-/* entregador: primeira vez que abre o app no dia (depois da meia-noite) → "Bom dia, fulano! Está pronto para trabalhar?" */
+/* entregador: primeira vez que abre o app no dia (depois da meia-noite) → "Feliz quinta-feira, Fulano" + data do dia */
 function saudacaoDoDia(){
   if(S.modo!=="entregador" || !S.uid || !$("#trava").hidden || document.visibilityState!=="visible") return;
   const k="movvi.saudou."+S.uid, d=hoje(); if(ls.get(k)===d || document.getElementById("saudacao")) return;
   ls.set(k,d);
-  const hr=new Date().getHours(), [txt,ic]=hr>=5&&hr<12?["Bom dia","☀️"]:hr>=12&&hr<18?["Boa tarde","🌤️"]:["Boa noite","🌙"];
+  // "Feliz quinta-feira, Fulano" — muda todo dia, para o entregador saber que dia é
+  const agoraD=new Date(), DIAS=["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"],
+    MESES=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+  const txt="Feliz "+DIAS[agoraD.getDay()], ic="✳";
+  const dataLonga=agoraD.getDate()+" de "+MESES[agoraD.getMonth()];
   const nome=String(S.euNome||"").trim().split(/\s+/)[0]||"";
   const nomeBonito=nome?nome.charAt(0).toUpperCase()+nome.slice(1).toLowerCase():"";
   const caixa=h("div",{id:"saudacao",role:"dialog","aria-modal":"true",style:"position:fixed;inset:0;z-index:9999;background:rgba(10,20,60,.55);display:grid;place-items:center;padding:16px"},
     h("div",{style:"background:var(--card,#fff);border-radius:24px;padding:28px 22px;max-width:360px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.25)"},
-      h("div",{style:"font-size:54px;line-height:1",text:ic}),
-      h("h2",{style:"margin:0;font-family:var(--f-display);font-size:26px;color:var(--royal)",text:txt+(nomeBonito?", "+nomeBonito+"!":"!")}),
-      h("p",{style:"margin:0;font-size:18px;font-weight:700",text:"Está pronto para trabalhar? 🚀"})));
+      h("div",{style:"font-size:46px;line-height:1;color:#F28A1E;font-weight:900",text:ic}),
+      h("h2",{style:"margin:0;font-family:Georgia,'Times New Roman',serif;font-weight:400;font-size:30px;line-height:1.2;color:var(--tinta,#1b1b1b)",text:txt+(nomeBonito?", "+nomeBonito:"")}),
+      h("p",{class:"muted",style:"margin:0;font-size:16px;font-weight:700",text:dataLonga}),
+      h("p",{style:"margin:0;font-size:17px;font-weight:700",text:"Está pronto para trabalhar? 🚀"})));
   // sem botão: fecha sozinha em 2,5 s (ou ao tocar). O toque também pede a permissão de avisos, se ainda não deu.
   const fecha=()=>caixa.remove();
   caixa.addEventListener("click",()=>{ fecha(); try{ if(window.movviSupabase && "Notification" in window && Notification.permission==="default") ativarAvisos(); }catch(e){} });
