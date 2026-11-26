@@ -10011,7 +10011,7 @@ $("#acDe").value=periodo("mes")[0]; $("#acAte").value=hoje();
       else { S.modo="semacesso"; }
       if(antes!==S.modo){ aplicarModo(); assinarOfertas(); if(S.modo==="entregador"||S.modo==="comercio") exigirSenha(S.modo).then(()=>setTimeout(saudacaoDoDia,600)); } else renderQuem();
       assinarDia();
-    },e=>{ console.warn(e); S.modo="semacesso"; aplicarModo(); });
+    },e=>{ console.warn(e); /* falha de rede ao ler o vínculo: não mostra a tela de "pedir acesso" para quem já é liberado — tenta de novo */ setTimeout(()=>location.reload(),5000); });
   }
   use("assets").then(a=>{ if(a) S.assets=a;
     if(a && S.admin) db.doc("config/fotos").onSnapshot(sn=>{ const d=sn.exists?(sn.data()||{}):{}; if(num(d.dias)>0) S.fotosDias=Math.round(num(d.dias)); avisarFotosAntigas(); },()=>avisarFotosAntigas());
