@@ -1,17 +1,41 @@
 /* Movvi+ — service worker: permite instalar o app e mostra os avisos de entrega com o app fechado.
    Não guarda dados: tudo vem sempre do servidor (pedidos ao vivo). */
-const VERSAO = "movvi-v5";
+const VERSAO = "movvi-v6";
+const ESTATICO = "movvi-estatico-v1";   // biblioteca do Supabase e fontes: não mudam (endereço com versão)
+const PAGINA = "movvi-pagina-v1";       // última cópia da página, só para abrir rápido se a internet estiver lenta
 self.addEventListener("install", (e) => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  if (req.method !== "GET" || req.mode !== "navigate") return; // só a página; o resto segue normal
-  e.respondWith(fetch(req).catch(() => new Response(
+self.addEventListener("activate", (e) => e.waitUntil((async () => {
+  const manter = [ESTATICO, PAGINA];
+  for (const k of await caches.keys()) if (!manter.includes(k)) await caches.delete(k);
+  await self.clients.claim();
+})()));
+const SEM_NET = () => new Response(
     '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Movvi+</title>' +
     '<body style="margin:0;font:16px system-ui;background:#004AAD;color:#fff;display:grid;place-items:center;height:100vh;text-align:center;padding:24px">' +
     '<div><h2>Sem internet</h2><p>O Movvi+ precisa de internet. Confira a conexão e tente de novo.</p>' +
     '<button onclick="location.reload()" style="font:inherit;padding:12px 20px;border:0;border-radius:12px;background:#F28A1E;font-weight:700">Tentar de novo</button></div>',
-    { headers: { "Content-Type": "text/html; charset=utf-8" } })));
+    { headers: { "Content-Type": "text/html; charset=utf-8" } });
+self.addEventListener("fetch", (e) => {
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const u = new URL(req.url);
+  // arquivos fixos de fora (Supabase JS com versão no endereço, fontes): guarda e reaproveita
+  if ((u.hostname === "cdn.jsdelivr.net" && /@\d/.test(u.pathname)) || u.hostname === "fonts.gstatic.com" || u.hostname === "fonts.googleapis.com") {
+    e.respondWith(caches.open(ESTATICO).then(async (c) => {
+      const tem = await c.match(req); if (tem) return tem;
+      const r = await fetch(req); if (r && (r.ok || r.type === "opaque")) c.put(req, r.clone()).catch(() => {}); return r;
+    }));
+    return;
+  }
+  if (req.mode !== "navigate") return; // o resto (dados, ponte.js) segue sempre direto do servidor
+  // página: sempre a mais nova do servidor; se a internet demorar mais de 6 s, abre a última cópia
+  e.respondWith((async () => {
+    const c = await caches.open(PAGINA);
+    const rede = fetch(req).then((r) => { if (r && r.ok) c.put(req, r.clone()).catch(() => {}); return r; });
+    const copia = await c.match(req, { ignoreSearch: true });
+    if (!copia) return rede.catch(SEM_NET);
+    return Promise.race([rede, new Promise((ok) => setTimeout(() => ok(copia), 6000))]).catch(() => copia);
+  })());
 });
 
 /* aviso de entrega nova (chega mesmo com o app fechado).

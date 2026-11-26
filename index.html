@@ -4,7 +4,7 @@
 <title>Movvi+ Entregas</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="preconnect" href="https://ilhizctomafdutxcdhxa.supabase.co" crossorigin><link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Figtree:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: app de uma coluna para celular — cabeçalho azul royal fixo, conteúdo em lista, barra de abas embaixo, folhas (sheets) que sobem para formulários. */
 :root{
@@ -2074,7 +2074,14 @@ async function buscarDiasAnteriores(){
       h("td",{text:p.coletaEmpresa||""}),h("td",{class:"r",text:p.status==="entregue"?"Entregue":"Em aberto"}));
       tr.addEventListener("click",()=>abrirDetalhes(p)); return tr; })))));
 }
+let renderMarcado=false;
 function renderPedidos(){
+  if(renderMarcado) return; renderMarcado=true;
+  const vai=()=>{ if(!renderMarcado) return; renderMarcado=false; renderPedidosAgora(); };
+  if(document.visibilityState==="visible") requestAnimationFrame(vai); else setTimeout(vai,250);
+  setTimeout(vai,400);   // garante o desenho mesmo se o quadro atrasar
+}
+function renderPedidosAgora(){
   if(deslizando){ renderAdiado=true; return; }
   if(central()) setTimeout(()=>verificarFaturasFechadas(true),0);
   agendarNumeracao();
@@ -3828,11 +3835,19 @@ async function juntarPorEndereco(){
   if(S.limitada) return;
   const lista=(S.clientes||[]).filter(c=>c.telefone).slice().sort((a,b)=>String(a.criadoEm||"").localeCompare(String(b.criadoEm||"")));
   const feitos=new Set();
+  // índice: só compara cada cliente com quem tem o mesmo número de endereço ou o mesmo final de telefone (antes comparava todos com todos)
+  const porChave=new Map(), chavesDe=new Map();
+  const pega=(k,c)=>{ if(!porChave.has(k)) porChave.set(k,[]); porChave.get(k).push(c); };
+  for(const c of lista){ const ks=new Set();
+    enderecosDe(c).forEach(e=>{ const n=chaveEndereco(e.endereco).numero; if(n) ks.add("n:"+n); });
+    const t=digTel(c.telefone); if(t.length>=8) ks.add("t:"+t.slice(-8));
+    chavesDe.set(c.id,ks); ks.forEach(k=>pega(k,c)); }
   let volta=0;
   for(const base of lista){
     if(feitos.has(base.id)) continue;
-    if(++volta%10===0) await new Promise(r=>setTimeout(r,0));   // deixa a tela respirar (não trava o app)
-    const iguais=lista.filter(o=>o.id!==base.id && !feitos.has(o.id) && (
+    if(++volta%50===0) await new Promise(r=>setTimeout(r,0));   // deixa a tela respirar (não trava o app)
+    const cand=new Set(); (chavesDe.get(base.id)||[]).forEach(k=>(porChave.get(k)||[]).forEach(o=>cand.add(o)));
+    const iguais=[...cand].filter(o=>o.id!==base.id && !feitos.has(o.id) && (
       enderecosDe(o).some(x=>enderecosDe(base).some(y=>mesmoLugar(x.endereco,y.endereco)))
       // mesmo nome (um completa o outro: Melissa / Melissa Gontijo / Melissa Gontijo Pereira) e telefone parecido
       || (nomesCompativeis(o.nome,base.nome) && telParecido(o.telefone,base.telefone))));
